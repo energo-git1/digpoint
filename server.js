@@ -184,7 +184,7 @@ app.post('/api/auth/change-password', (req, res) => {
     return res.status(401).json({ error: 'Neteisingas dabartinis slaptažodis.' });
   }
 
-  const mustChange = forceChange ? true : false;
+  const mustChange = false;
   const updated = Object.assign({}, user, { password: newPassword, mustChangePassword: mustChange });
   dbSet('kl-users', users.map((u) => (u.id === userId ? updated : u)));
 
