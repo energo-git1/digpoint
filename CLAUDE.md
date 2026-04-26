@@ -83,7 +83,7 @@ Digpoint is a sibling module to Geopoint (geodesy orders system). Both run on th
 
 Any change that modifies the **database schema or existing data** (new columns, renamed columns, dropped tables, migrations, seed data changes, etc.) must go through an **additional review cycle in Claude Cowork** before deployment. Do not proceed with deployment of such changes without explicit confirmation from the developer that the review has been completed.
 
-## Known issues to fix (inherited from Geopoint architecture)
+## Known resolved issues
 
-- `saveUsers(arr){ sSet("kl-users", arr) }` — auto-saves full user array on every change. This is dangerous (same bug fixed in Geopoint v1.9.6): if server is restarting during page load, `sGet` returns null and SEED_USERS overwrites real DB. Fix: remove auto-save effect for users; rely on dedicated endpoints instead.
-- No dedicated `POST /api/users` and `DELETE /api/users/:id` endpoints — user creation and deletion only update local state (same bug fixed in Geopoint v1.9.8). Needs the same fix.
+- `saveUsers` auto-save bug fixed (v1.0.2): removed `sSet("kl-users")` auto-save; user mutations now go through dedicated endpoints only.
+- `POST /api/users` and `DELETE /api/users/:id` endpoints added (v1.0.2): user creation and deletion now persisted server-side.

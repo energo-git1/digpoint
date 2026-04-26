@@ -229,6 +229,39 @@ app.patch('/api/users/:id/role', (req, res) => {
   res.json({ user: safeUser });
 });
 
+// ── Create user ───────────────────────────────────────────────
+app.post('/api/users', (req, res) => {
+  const { id, name, username, email, password, role, mustChangePassword, adAuth, createdAt } = req.body;
+  if (!name || !username || !role) {
+    return res.status(400).json({ error: 'Trūksta privalomų laukų.' });
+  }
+  const users = dbGet('kl-users') || [];
+  if (users.find((u) => u.username === username)) {
+    return res.status(409).json({ error: 'Vartotojas tokiu vardu jau egzistuoja.' });
+  }
+  const newUser = { id, name, username, email: email || '', password: password || '', role, mustChangePassword: !!mustChangePassword, adAuth: !!adAuth, createdAt: createdAt || new Date().toISOString() };
+  dbSet('kl-users', users.concat([newUser]));
+  const { password: _pw, ...safeUser } = newUser;
+  console.log(`  👤 Sukurtas vartotojas: ${name} (${username}), rolė: ${role}`);
+  res.status(201).json({ user: safeUser });
+});
+
+// ── Delete user ───────────────────────────────────────────────
+app.delete('/api/users/:id', (req, res) => {
+  const users = dbGet('kl-users') || [];
+  const user  = users.find((u) => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'Vartotojas nerastas.' });
+  if (!user.adAuth && user.role === 'admin') {
+    const otherAdmins = users.filter((u) => u.role === 'admin' && u.id !== user.id);
+    if (otherAdmins.length === 0) {
+      return res.status(400).json({ error: 'Negalima ištrinti paskutinio administratoriaus.' });
+    }
+  }
+  dbSet('kl-users', users.filter((u) => u.id !== req.params.id));
+  console.log(`  🗑️  Ištrintas vartotojas: ${user.name} (${user.username})`);
+  res.json({ ok: true });
+});
+
 // ── AD / LDAP authentication ──────────────────────────────────
 app.post('/api/auth/ldap', (req, res) => {
   const rawUsername = (req.body.username || '').trim();

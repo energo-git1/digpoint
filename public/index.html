@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kasimo leidimai v1.0.1 — Užsakymų valdymo sistema</title>
+<title>Kasimo leidimai v1.0.2 — Užsakymų valdymo sistema</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚧</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -805,6 +805,7 @@ function AuthScreen(p){
         <div style={{fontSize:48,marginBottom:8}}>🚧</div>
         <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,margin:0}}>Kasimo leidimai</h1>
         <p style={{fontSize:11,color:C.t2,fontFamily:F,marginTop:4}}>Žemės darbų leidimų sistema</p>
+        <p style={{color:C.t3,fontSize:9,fontFamily:FM,marginTop:2,marginBottom:0}}>v1.0.2</p>
       </div>
 
       {/* Login type tabs */}
@@ -856,7 +857,7 @@ function Sidebar(p){
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <span style={{fontSize:22}}>🚧</span>
         <div>
-          <div style={{fontSize:13,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:5}}><div style={{fontSize:13,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div><div style={{fontSize:8,fontWeight:600,color:C.t3,fontFamily:FM}}>v1.0.2</div></div>
           <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>Leidimų sistema</div>
         </div>
       </div>
@@ -929,7 +930,9 @@ function App(){
   },[user&&user.id]);
 
   function savePermits(arr){ setPermits(arr); sSet("kl-permits",arr); }
-  function saveUsers(arr){ setUsers(arr); sSet("kl-users",arr); }
+  // kl-users intentionally NOT saved here — all user mutations go through dedicated
+  // server endpoints (POST /api/users, DELETE /api/users/:id, PATCH /api/users/:id/role, /email).
+  // Removing auto-save prevents SEED_USERS from overwriting DB if sGet returns null on restart.
 
   function handleLogin(u){
     setUser(u);
@@ -973,11 +976,13 @@ function App(){
     savePermits(permits.filter(function(x){ return x.id!==id }));
   }
 
-  async function addUser(u){
-    var arr=users.concat([u]);
-    saveUsers(arr);
-    // Also persist passwords
-    await fetch("/api/store/kl-users",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:arr})});
+  async function addUser(nu){
+    try{
+      var r=await fetch("/api/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(nu)});
+      var d=await r.json();
+      if(!r.ok){ alert(d.error||"Nepavyko sukurti vartotojo."); return; }
+      setUsers(function(prev){ return prev.concat([d.user]); });
+    }catch(e){ alert("Serverio klaida kuriant vartotoją."); }
   }
 
   async function assignRole(userId,role){
@@ -998,8 +1003,13 @@ function App(){
     }catch(e){}
   }
 
-  function deleteUser(userId){
-    saveUsers(users.filter(function(u){ return u.id!==userId }));
+  async function deleteUser(id){
+    try{
+      var r=await fetch("/api/users/"+id,{method:"DELETE"});
+      var d=await r.json();
+      if(!r.ok){ alert(d.error||"Nepavyko ištrinti vartotojo."); return; }
+      setUsers(function(prev){ return prev.filter(function(u){ return u.id!==id }); });
+    }catch(e){ alert("Serverio klaida trinant vartotoją."); }
   }
 
   function syncDone(){
