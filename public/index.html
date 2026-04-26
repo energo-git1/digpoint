@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kasimo leidimai — Užsakymų valdymo sistema</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚧</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{overflow:hidden}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{border-radius:3px}
+body[data-theme="dark"]{background:#0B0D13}
+body[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#242A3A}
+body[data-theme="dark"] select option{background:#11141C;color:#E4E7F0}
+body[data-theme="dark"] input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.7)}
+body[data-theme="light"]{background:#F0F2F7}
+body[data-theme="light"] ::-webkit-scrollbar-thumb{background:#C5CCDB}
+body[data-theme="light"] select option{background:#FFFFFF;color:#111827}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+var {useState, useEffect, useRef} = React;
+
+var F = "'Outfit', system-ui, sans-serif";
+var FM = "'IBM Plex Mono', monospace";
+
+var DARK_C = {
+  bg:"#0B0D13",s1:"#11141C",s2:"#171B26",s3:"#1D2233",
+  b1:"#242A3A",b2:"#303850",tx:"#E4E7F0",t2:"#8E95AB",t3:"#5A6178",
+  ac:"#3B82F6",acH:"#60A5FA",acD:"rgba(59,130,246,.12)",
+  gn:"#10B981",gnD:"rgba(16,185,129,.12)",rd:"#EF4444",rdD:"rgba(239,68,68,.12)",
+  yl:"#EAB308",ylD:"rgba(234,179,8,.12)",vl:"#8B5CF6",vlD:"rgba(139,92,246,.12)",
+  or:"#F97316",orD:"rgba(249,115,22,.12)",pk:"#EC4899",
+};
+var LIGHT_C = {
+  bg:"#F0F2F7",s1:"#FFFFFF",s2:"#F5F7FB",s3:"#EBEEF5",
+  b1:"#D4D9E8",b2:"#BEC6D8",tx:"#111827",t2:"#4B5563",t3:"#9CA3AF",
+  ac:"#3B82F6",acH:"#2563EB",acD:"rgba(59,130,246,.10)",
+  gn:"#10B981",gnD:"rgba(16,185,129,.10)",rd:"#EF4444",rdD:"rgba(239,68,68,.10)",
+  yl:"#CA8A04",ylD:"rgba(202,138,4,.10)",vl:"#7C3AED",vlD:"rgba(124,58,237,.10)",
+  or:"#EA6C00",orD:"rgba(234,108,0,.10)",pk:"#DB2777",
+};
+var _savedTheme = (function(){try{return localStorage.getItem('kl-theme')||'dark'}catch(e){return 'dark'}})();
+var C = Object.assign({}, _savedTheme==='light' ? LIGHT_C : DARK_C);
+document.documentElement.setAttribute('data-theme', _savedTheme);
+document.body.setAttribute('data-theme', _savedTheme);
+
+// ── Statuses ──────────────────────────────────────────────────
+var STATUS_MAP = {
+  Naujas:       {bg:C.acD,         c:C.ac,  dot:C.ac},
+  Priskirtas:   {bg:C.ylD,         c:C.yl,  dot:C.yl},
+  Vykdomas:     {bg:C.orD,         c:C.or,  dot:C.or},
+  Baigtas:      {bg:"rgba(59,130,246,.15)", c:"#60A5FA", dot:"#60A5FA"},
+  Gautas:       {bg:C.gnD,         c:C.gn,  dot:C.gn},
+  Atmestas:     {bg:C.rdD,         c:C.rd,  dot:C.rd},
+};
+var SL = {
+  Naujas:"Naujas",
+  Priskirtas:"Priskirtas",
+  Vykdomas:"Vykdomas",
+  Baigtas:"Baigtas (laukia leidimo)",
+  Gautas:"Leidimas gautas",
+  Atmestas:"Atmestas",
+};
+
+// ── Roles ─────────────────────────────────────────────────────
+// orderer    – pateikia paraiškas
+// dokumentacija – vykdo dokumentacijos parengimą / priima užsakymus
+// admin      – pilna prieiga
+// pending    – laukia rolės priskyrimo
+var ROLES = {
+  orderer:       "Užsakovas",
+  dokumentacija: "Dokumentacija",
+  admin:         "Administratorius",
+  pending:       "Laukia patvirtinimo",
+};
+
+// ── Constants ─────────────────────────────────────────────────
+var FILE_MAX_BYTES = 500*1024*1024;
+var FILE_MAX_NAME  = 70;
+
+var uid  = function(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7) };
+var now  = function(){ return new Date().toISOString().slice(0,16).replace("T"," ") };
+function fmtDate(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0") }
+function fmtSize(b){ if(b<1024)return b+"B"; if(b<1048576)return Math.round(b/1024)+"KB"; return (b/1048576).toFixed(1)+"MB" }
+
+// ── API helpers ───────────────────────────────────────────────
+async function sGet(k){ try{ var r=await fetch("/api/store/"+encodeURIComponent(k)); var d=await r.json(); return d.value }catch(e){ return null } }
+async function sSet(k,v){ try{ await fetch("/api/store/"+encodeURIComponent(k),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:v})}) }catch(e){} }
+
+// ═════════════════════════════════════════════════════════════
+// UI COMPONENTS
+// ═════════════════════════════════════════════════════════════
+
+function Badge(p){return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:14,background:p.bg||C.acD,color:p.color||C.ac,fontSize:10,fontWeight:700,fontFamily:F,border:"1px solid "+(p.color||C.ac)+"22",whiteSpace:"nowrap"}}>{p.children}</span>}
+
+function StatusBadge(p){
+  var s=STATUS_MAP[p.status]||STATUS_MAP.Naujas;
+  return <Badge color={s.c} bg={s.bg}><span style={{width:5,height:5,borderRadius:"50%",background:s.dot}}/>{SL[p.status]||p.status}</Badge>
+}
+
+function Btn(p){
+  var _h=useState(false); var h=_h[0],sH=_h[1];
+  var vr=p.v||"primary";
+  var vs={
+    primary:  {bg:C.ac,  bh:C.acH, c:"#fff", bd:"none"},
+    secondary:{bg:C.s3,  bh:C.b1,  c:C.tx,   bd:"1px solid "+C.b1},
+    ghost:    {bg:"transparent",bh:C.s3,c:C.t2,bd:"none"},
+    danger:   {bg:C.rdD, bh:"#EF444433",c:C.rd,bd:"1px solid "+C.rd+"33"},
+    success:  {bg:C.gnD, bh:"#10B98133",c:C.gn,bd:"1px solid "+C.gn+"33"},
+  };
+  var st=vs[vr]||vs.primary;
+  return <button onClick={p.onClick} disabled={p.disabled}
+    onMouseEnter={function(){sH(true)}} onMouseLeave={function(){sH(false)}}
+    style={Object.assign({padding:p.sm?"4px 10px":"8px 16px",borderRadius:8,background:h&&!p.disabled?st.bh:st.bg,color:p.disabled?C.t3:st.c,border:st.bd,cursor:p.disabled?"not-allowed":"pointer",fontFamily:F,fontSize:p.sm?11:13,fontWeight:600,transition:"all .15s",opacity:p.disabled?.5:1,display:"inline-flex",alignItems:"center",gap:6},p.style||{})}>
+    {p.children}</button>
+}
+
+function Inp(p){
+  var _f=useState(false); var f=_f[0],sF=_f[1];
+  var t=p.type||"text";
+  var s={width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid "+(f?C.ac:C.b1),background:C.bg,color:C.tx,fontFamily:F,fontSize:13,outline:"none",transition:"border .15s",resize:p.ml?"vertical":undefined,boxSizing:"border-box"};
+  return <div style={{marginBottom:12}}>
+    {p.label&&<label style={{display:"block",fontSize:11,fontWeight:600,color:C.t2,marginBottom:4,fontFamily:F}}>{p.label}{p.req&&<span style={{color:C.rd}}> *</span>}</label>}
+    {p.ml
+      ?<textarea value={p.value} onChange={function(e){p.onChange(e.target.value)}} placeholder={p.ph} rows={p.rows||3} onFocus={function(){sF(true)}} onBlur={function(){sF(false)}} style={s}/>
+      :<input type={t} value={p.value} onChange={function(e){p.onChange(e.target.value)}} placeholder={p.ph} onFocus={function(){sF(true)}} onBlur={function(){sF(false)}} style={s} min={p.min} step={p.step}/>}
+  </div>
+}
+
+function Sel(p){
+  var _f=useState(false); var f=_f[0],sF=_f[1];
+  return <div style={{marginBottom:12}}>
+    {p.label&&<label style={{display:"block",fontSize:11,fontWeight:600,color:C.t2,marginBottom:4,fontFamily:F}}>{p.label}{p.req&&<span style={{color:C.rd}}> *</span>}</label>}
+    <select value={p.value} onChange={function(e){p.onChange(e.target.value)}} onFocus={function(){sF(true)}} onBlur={function(){sF(false)}}
+      style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid "+(f?C.ac:C.b1),background:C.bg,color:p.value?C.tx:C.t3,fontFamily:F,fontSize:13,outline:"none",cursor:"pointer",appearance:"none",boxSizing:"border-box",backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%235A6178' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 10px center"}}>
+      <option value="" disabled>{p.ph||"Pasirinkite..."}</option>
+      {p.options.map(function(o){ var val=typeof o==="string"?o:o.value; var lab=typeof o==="string"?o:o.label; return <option key={val} value={val}>{lab}</option> })}
+    </select>
+  </div>
+}
+
+function Modal(p){
+  if(!p.open)return null;
+  return <div onClick={p.onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(5px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}}>
+    <div onClick={function(e){e.stopPropagation()}} style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:16,width:"100%",maxWidth:p.w||520,maxHeight:"90vh",overflow:"auto",boxShadow:"0 24px 48px rgba(0,0,0,.5)"}}>
+      <div style={{padding:"14px 18px",borderBottom:"1px solid "+C.b1,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700,color:C.tx,fontFamily:F}}>{p.title}</h3>
+        <button onClick={p.onClose} style={{background:"none",border:"none",color:C.t3,fontSize:18,cursor:"pointer"}}>✕</button>
+      </div>
+      <div style={{padding:18}}>{p.children}</div>
+    </div>
+  </div>
+}
+
+function Av(p){
+  var s=p.size||32;
+  var ini=p.name?p.name.split(" ").map(function(w){return w[0]}).join("").slice(0,2).toUpperCase():"?";
+  var h=(p.name||"").split("").reduce(function(a,c){return a+c.charCodeAt(0)},0);
+  return <div style={{width:s,height:s,borderRadius:"50%",background:"hsl("+(h%360)+",48%,40%)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:s*.35,fontWeight:700,fontFamily:FM,flexShrink:0}}>{ini}</div>
+}
+
+function Empty(p){
+  return <div style={{textAlign:"center",padding:"40px 20px"}}>
+    <div style={{fontSize:40,marginBottom:8}}>{p.icon}</div>
+    <div style={{fontSize:14,fontWeight:600,color:C.t2,fontFamily:F}}>{p.title}</div>
+  </div>
+}
+
+function FileZone(p){
+  var _d=useState(false); var drag=_d[0],sD=_d[1];
+  var _er=useState([]); var errs=_er[0],sEr=_er[1];
+  var ref=useRef(); var accept=p.accept||"*";
+  var hf=async function(fl){
+    var arr=Array.from(fl); var bad=[]; var good=[];
+    arr.forEach(function(f){
+      if(f.name.length>FILE_MAX_NAME){bad.push("\u201e"+f.name.slice(0,40)+"\u2026\u201c: pavadinimas per ilgas (max "+FILE_MAX_NAME+" simboli\u0173)");return}
+      if(f.size>FILE_MAX_BYTES){bad.push("\u201e"+f.name+"\u201c: failas per didelis");return}
+      good.push(f);
+    });
+    sEr(bad);
+    if(good.length===0)return;
+    var nf=good.map(function(f){return{name:f.name,size:f.size,id:uid(),raw:f}});
+    p.setFiles(function(prev){return prev.concat(nf)});
+  };
+  return <div style={{marginBottom:12}}>
+    <label style={{display:"block",fontSize:11,fontWeight:600,color:C.t2,marginBottom:4,fontFamily:F}}>{p.label||"Failai"}{p.required&&<span style={{color:C.rd}}> *</span>}</label>
+    <div onDragOver={function(e){e.preventDefault();sD(true)}} onDragLeave={function(){sD(false)}} onDrop={function(e){e.preventDefault();sD(false);hf(e.dataTransfer.files)}} onClick={function(){ref.current&&ref.current.click()}}
+      style={{border:"2px dashed "+(drag?C.ac:C.b1),borderRadius:10,padding:"16px 14px",textAlign:"center",cursor:"pointer",background:drag?C.acD:C.bg}}>
+      <input ref={ref} type="file" multiple accept={accept} onChange={function(e){hf(e.target.files)}} style={{display:"none"}}/>
+      <div style={{fontSize:20,marginBottom:3}}>📂</div>
+      <div style={{color:C.t2,fontSize:11,fontFamily:F}}>Nutempkite arba <span style={{color:C.ac,fontWeight:600}}>pasirinkite</span></div>
+      <div style={{color:C.t3,fontSize:9,fontFamily:F,marginTop:4}}>Max 500 MB · Max pavadinimo ilgis: {FILE_MAX_NAME} simboliai</div>
+    </div>
+    {errs.length>0&&<div style={{marginTop:4}}>{errs.map(function(e,i){return <div key={i} style={{fontSize:10,color:C.rd,fontFamily:F}}>⚠ {e}</div>})}</div>}
+    {p.files.length>0&&<div style={{marginTop:5}}>{p.files.map(function(f){return <div key={f.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 8px",background:C.bg,borderRadius:5,border:"1px solid "+C.b1,marginBottom:2}}>
+      <span style={{fontSize:11,color:C.tx,fontFamily:F}}>📄 {f.name} <span style={{color:C.t3,fontSize:9}}>({fmtSize(f.size)})</span></span>
+      <button onClick={function(e){e.stopPropagation();p.setFiles(function(pr){return pr.filter(function(x){return x.id!==f.id})})}} style={{background:"none",border:"none",color:C.t3,cursor:"pointer",fontSize:11}}>✕</button>
+    </div>})}</div>}
+  </div>
+}
+
+function HistoryTimeline(p){
+  if(!p.history||p.history.length===0)return <div style={{fontSize:11,color:C.t3,fontFamily:F}}>Nėra istorijos.</div>;
+  return <div style={{display:"flex",flexDirection:"column",gap:0}}>
+    {p.history.map(function(h,i){
+      var s=STATUS_MAP[h.status]||STATUS_MAP.Naujas;
+      var isLast=i===p.history.length-1;
+      return <div key={i} style={{display:"flex",gap:10,position:"relative"}}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:16}}>
+          <div style={{width:10,height:10,borderRadius:"50%",background:s.dot,border:"2px solid "+C.s1,zIndex:1,flexShrink:0}}/>
+          {!isLast&&<div style={{width:2,flex:1,background:C.b1,marginTop:-1}}/>}
+        </div>
+        <div style={{paddingBottom:isLast?0:10,flex:1}}>
+          <div style={{fontSize:11,fontWeight:600,color:s.c,fontFamily:F}}>{SL[h.status]||h.status}</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>{h.date}{h.note?" — "+h.note:""}</div>
+        </div>
+      </div>
+    })}
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// PERMIT FORM  (užsakovo naudojama paraiška)
+// ═════════════════════════════════════════════════════════════
+function PermitForm(p){
+  var _mgr    = useState("");  var mgr=_mgr[0],sMgr=_mgr[1];       // Darbų vadovas
+  var _phone  = useState("");  var phone=_phone[0],sPhone=_phone[1]; // Tel. nr.
+  var _email  = useState(p.user.email||""); var em=_email[0],sEmail=_email[1]; // El. p.
+  var _loc    = useState("");  var loc=_loc[0],sLoc=_loc[1];         // Vykdymo vieta
+  var _org    = useState("");  var org=_org[0],sOrg=_org[1];         // Organizacijos pavadinimas
+  var _start  = useState("");  var start=_start[0],sStart=_start[1]; // Pradžia
+  var _end    = useState("");  var end=_end[0],sEnd=_end[1];         // Pabaiga
+  var _desc   = useState("");  var desc=_desc[0],sDesc=_desc[1];     // Papildomas aprašas
+  var _files  = useState([]);  var files=_files[0],sFiles=_files[1];
+  var _up     = useState(false); var uploading=_up[0],sUp=_up[1];
+  var _ue     = useState("");   var upErr=_ue[0],sUE=_ue[1];
+
+  var ok = mgr && phone && em && loc && org && start && end;
+
+  async function submit(){
+    if(!ok||uploading)return;
+    sUp(true); sUE("");
+    try{
+      var uploaded=[];
+      for(var i=0;i<files.length;i++){
+        var fd=new FormData(); fd.append("file",files[i].raw);
+        var r=await fetch("/api/upload",{method:"POST",body:fd});
+        var d=await r.json();
+        if(!r.ok){ sUE("Klaida įkeliant „"+files[i].name+'": '+(d.error||"serverio klaida")); sUp(false); return; }
+        uploaded.push({id:d.id,name:d.name,filename:d.filename,size:d.size,url:d.url});
+      }
+      p.onSubmit({
+        id: uid(),
+        manager: mgr,
+        managerPhone: phone,
+        email: em,
+        location: loc,
+        organization: org,
+        startDate: start,
+        endDate: end,
+        description: desc,
+        files: uploaded,
+        createdBy: p.user.id,
+        status: "Naujas",
+        assignedTo: null,
+        createdAt: fmtDate(new Date()),
+        history: [{status:"Naujas", date:fmtDate(new Date())}],
+      });
+    }catch(e){ sUE("Klaida įkeliant failus. Bandykite dar kartą."); sUp(false); }
+  }
+
+  return <div style={{maxWidth:580}}>
+    <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>🚧 Nauja kasimo leidimo paraiška</h2>
+    <p style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:20}}>Užpildykite formą ir pateikite dokumentacijai.</p>
+
+    <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:16}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Kontaktinė informacija</div>
+      <Inp label="Darbų vadovas" value={mgr} onChange={sMgr} ph="Vardas Pavardė" req/>
+      <Inp label="Darbų vadovo tel. nr." value={phone} onChange={sPhone} ph="+370 600 00000" req/>
+      <Inp label="El. pašto adresas" type="email" value={em} onChange={sEmail} ph="vardas@imone.lt" req/>
+    </div>
+
+    <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:16}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Organizacija ir vieta</div>
+      <Inp label="Organizacijos pavadinimas (kuriai reikalingas leidimas)" value={org} onChange={sOrg} ph="UAB Įmonės pavadinimas" req/>
+      <Inp label="Darbų vykdymo vieta" value={loc} onChange={sLoc} ph="Gatvė, miestas / savivaldybė" req/>
+    </div>
+
+    <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:16}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbų laikotarpis</div>
+      <div style={{display:"flex",gap:12}}>
+        <div style={{flex:1}}><Inp label="Darbų pradžia" type="date" value={start} onChange={sStart} req/></div>
+        <div style={{flex:1}}><Inp label="Darbų pabaiga" type="date" value={end} onChange={sEnd} req/></div>
+      </div>
+      {start&&end&&end<start&&<div style={{color:C.rd,fontSize:11,marginTop:-8,marginBottom:10,fontFamily:F}}>⚠️ Pabaigos data negali būti ankstesnė už pradžios datą.</div>}
+    </div>
+
+    <Inp label="Papildomas aprašymas" value={desc} onChange={sDesc} ml rows={3} ph="Papildoma informacija apie darbus..."/>
+
+    <FileZone files={files} setFiles={sFiles} label="Pridėti dokumentus (neprivaloma)" accept=".pdf,.dwg,.dxf,.doc,.docx,.jpg,.png,.zip"/>
+
+    {upErr&&<div style={{color:C.rd,fontSize:11,marginBottom:8,fontFamily:F}}>⚠️ {upErr}</div>}
+    {uploading&&<div style={{color:C.ac,fontSize:11,marginBottom:8,fontFamily:F}}>⏳ Įkeliami failai...</div>}
+
+    <div style={{display:"flex",gap:6,marginTop:14,justifyContent:"flex-end"}}>
+      {p.onCancel&&<Btn v="secondary" onClick={p.onCancel} disabled={uploading}>Atšaukti</Btn>}
+      <Btn onClick={submit} disabled={!ok||uploading||!!(start&&end&&end<start)}>
+        📤 {uploading?"Įkeliama...":"Pateikti paraišką"}
+      </Btn>
+    </div>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// PERMIT DETAIL  (modalas užsakymui peržiūrėti / valdyti)
+// ═════════════════════════════════════════════════════════════
+function PermitDetail(p){
+  var o=p.permit;
+  var _st=useState(o.status); var st=_st[0],sSt=_st[1];
+  var _at=useState(o.assignedTo||null); var at=_at[0],sAt=_at[1];
+  var _files=useState(o.files||[]); var files=_files[0],sFiles=_files[1];
+  var _sf=useState([]); var survFiles=_sf[0],sSF=_sf[1];
+  var _sup=useState(false); var survUploading=_sup[0],sSUP=_sup[1];
+  var _sue=useState(""); var survUpErr=_sue[0],sSUE=_sue[1];
+  var _note=useState(""); var note=_note[0],sNote=_note[1];
+
+  var isA = p.user.role==="admin";
+  var isD = p.user.role==="dokumentacija";
+  var cr  = p.users.find(function(u){ return u.id===o.createdBy });
+  var assignedUser = at ? p.users.find(function(u){ return u.id===at }) : null;
+  var docsWorkers  = p.users.filter(function(u){ return u.role==="dokumentacija" });
+
+  function deleteFile(f){
+    var fname=f.filename||(f.url?f.url.replace(/^\/uploads\//,''):null);
+    if(!fname)return;
+    if(!confirm('Ištrinti failą "'+f.name+'"?'))return;
+    fetch('/api/files/'+encodeURIComponent(fname),{method:'DELETE'})
+      .then(function(r){return r.json()})
+      .then(function(d){
+        if(d.ok){ var nf=files.filter(function(x){return x!==f}); sFiles(nf); if(p.onFilesUpdate)p.onFilesUpdate(Object.assign({},o,{files:nf})); }
+        else alert('Klaida: '+(d.error||'Nepavyko ištrinti failo.'));
+      });
+  }
+
+  function save(){
+    var u=Object.assign({},o,{files:files});
+    if(isA){
+      u.assignedTo=at;
+      if(at&&at!==o.assignedTo){
+        u.status="Priskirtas";
+        u.history=(o.history||[]).concat([{status:"Priskirtas",date:fmtDate(new Date()),note:"priskirta: "+(assignedUser?assignedUser.name:at)}]);
+      }
+      if(st==="Gautas"&&o.status!=="Gautas"){
+        u.status="Gautas";
+        u.history=(u.history||o.history||[]).concat([{status:"Gautas",date:fmtDate(new Date()),note:note||""}]);
+      }
+      if(st==="Atmestas"&&o.status!=="Atmestas"){
+        u.status="Atmestas";
+        u.history=(u.history||o.history||[]).concat([{status:"Atmestas",date:fmtDate(new Date()),note:note||""}]);
+      }
+    }
+    if(isD&&o.assignedTo===p.user.id){
+      if(st!==o.status){
+        u.status=st;
+        u.history=(o.history||[]).concat([{status:st,date:fmtDate(new Date()),note:note||""}]);
+      }
+    }
+    p.onUpdate(u); p.onClose();
+  }
+
+  async function uploadDocs(){
+    if(!survFiles.length||survUploading)return;
+    sSUP(true); sSUE("");
+    try{
+      var uploaded=[];
+      for(var i=0;i<survFiles.length;i++){
+        var fd=new FormData(); fd.append("file",survFiles[i].raw);
+        var r=await fetch("/api/upload",{method:"POST",body:fd});
+        var d=await r.json();
+        if(!r.ok){ sSUE("Klaida įkeliant „"+survFiles[i].name+'": '+(d.error||"serverio klaida")); sSUP(false); return; }
+        uploaded.push({id:d.id,name:d.name,filename:d.filename,size:d.size,url:d.url});
+      }
+      var newFiles=(o.files||[]).concat(uploaded);
+      sFiles(newFiles);
+      p.onUpdate(Object.assign({},o,{files:newFiles}));
+      sSF([]); sSUP(false);
+    }catch(e){ sSUE("Klaida įkeliant failus."); sSUP(false); }
+  }
+
+  var docStatuses=["Priskirtas","Vykdomas","Baigtas"];
+
+  return <Modal open={true} onClose={p.onClose} title={"Paraiška #"+o.id.slice(-5).toUpperCase()} w={640}>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+      {/* Status badge */}
+      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+        <StatusBadge status={o.status}/>
+      </div>
+
+      {/* Main info */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:2,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbų vadovas</div>
+          <div style={{fontSize:13,color:C.tx,fontFamily:F,fontWeight:600}}>{o.manager}</div>
+          <div style={{fontSize:11,color:C.t2,fontFamily:FM}}>{o.managerPhone}</div>
+          <div style={{fontSize:11,color:C.ac,fontFamily:FM}}>{o.email}</div>
+        </div>
+        <div>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:2,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Organizacija</div>
+          <div style={{fontSize:12,color:C.tx,fontFamily:F}}>{o.organization}</div>
+        </div>
+      </div>
+
+      <div>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:2,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbų vykdymo vieta</div>
+        <div style={{fontSize:13,color:C.tx,fontFamily:F}}>📍 {o.location}</div>
+      </div>
+
+      <div style={{display:"flex",gap:12}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:2,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Laikotarpis</div>
+          <div style={{fontSize:12,color:C.tx,fontFamily:FM}}>📅 {o.startDate} → {o.endDate}</div>
+        </div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:2,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Pateikė</div>
+          <div style={{display:"flex",alignItems:"center",gap:5}}>
+            <Av name={cr?cr.name:""} size={20}/>
+            <span style={{fontSize:11,color:C.tx,fontFamily:F}}>{cr?cr.name:"-"}</span>
+          </div>
+        </div>
+      </div>
+
+      {o.description&&<div>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:2,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Aprašymas</div>
+        <div style={{fontSize:11,color:C.t2,fontFamily:F,background:C.bg,padding:8,borderRadius:6,border:"1px solid "+C.b1}}>{o.description}</div>
+      </div>}
+
+      {/* Assigned */}
+      {assignedUser&&<div style={{background:C.acD,borderRadius:8,padding:"8px 12px",border:"1px solid "+C.ac+"33",display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:13}}>👤</span>
+        <div>
+          <div style={{fontSize:10,fontWeight:700,color:C.ac,fontFamily:F}}>Priskirta</div>
+          <div style={{fontSize:12,color:C.tx,fontFamily:F}}>{assignedUser.name}</div>
+        </div>
+      </div>}
+
+      {/* Files */}
+      {files.length>0&&<div>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:4,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Failai</div>
+        {files.map(function(f,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 8px",background:C.bg,borderRadius:5,border:"1px solid "+C.b1,marginBottom:2}}>
+          <span>📄</span>
+          {f.url
+            ?<a href={f.url} download={f.name} style={{fontSize:10,color:C.ac,fontFamily:F,textDecoration:"none",fontWeight:600,flex:1}} onClick={function(e){e.stopPropagation()}}>{f.name}{f.size?<span style={{color:C.t3,fontWeight:400}}> ({fmtSize(f.size)})</span>:null} ↓</a>
+            :<span style={{fontSize:10,color:C.tx,fontFamily:F,flex:1}}>{f.name}</span>}
+          {(isA||p.user.id===o.createdBy||(isD&&o.assignedTo===p.user.id))&&(f.filename||f.url)&&
+            <button onClick={function(e){e.stopPropagation();deleteFile(f)}} title="Ištrinti failą" style={{background:"none",border:"none",color:C.rd,cursor:"pointer",fontSize:13,padding:"0 2px"}}>🗑</button>}
+        </div>})}
+      </div>}
+
+      {/* History */}
+      <div>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Paraiškos istorija</div>
+        <div style={{background:C.bg,borderRadius:8,padding:12,border:"1px solid "+C.b1}}>
+          <HistoryTimeline history={o.history}/>
+        </div>
+      </div>
+
+      {/* ── Admin actions ── */}
+      {isA&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Administravimas</div>
+
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:6,fontFamily:F}}>Priskirti dokumentacijos darbuotojui:</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+            {docsWorkers.map(function(u){
+              var checked=at===u.id;
+              return <label key={u.id} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 9px",borderRadius:7,border:"1px solid "+(checked?C.ac:C.b1),background:checked?C.acD:C.s2,cursor:"pointer",fontSize:11,color:checked?C.ac:C.tx,fontFamily:F,fontWeight:checked?700:400,transition:"all .15s"}}>
+                <input type="radio" name="docWorker" checked={checked} onChange={function(){ sAt(u.id) }} style={{accentColor:C.ac,margin:0}}/>{u.name}
+              </label>
+            })}
+            {docsWorkers.length===0&&<span style={{fontSize:11,color:C.t3}}>Nėra dokumentacijos darbuotojų</span>}
+          </div>
+        </div>
+
+        <Sel label="Keisti būseną" value={st} onChange={sSt}
+          options={[{value:"Naujas",label:"Naujas"},{value:"Priskirtas",label:"Priskirtas"},{value:"Gautas",label:"Leidimas gautas"},{value:"Atmestas",label:"Atmestas"}]}/>
+        {(st==="Gautas"||st==="Atmestas")&&<Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>}
+
+        <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+          <Btn v="secondary" onClick={p.onClose} sm>Atšaukti</Btn>
+          <Btn v="danger" sm onClick={function(){if(window.confirm('Ar tikrai norite ištrinti šią paraišką? Veiksmas negrįžtamas.')){p.onDelete(o.id);p.onClose()}}}>🗑️ Ištrinti</Btn>
+          <Btn onClick={save} sm>💾 Išsaugoti</Btn>
+        </div>
+      </div>}
+
+      {/* ── Dokumentacija actions ── */}
+      {isD&&o.assignedTo===p.user.id&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Veiksmai</div>
+
+        <Sel label="Būsena" value={st} onChange={sSt}
+          options={docStatuses.map(function(s){return{value:s,label:SL[s]||s}})}/>
+        {st==="Baigtas"&&<div style={{background:C.acD,borderRadius:8,padding:8,marginBottom:8,border:"1px solid "+C.ac+"33"}}><div style={{fontSize:11,color:C.ac,fontFamily:F}}>ℹ️ Pažymėjus „Baigtas", administratorius patvirtins ir pažymės „Leidimas gautas".</div></div>}
+        <Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>
+
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Pridėti dokumentus</div>
+          <FileZone files={survFiles} setFiles={sSF} label="Failai"/>
+          {survUpErr&&<div style={{color:C.rd,fontSize:11,marginBottom:6,fontFamily:F}}>⚠️ {survUpErr}</div>}
+          {survUploading&&<div style={{color:C.ac,fontSize:11,marginBottom:6,fontFamily:F}}>⏳ Įkeliami failai...</div>}
+          {survFiles.length>0&&<div style={{marginTop:6,display:"flex",justifyContent:"flex-end"}}><Btn sm onClick={uploadDocs} disabled={survUploading}>{survUploading?"⏳ Įkeliama...":"📎 Prisegti failus"}</Btn></div>}
+        </div>
+
+        <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+          <Btn v="secondary" onClick={p.onClose} sm>Atšaukti</Btn>
+          <Btn onClick={save} sm>💾 Išsaugoti</Btn>
+        </div>
+      </div>}
+
+      {/* Orderer / read-only */}
+      {(p.user.role==="orderer"||(isD&&o.assignedTo!==p.user.id)||o.status==="Gautas"||o.status==="Atmestas")&&
+        !isA&&<div style={{display:"flex",justifyContent:"flex-end"}}>
+        <Btn v="secondary" onClick={p.onClose} sm>Uždaryti</Btn>
+      </div>}
+
+    </div>
+  </Modal>
+}
+
+// ═════════════════════════════════════════════════════════════
+// PERMIT ROW
+// ═════════════════════════════════════════════════════════════
+function PermitRow(p){
+  var _h=useState(false); var h=_h[0],sH=_h[1];
+  var o=p.permit;
+  var cr=p.users.find(function(u){ return u.id===o.createdBy });
+  var asgn=o.assignedTo?p.users.find(function(u){ return u.id===o.assignedTo }):null;
+  return <div onClick={p.onClick} onMouseEnter={function(){sH(true)}} onMouseLeave={function(){sH(false)}}
+    style={{padding:"10px 14px",background:h?C.s3:C.s2,border:"1px solid "+(h?C.b2:C.b1),borderRadius:10,cursor:"pointer",transition:"all .15s",marginBottom:4}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:5}}>
+      <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
+        <span style={{fontFamily:FM,fontSize:9,color:C.t3,background:C.bg,padding:"1px 5px",borderRadius:3}}>#{o.id.slice(-5).toUpperCase()}</span>
+        <span style={{fontSize:11,fontWeight:700,color:C.tx,fontFamily:F}}>{o.organization}</span>
+      </div>
+      <StatusBadge status={o.status}/>
+    </div>
+    <div style={{fontSize:12,fontWeight:500,color:C.tx,fontFamily:F,marginBottom:5}}>📍 {o.location}</div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:5}}>
+      <div style={{display:"flex",alignItems:"center",gap:4}}>
+        <Av name={cr?cr.name:""} size={16}/>
+        <span style={{fontSize:10,color:C.t2,fontFamily:F}}>{cr?cr.name:"-"}</span>
+        {asgn&&<span style={{fontSize:10,color:C.t3,fontFamily:F}}> → <span style={{color:C.or}}>{asgn.name}</span></span>}
+      </div>
+      <span style={{fontSize:9,color:C.t3,fontFamily:FM}}>📅 {o.startDate} → {o.endDate}</span>
+    </div>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// USER MANAGEMENT
+// ═════════════════════════════════════════════════════════════
+function UserMgmt(p){
+  var _ar=useState(null); var assignId=_ar[0],sAR=_ar[1];
+  var _arole=useState(""); var assignRole=_arole[0],sARole=_arole[1];
+  var _aerr=useState(""); var assignErr=_aerr[0],sAErr=_aerr[1];
+  var _asav=useState(false); var assignSaving=_asav[0],sASav=_asav[1];
+  var _add=useState(false); var showAdd=_add[0],sAdd=_add[1];
+  var _nn=useState(""); var nn=_nn[0],sNN=_nn[1];
+  var _nu=useState(""); var nu=_nu[0],sNU=_nu[1];
+  var _ne=useState(""); var ne=_ne[0],sNE=_ne[1];
+  var _np=useState(""); var np=_np[0],sNP=_np[1];
+  var _nr=useState(""); var nr=_nr[0],sNR=_nr[1];
+  var _del=useState(null); var delId=_del[0],sDel=_del[1];
+  var _em=useState(null); var emailUid=_em[0],sEM=_em[1];
+  var _emv=useState(""); var emailVal=_emv[0],sEMV=_emv[1];
+  var _syncing=useState(false); var syncing=_syncing[0],sSyncing=_syncing[1];
+  var _syncLog=useState(null); var syncLog=_syncLog[0],sSyncLog=_syncLog[1];
+  var _domain=useState(""); var emailDomain=_domain[0],setDomain=_domain[1];
+  useEffect(function(){ sGet("kl-settings").then(function(s){ if(s&&s.emailDomain)setDomain(s.emailDomain) }) },[]);
+
+  function openUser(u){ sAR(u.id); sARole(u.role==="pending"?"":u.role); sAErr(""); sASav(false); }
+  function closeUser(){ sAR(null); sARole(""); sAErr(""); sASav(false); }
+
+  async function doAssign(){
+    if(!assignId||!assignRole)return;
+    var u=p.users.find(function(x){ return x.id===assignId }); if(!u)return;
+    if(u.role===assignRole){ closeUser(); return; }
+    sAErr(""); sASav(true);
+    var res=await p.onAssignRole(assignId,assignRole);
+    sASav(false);
+    if(res&&res.ok===false){ sAErr(res.error||"Nepavyko pakeisti rolės."); return; }
+    closeUser();
+  }
+
+  function doAdd(){
+    if(!nn||!nu||!ne||!np||!nr||np.length<4)return;
+    p.onAddUser({id:uid(),name:nn,username:nu,email:ne,password:np,role:nr,mustChangePassword:true,adAuth:false,createdAt:new Date().toISOString()});
+    sAdd(false); sNN(""); sNU(""); sNE(""); sNP(""); sNR("");
+  }
+
+  async function saveEmail(){ if(!emailUid)return; await p.onEditEmail(emailUid,emailVal); sEM(null); }
+  async function saveDomain(val){ setDomain(val); await sSet("kl-settings",{emailDomain:val.replace(/^@/,"").trim()}); }
+
+  async function doSyncAD(){
+    sSyncing(true); sSyncLog(null);
+    try{
+      var r=await fetch("/api/admin/sync-ad-emails",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({domain:emailDomain.replace(/^@/,"").trim()})});
+      var d=await r.json(); sSyncLog(d);
+      if(d.updated>0) p.onSyncDone();
+    }catch(e){ sSyncLog({updated:0,log:["Serverio klaida: "+e.message]}); }
+    sSyncing(false);
+  }
+
+  var pending=p.users.filter(function(u){ return u.role==="pending" });
+  var active=p.users.filter(function(u){ return u.role!=="pending" });
+
+  return <div>
+    {/* Pending users */}
+    {pending.length>0&&<div style={{marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <h2 style={{fontSize:14,fontWeight:800,color:C.tx,fontFamily:F}}>⏳ Laukia rolės priskyrimo</h2>
+        <span style={{background:C.rdD,color:C.rd,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:10}}>{pending.length}</span>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+        {pending.map(function(u){ return <div key={u.id} onClick={function(){ openUser(u) }}
+          style={{padding:"10px 14px",background:C.s2,borderRadius:8,border:"1.5px solid "+C.yl+"44",display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
+          <Av name={u.name} size={34}/>
+          <div style={{flex:1}}>
+            <div style={{fontSize:12,fontWeight:600,color:C.tx,fontFamily:F}}>{u.name} {u.adAuth&&<span style={{fontSize:9,color:C.yl,fontFamily:FM}}>AD</span>}</div>
+            <div style={{fontSize:10,color:C.t3,fontFamily:F}}>{u.email||u.username}</div>
+          </div>
+          <Btn sm onClick={function(e){e.stopPropagation();openUser(u)}}>Priskirti rolę →</Btn>
+          <Btn v="danger" sm onClick={function(e){e.stopPropagation();sDel(u.id)}}>🗑️</Btn>
+        </div>})}
+      </div>
+    </div>}
+
+    {/* Active users */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+      <h2 style={{fontSize:14,fontWeight:800,color:C.tx,fontFamily:F}}>👥 Aktyvūs vartotojai</h2>
+      <Btn sm onClick={function(){sAdd(true)}}>➕ Sukurti vartotoją</Btn>
+    </div>
+
+    {/* AD sync bar */}
+    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,padding:"8px 12px",background:C.s2,borderRadius:8,border:"1px solid "+C.b1}}>
+      <span style={{fontSize:11,color:C.t2,fontFamily:F,whiteSpace:"nowrap"}}>📧 AD el. pašto domenas:</span>
+      <input value={emailDomain} onChange={function(e){ saveDomain(e.target.value) }} placeholder="pvz. energo.lt"
+        style={{flex:1,padding:"4px 8px",borderRadius:6,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:FM,fontSize:11,outline:"none"}}/>
+      <Btn v="ghost" sm onClick={doSyncAD} disabled={syncing}>{syncing?"⏳":"🔄 Sinchronizuoti"}</Btn>
+    </div>
+
+    {syncLog&&<div style={{marginBottom:10,padding:"10px 14px",background:syncLog.updated>0?C.gnD:C.s3,border:"1px solid "+(syncLog.updated>0?C.gn:C.b1),borderRadius:8}}>
+      <div style={{fontSize:11,fontWeight:700,color:syncLog.updated>0?C.gn:C.t2,fontFamily:F,marginBottom:4}}>{syncLog.updated>0?"✅ Atnaujinta: "+syncLog.updated:"ℹ️ Pakeitimų nėra"}</div>
+      {syncLog.log.map(function(l,i){ return <div key={i} style={{fontSize:10,color:C.t3,fontFamily:FM}}>{l}</div> })}
+    </div>}
+
+    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+      {active.map(function(u){ return <div key={u.id} onClick={function(){openUser(u)}}
+        style={{padding:"10px 14px",background:C.s2,borderRadius:8,border:"1px solid "+C.b1,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
+        <Av name={u.name} size={34}/>
+        <div style={{flex:1}}>
+          <div style={{fontSize:12,fontWeight:600,color:C.tx,fontFamily:F}}>{u.name}{u.adAuth&&<span style={{fontSize:9,color:C.ac,marginLeft:6,fontFamily:FM}}>AD</span>}{u.mustChangePassword&&<span style={{fontSize:9,color:C.yl,marginLeft:6}}>⚠️ laukia slaptažodžio keitimo</span>}</div>
+          <div style={{fontSize:10,color:C.t3,fontFamily:F}}>{u.email||u.username} · {ROLES[u.role]||u.role}</div>
+        </div>
+        <Btn v="ghost" sm onClick={function(e){e.stopPropagation();sEM(u.id);sEMV(u.email||"")}} title="Redaguoti el. paštą">✉️</Btn>
+        {!u.adAuth&&u.role!=="admin"&&<Btn v="danger" sm onClick={function(e){e.stopPropagation();sDel(u.id)}}>🗑️</Btn>}
+      </div>})}
+    </div>
+
+    {/* Assign role modal */}
+    <Modal open={assignId!==null} onClose={closeUser} title="👤 Vartotojo informacija" w={420}>
+      {(function(){
+        var u=p.users.find(function(x){ return x.id===assignId }); if(!u)return null;
+        return <div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,padding:"10px 12px",background:C.s2,borderRadius:8,border:"1px solid "+C.b1}}>
+            <Av name={u.name} size={44}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:C.tx,fontFamily:F}}>{u.name}{u.adAuth&&<span style={{fontSize:9,color:C.ac,marginLeft:6,fontFamily:FM}}>AD</span>}</div>
+              <div style={{fontSize:10,color:C.t3,fontFamily:F}}>{u.email||"—"}{u.username?<span style={{color:C.t3,fontFamily:FM}}> · {u.username}</span>:null}</div>
+              <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:2}}>Dabartinė rolė: <strong>{ROLES[u.role]||u.role}</strong></div>
+            </div>
+          </div>
+          <Sel label="Nauja rolė" value={assignRole} onChange={sARole} req
+            options={[{value:"orderer",label:"Užsakovas"},{value:"dokumentacija",label:"Dokumentacija"},{value:"admin",label:"Administratorius"}]}
+            ph="Pasirinkite rolę..."/>
+          {assignErr&&<div style={{color:C.rd,fontSize:11,marginBottom:8,fontFamily:F}}>⚠️ {assignErr}</div>}
+          <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+            <Btn v="secondary" onClick={closeUser} sm>Atšaukti</Btn>
+            <Btn onClick={doAssign} disabled={!assignRole||assignSaving} sm>{assignSaving?"⏳ Saugoma...":"💾 Išsaugoti"}</Btn>
+          </div>
+        </div>
+      })()}
+    </Modal>
+
+    {/* Add user modal */}
+    <Modal open={showAdd} onClose={function(){sAdd(false)}} title="➕ Sukurti vartotoją" w={400}>
+      <Inp label="Vardas Pavardė" value={nn} onChange={sNN} req ph="Petras Petraitis"/>
+      <Inp label="Prisijungimo vardas" value={nu} onChange={sNU} req ph="ppetraitis"/>
+      <Inp label="El. paštas" value={ne} onChange={sNE} req ph="p.petraitis@imone.lt"/>
+      <Inp label="Slaptažodis (min. 4 simboliai)" type="password" value={np} onChange={sNP} req ph="••••••"/>
+      <Sel label="Rolė" value={nr} onChange={sNR} req
+        options={[{value:"orderer",label:"Užsakovas"},{value:"dokumentacija",label:"Dokumentacija"},{value:"admin",label:"Administratorius"}]}/>
+      <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+        <Btn v="secondary" onClick={function(){sAdd(false)}} sm>Atšaukti</Btn>
+        <Btn onClick={doAdd} disabled={!nn||!nu||!ne||!np||np.length<4||!nr} sm>✅ Sukurti</Btn>
+      </div>
+    </Modal>
+
+    {/* Delete confirmation */}
+    <Modal open={delId!==null} onClose={function(){sDel(null)}} title="🗑️ Ištrinti vartotoją" w={380}>
+      <p style={{fontSize:12,color:C.tx,fontFamily:F,marginBottom:16}}>Ar tikrai norite ištrinti šį vartotoją? Veiksmas negrįžtamas.</p>
+      <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+        <Btn v="secondary" onClick={function(){sDel(null)}} sm>Atšaukti</Btn>
+        <Btn v="danger" onClick={function(){ p.onDeleteUser(delId); sDel(null); }} sm>🗑️ Ištrinti</Btn>
+      </div>
+    </Modal>
+
+    {/* Edit email modal */}
+    <Modal open={emailUid!==null} onClose={function(){sEM(null)}} title="✉️ Redaguoti el. paštą" w={380}>
+      <Inp label="El. pašto adresas" type="email" value={emailVal} onChange={sEMV} ph="vardas@imone.lt"/>
+      <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+        <Btn v="secondary" onClick={function(){sEM(null)}} sm>Atšaukti</Btn>
+        <Btn onClick={saveEmail} sm>💾 Išsaugoti</Btn>
+      </div>
+    </Modal>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// PASSWORD CHANGE
+// ═════════════════════════════════════════════════════════════
+function PasswordChangePage(p){
+  var _o=useState(""); var old=_o[0],sO=_o[1];
+  var _n=useState(""); var nw=_n[0],sN=_n[1];
+  var _c=useState(""); var conf=_c[0],sC=_c[1];
+  var _err=useState(""); var err=_err[0],sErr=_err[1];
+  var _ok=useState(false); var ok=_ok[0],sOk=_ok[1];
+  var forced=p.user.mustChangePassword;
+
+  async function doChange(){
+    if(nw!==conf){ sErr("Slaptažodžiai nesutampa."); return; }
+    if(nw.length<4){ sErr("Slaptažodis per trumpas (min. 4 simboliai)."); return; }
+    sErr(""); sOk(false);
+    try{
+      var r=await fetch("/api/auth/change-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId:p.user.id,oldPassword:old,newPassword:nw,forceChange:forced})});
+      var d=await r.json();
+      if(!r.ok){ sErr(d.error||"Klaida."); return; }
+      sOk(true);
+      if(p.onChanged) p.onChanged(d.user);
+    }catch(e){ sErr("Serverio klaida."); }
+  }
+
+  return <div style={{maxWidth:400,margin:"0 auto"}}>
+    <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:4}}>🔑 Slaptažodžio keitimas</h2>
+    {forced&&<div style={{background:C.ylD,border:"1px solid "+C.yl+"33",borderRadius:8,padding:"8px 12px",marginBottom:16}}>
+      <div style={{fontSize:11,fontWeight:600,color:C.yl,fontFamily:F}}>⚠️ Privalote pakeisti slaptažodį prieš tęsiant.</div>
+    </div>}
+    {!forced&&<Inp label="Dabartinis slaptažodis" type="password" value={old} onChange={sO} req ph="••••••"/>}
+    <Inp label="Naujas slaptažodis" type="password" value={nw} onChange={sN} req ph="Min. 4 simboliai"/>
+    <Inp label="Pakartoti naują slaptažodį" type="password" value={conf} onChange={sC} req ph="••••••"/>
+    {err&&<div style={{color:C.rd,fontSize:11,marginBottom:8,fontFamily:F}}>⚠️ {err}</div>}
+    {ok&&<div style={{color:C.gn,fontSize:11,marginBottom:8,fontFamily:F}}>✅ Slaptažodis sėkmingai pakeistas.</div>}
+    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+      {!forced&&p.onCancel&&<Btn v="secondary" onClick={p.onCancel}>Atšaukti</Btn>}
+      <Btn onClick={doChange} disabled={!nw||!conf}>💾 Pakeisti slaptažodį</Btn>
+    </div>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// AUTH SCREEN
+// ═════════════════════════════════════════════════════════════
+function AuthScreen(p){
+  var _u=useState(""); var username=_u[0],sU=_u[1];
+  var _pw=useState(""); var password=_pw[0],sPW=_pw[1];
+  var _err=useState(""); var err=_err[0],sErr=_err[1];
+  var _loading=useState(false); var loading=_loading[0],sLoading=_loading[1];
+  var _mode=useState("ldap"); var mode=_mode[0],sMode=_mode[1];
+
+  async function doLogin(){
+    if(!username||!password){ sErr("Įveskite prisijungimo duomenis."); return; }
+    sErr(""); sLoading(true);
+    try{
+      var url=mode==="local"?"/api/auth/local":"/api/auth/ldap";
+      var r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})});
+      var d=await r.json();
+      if(!r.ok){ sErr(d.error||"Klaida."); sLoading(false); return; }
+      p.onLogin(d.user);
+    }catch(e){ sErr("Serverio klaida."); sLoading(false); }
+  }
+
+  function handleKey(e){ if(e.key==="Enter") doLogin(); }
+
+  return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:16}}>
+    <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:20,padding:32,width:"100%",maxWidth:380,boxShadow:"0 20px 40px rgba(0,0,0,.4)"}}>
+      <div style={{textAlign:"center",marginBottom:28}}>
+        <div style={{fontSize:48,marginBottom:8}}>🚧</div>
+        <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,margin:0}}>Kasimo leidimai</h1>
+        <p style={{fontSize:11,color:C.t2,fontFamily:F,marginTop:4}}>Žemės darbų leidimų sistema</p>
+      </div>
+
+      {/* Login type tabs */}
+      <div style={{display:"flex",gap:4,marginBottom:18,background:C.s3,borderRadius:10,padding:4}}>
+        {[{v:"ldap",l:"Active Directory"},{v:"local",l:"Vietinis (admin)"}].map(function(m){
+          return <button key={m.v} onClick={function(){sMode(m.v);sErr("")}} style={{flex:1,padding:"6px 10px",borderRadius:7,border:"none",background:mode===m.v?C.s1:"transparent",color:mode===m.v?C.tx:C.t3,fontFamily:F,fontSize:11,fontWeight:mode===m.v?700:400,cursor:"pointer",transition:"all .15s"}}>{m.l}</button>
+        })}
+      </div>
+
+      <Inp label="Prisijungimo vardas" value={username} onChange={sU} ph={mode==="ldap"?"vardas.pavarde":"kladmin"} onKey={handleKey}/>
+      <div onKeyDown={handleKey}><Inp label="Slaptažodis" type="password" value={password} onChange={sPW} ph="••••••"/></div>
+      {err&&<div style={{color:C.rd,fontSize:11,marginBottom:10,fontFamily:F,padding:"6px 10px",background:C.rdD,borderRadius:6}}>⚠️ {err}</div>}
+      <Btn onClick={doLogin} disabled={loading} style={{width:"100%",justifyContent:"center"}}>{loading?"⏳ Jungiamasi...":"🔐 Prisijungti"}</Btn>
+    </div>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// SIDEBAR
+// ═════════════════════════════════════════════════════════════
+function Sidebar(p){
+  var u=p.user; var role=u.role;
+  var items=[];
+
+  if(role==="orderer"){
+    items=[
+      {id:"new",   icon:"➕", label:"Nauja paraiška"},
+      {id:"mine",  icon:"📋", label:"Mano paraiškos"},
+      {id:"pwd",   icon:"🔑", label:"Slaptažodis"},
+    ];
+  }else if(role==="dokumentacija"){
+    items=[
+      {id:"assigned", icon:"📥", label:"Priskirtos paraiškos"},
+      {id:"all",      icon:"📋", label:"Visos paraiškos"},
+      {id:"pwd",      icon:"🔑", label:"Slaptažodis"},
+    ];
+  }else if(role==="admin"){
+    items=[
+      {id:"inbox",    icon:"📥", label:"Naujos paraiškos", badge:p.newCount},
+      {id:"all",      icon:"📋", label:"Visos paraiškos"},
+      {id:"users",    icon:"👥", label:"Vartotojai", badge:p.pendingCount},
+      {id:"pwd",      icon:"🔑", label:"Slaptažodis"},
+    ];
+  }
+
+  return <div style={{width:210,background:C.s1,borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",height:"100vh",flexShrink:0}}>
+    {/* Logo */}
+    <div style={{padding:"20px 18px 12px",borderBottom:"1px solid "+C.b1}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:22}}>🚧</span>
+        <div>
+          <div style={{fontSize:13,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>Leidimų sistema</div>
+        </div>
+      </div>
+    </div>
+
+    {/* Nav */}
+    <nav style={{flex:1,padding:"10px 10px",overflowY:"auto"}}>
+      {items.map(function(item){
+        var active=p.view===item.id;
+        return <button key={item.id} onClick={function(){p.onNav(item.id)}}
+          style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 10px",borderRadius:8,border:"none",background:active?C.acD:"transparent",color:active?C.ac:C.t2,fontFamily:F,fontSize:12,fontWeight:active?700:500,cursor:"pointer",marginBottom:2,transition:"all .15s",textAlign:"left"}}>
+          <div style={{display:"flex",alignItems:"center",gap:7}}>
+            <span style={{fontSize:14}}>{item.icon}</span>{item.label}
+          </div>
+          {item.badge>0&&<span style={{background:C.rd,color:"#fff",fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:8,minWidth:16,textAlign:"center"}}>{item.badge}</span>}
+        </button>
+      })}
+    </nav>
+
+    {/* User info + theme toggle */}
+    <div style={{padding:"12px 14px",borderTop:"1px solid "+C.b1}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <Av name={u.name} size={30}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:F}}>{ROLES[u.role]||u.role}</div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:4}}>
+        <button onClick={p.onTheme} style={{flex:1,padding:"4px 0",borderRadius:6,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontSize:9,fontFamily:F,cursor:"pointer"}}>{p.theme==="dark"?"☀️ Šviesi":"🌙 Tamsi"}</button>
+        <button onClick={p.onLogout} style={{flex:1,padding:"4px 0",borderRadius:6,border:"1px solid "+C.rdD,background:C.rdD,color:C.rd,fontSize:9,fontFamily:F,cursor:"pointer",fontWeight:600}}>Atsijungti</button>
+      </div>
+    </div>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// MAIN APP
+// ═════════════════════════════════════════════════════════════
+function App(){
+  var _user=useState(null); var user=_user[0],setUser=_user[1];
+  var _view=useState("inbox"); var view=_view[0],setView=_view[1];
+  var _permits=useState([]); var permits=_permits[0],setPermits=_permits[1];
+  var _users=useState([]); var users=_users[0],setUsers=_users[1];
+  var _detail=useState(null); var detail=_detail[0],setDetail=_detail[1];
+  var _theme=useState(_savedTheme); var theme=_theme[0],setTheme=_theme[1];
+  var _loading=useState(true); var loading=_loading[0],setLoading=_loading[1];
+  var _filterStatus=useState(""); var filterStatus=_filterStatus[0],setFilterStatus=_filterStatus[1];
+
+  // Load session from localStorage
+  useEffect(function(){
+    try{
+      var saved=localStorage.getItem('kl-user');
+      if(saved){ var u=JSON.parse(saved); setUser(u); }
+    }catch(e){}
+    setLoading(false);
+  },[]);
+
+  // Load data when user is set
+  useEffect(function(){
+    if(!user)return;
+    Promise.all([sGet("kl-permits"),sGet("kl-users")]).then(function(res){
+      setPermits(res[0]||[]);
+      setUsers(res[1]||[]);
+      // Set default view per role
+      if(user.role==="orderer") setView("mine");
+      else if(user.role==="dokumentacija") setView("assigned");
+      else setView("inbox");
+    });
+  },[user&&user.id]);
+
+  function savePermits(arr){ setPermits(arr); sSet("kl-permits",arr); }
+  function saveUsers(arr){ setUsers(arr); sSet("kl-users",arr); }
+
+  function handleLogin(u){
+    setUser(u);
+    try{ localStorage.setItem('kl-user',JSON.stringify(u)); }catch(e){}
+  }
+  function handleLogout(){
+    setUser(null);
+    try{ localStorage.removeItem('kl-user'); }catch(e){}
+  }
+
+  function toggleTheme(){
+    var t=theme==="dark"?"light":"dark";
+    setTheme(t);
+    var nc=t==="dark"?DARK_C:LIGHT_C;
+    Object.assign(C,nc);
+    document.documentElement.setAttribute('data-theme',t);
+    document.body.setAttribute('data-theme',t);
+    try{ localStorage.setItem('kl-theme',t); }catch(e){}
+  }
+
+  function addPermit(permit){ savePermits(permits.concat([permit])); setView("mine"); }
+
+  function updatePermit(updated){
+    var arr=permits.map(function(p){ return p.id===updated.id?updated:p });
+    savePermits(arr);
+    // Send email notification if status changed
+    var old=permits.find(function(p){ return p.id===updated.id });
+    if(old&&old.status!==updated.status){
+      var toEmail=updated.email;
+      if(toEmail){
+        var subject="Kasimo leidimo paraiška #"+updated.id.slice(-5).toUpperCase()+" — "+SL[updated.status];
+        var html="<p>Jūsų paraiška dėl kasimo leidimo <strong>#"+updated.id.slice(-5).toUpperCase()+"</strong> statusas pasikeitė į: <strong>"+(SL[updated.status]||updated.status)+"</strong>.</p><p>Vieta: "+updated.location+"</p>";
+        fetch("/api/notify/email",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({to:toEmail,subject:subject,html:html})}).catch(function(){});
+      }
+    }
+  }
+
+  function deletePermit(id){
+    var p=permits.find(function(x){ return x.id===id });
+    if(p&&p.files){ p.files.forEach(function(f){ if(f.filename) fetch('/api/files/'+encodeURIComponent(f.filename),{method:'DELETE'}).catch(function(){}); }); }
+    savePermits(permits.filter(function(x){ return x.id!==id }));
+  }
+
+  async function addUser(u){
+    var arr=users.concat([u]);
+    saveUsers(arr);
+    // Also persist passwords
+    await fetch("/api/store/kl-users",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:arr})});
+  }
+
+  async function assignRole(userId,role){
+    try{
+      var r=await fetch("/api/users/"+userId+"/role",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({role})});
+      var d=await r.json();
+      if(!r.ok)return{ok:false,error:d.error};
+      setUsers(function(prev){ return prev.map(function(u){ return u.id===userId?d.user:u }) });
+      return{ok:true};
+    }catch(e){ return{ok:false,error:"Serverio klaida"}; }
+  }
+
+  async function editEmail(userId,email){
+    try{
+      var r=await fetch("/api/users/"+userId+"/email",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+      var d=await r.json();
+      if(d.user) setUsers(function(prev){ return prev.map(function(u){ return u.id===userId?d.user:u }) });
+    }catch(e){}
+  }
+
+  function deleteUser(userId){
+    saveUsers(users.filter(function(u){ return u.id!==userId }));
+  }
+
+  function syncDone(){
+    sGet("kl-users").then(function(arr){ if(arr) setUsers(arr); });
+  }
+
+  function onPasswordChanged(updatedUser){
+    setUser(updatedUser);
+    try{ localStorage.setItem('kl-user',JSON.stringify(updatedUser)); }catch(e){}
+    if(user&&user.role==="orderer") setView("mine");
+    else if(user&&user.role==="dokumentacija") setView("assigned");
+    else setView("inbox");
+  }
+
+  if(loading) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg}}><span style={{color:C.t3,fontFamily:F}}>⏳ Kraunama...</span></div>;
+  if(!user)   return <AuthScreen onLogin={handleLogin}/>;
+  if(user.mustChangePassword) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:16}}><PasswordChangePage user={user} onChanged={onPasswordChanged}/></div>;
+  if(user.role==="pending") return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:16}}>
+    <div style={{background:C.s1,borderRadius:16,padding:32,maxWidth:400,textAlign:"center",border:"1px solid "+C.b1}}>
+      <div style={{fontSize:48,marginBottom:12}}>⏳</div>
+      <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:8}}>Laukiama patvirtinimo</h2>
+      <p style={{fontSize:12,color:C.t2,fontFamily:F,marginBottom:16}}>Jūsų paskyra laukia administratoriaus rolės priskyrimo. Susisiekite su administratoriumi.</p>
+      <Btn v="secondary" onClick={handleLogout}>Atsijungti</Btn>
+    </div>
+  </div>;
+
+  // Computed values
+  var docsWorkers = users.filter(function(u){ return u.role==="dokumentacija" });
+  var newCount    = permits.filter(function(p){ return p.status==="Naujas" }).length;
+  var pendingCount= users.filter(function(u){ return u.role==="pending" }).length;
+
+  // Filter permits by view
+  var visiblePermits = [];
+  if(view==="mine"){
+    visiblePermits = permits.filter(function(p){ return p.createdBy===user.id });
+  }else if(view==="assigned"){
+    visiblePermits = permits.filter(function(p){ return p.assignedTo===user.id });
+  }else if(view==="inbox"){
+    visiblePermits = permits.filter(function(p){ return p.status==="Naujas" });
+  }else if(view==="all"){
+    visiblePermits = permits.slice();
+  }
+
+  // Apply status filter
+  if(filterStatus) visiblePermits = visiblePermits.filter(function(p){ return p.status===filterStatus });
+  // Sort by createdAt desc
+  visiblePermits = visiblePermits.slice().sort(function(a,b){ return (b.createdAt||"")>(a.createdAt||"")?1:-1 });
+
+  var mainContent = null;
+
+  if(view==="new"){
+    mainContent = <PermitForm user={user} onSubmit={addPermit} onCancel={function(){setView("mine")}}/>;
+  }else if(view==="pwd"){
+    mainContent = <PasswordChangePage user={user} onChanged={onPasswordChanged} onCancel={function(){ if(user.role==="orderer")setView("mine"); else if(user.role==="dokumentacija")setView("assigned"); else setView("inbox"); }}/>;
+  }else if(view==="users"){
+    mainContent = <UserMgmt users={users} permits={permits} onAddUser={addUser} onAssignRole={assignRole} onEditEmail={editEmail} onDeleteUser={deleteUser} onSyncDone={syncDone}/>;
+  }else{
+    // List views: inbox / mine / assigned / all
+    var viewTitle="";
+    var viewIcon="";
+    if(view==="inbox"){ viewTitle="Naujos paraiškos"; viewIcon="📥"; }
+    else if(view==="mine"){ viewTitle="Mano paraiškos"; viewIcon="📋"; }
+    else if(view==="assigned"){ viewTitle="Priskirtos man"; viewIcon="📥"; }
+    else if(view==="all"){ viewTitle="Visos paraiškos"; viewIcon="📋"; }
+
+    mainContent = <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
+        <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F}}>{viewIcon} {viewTitle}</h2>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+          {/* Status filter */}
+          <select value={filterStatus} onChange={function(e){setFilterStatus(e.target.value)}} style={{padding:"6px 10px",borderRadius:8,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontFamily:F,fontSize:11,outline:"none",cursor:"pointer"}}>
+            <option value="">Visos būsenos</option>
+            {Object.keys(STATUS_MAP).map(function(s){return <option key={s} value={s}>{SL[s]||s}</option>})}
+          </select>
+          {user.role==="orderer"&&<Btn sm onClick={function(){setView("new")}}>➕ Nauja paraiška</Btn>}
+        </div>
+      </div>
+
+      {/* Summary badges */}
+      {(view==="all"||view==="inbox")&&<div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap"}}>
+        {Object.keys(STATUS_MAP).map(function(s){
+          var n=permits.filter(function(p){ return p.status===s }).length;
+          if(!n)return null;
+          return <div key={s} style={{padding:"8px 10px",borderRadius:8,background:C.s2,border:"1px solid "+C.b1,flex:"1 1 80px",minWidth:80}}>
+            <div style={{fontSize:16,fontWeight:800,color:C.tx,fontFamily:F}}>{n}</div>
+            <div style={{fontSize:9,color:C.t2,fontFamily:F,display:"flex",alignItems:"center",gap:3}}><span style={{width:4,height:4,borderRadius:"50%",background:STATUS_MAP[s].dot}}/>{SL[s]||s}</div>
+          </div>
+        })}
+      </div>}
+
+      {visiblePermits.length===0
+        ?<Empty icon="📭" title={filterStatus?"Paraiškų su šia būsena nėra.":"Paraiškų nerasta."}/>
+        :visiblePermits.map(function(permit){
+          return <PermitRow key={permit.id} permit={permit} users={users} onClick={function(){setDetail(permit)}}/>
+        })
+      }
+    </div>;
+  }
+
+  return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
+    <Sidebar
+      user={user}
+      view={view}
+      onNav={setView}
+      onLogout={handleLogout}
+      onTheme={toggleTheme}
+      theme={theme}
+      newCount={newCount}
+      pendingCount={pendingCount}
+    />
+
+    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>
+      {mainContent}
+    </main>
+
+    {detail&&<PermitDetail
+      permit={detail}
+      user={user}
+      users={users}
+      surveyors={docsWorkers}
+      onUpdate={function(u){ updatePermit(u); setDetail(u); }}
+      onDelete={function(id){ deletePermit(id); setDetail(null); }}
+      onClose={function(){ setDetail(null); }}
+      onFilesUpdate={function(u){ updatePermit(u); setDetail(u); }}
+    />}
+  </div>
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+<style>body{background:#fff;color:#000;font-family:monospace;padding:20px}</style>
+</head>
+<body>
+<div id="root"><p>Kraunama...</p></div>
+<script>
+window.onerror = function(msg, src, line, col, err) {
+  document.getElementById('root').innerHTML = '<div style="color:red;font-size:16px"><b>JavaScript klaida:</b><br>' + msg + '<br>Eilutė: ' + line + '</div>';
+  return false;
+};
+</script>
+<script type="text/babel">
+// Kopijuojame pirmas 100 JS eilučių iš kasimo-leidimai.html
+var {useState, useEffect, useRef} = React;
+var F = "'Outfit', system-ui, sans-serif";
+var FM = "'IBM Plex Mono', monospace";
+
+var DARK_C = {
+  bg:"#0B0D13",s1:"#11141C",s2:"#171B26",s3:"#1D2233",
+  b1:"#242A3A",b2:"#303850",tx:"#E4E7F0",t2:"#8E95AB",t3:"#5A6178",
+  ac:"#3B82F6",acH:"#60A5FA",acD:"rgba(59,130,246,.12)",
+  gn:"#10B981",gnD:"rgba(16,185,129,.12)",rd:"#EF4444",rdD:"rgba(239,68,68,.12)",
+  yl:"#EAB308",ylD:"rgba(234,179,8,.12)",vl:"#8B5CF6",vlD:"rgba(139,92,246,.12)",
+  or:"#F97316",orD:"rgba(249,115,22,.12)",
+};
+var _t0 = (function(){try{return localStorage.getItem('kl-theme')||'dark'}catch(e){return 'dark'}})();
+var C = Object.assign({}, _t0==='light'?DARK_C:DARK_C);
+document.body.setAttribute('data-theme',_t0);
+
+function App(){
+  return <div style={{color:"lime",fontSize:20,padding:20}}>JS veikia!</div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

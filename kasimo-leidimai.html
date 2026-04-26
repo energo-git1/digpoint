@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kasimo leidimai</title>
+  <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{overflow:hidden}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{border-radius:3px}
+body[data-theme="dark"]{background:#0B0D13}
+body[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#242A3A}
+body[data-theme="dark"] select option{background:#11141C;color:#E4E7F0}
+body[data-theme="dark"] input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.7)}
+body[data-theme="light"]{background:#F0F2F7}
+body[data-theme="light"] ::-webkit-scrollbar-thumb{background:#C5CCDB}
+body[data-theme="light"] select option{background:#FFFFFF;color:#111827}
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+
+var {useState, useEffect, useRef} = React;
+var F = "'Outfit', system-ui, sans-serif";
+var FM = "'IBM Plex Mono', monospace";
+
+var DARK_C = {
+  bg:"#0B0D13",s1:"#11141C",s2:"#171B26",s3:"#1D2233",
+  b1:"#242A3A",b2:"#303850",tx:"#E4E7F0",t2:"#8E95AB",t3:"#5A6178",
+  ac:"#3B82F6",acH:"#60A5FA",acD:"rgba(59,130,246,.12)",
+  gn:"#10B981",gnD:"rgba(16,185,129,.12)",rd:"#EF4444",rdD:"rgba(239,68,68,.12)",
+  yl:"#EAB308",ylD:"rgba(234,179,8,.12)",vl:"#8B5CF6",vlD:"rgba(139,92,246,.12)",
+  or:"#F97316",orD:"rgba(249,115,22,.12)",
+};
+var LIGHT_C = {
+  bg:"#F0F2F7",s1:"#FFFFFF",s2:"#F5F7FB",s3:"#EBEEF5",
+  b1:"#D4D9E8",b2:"#BEC6D8",tx:"#111827",t2:"#4B5563",t3:"#9CA3AF",
+  ac:"#3B82F6",acH:"#2563EB",acD:"rgba(59,130,246,.10)",
+  gn:"#10B981",gnD:"rgba(16,185,129,.10)",rd:"#EF4444",rdD:"rgba(239,68,68,.10)",
+  yl:"#CA8A04",ylD:"rgba(202,138,4,.10)",vl:"#7C3AED",vlD:"rgba(124,58,237,.10)",
+  or:"#EA6C00",orD:"rgba(234,108,0,.10)",
+};
+var _t0 = (function(){try{return localStorage.getItem('kl-theme')||'dark'}catch(e){return 'dark'}})();
+var C = Object.assign({}, _t0==='light'?LIGHT_C:DARK_C);
+document.body.setAttribute('data-theme',_t0);
+
+// ── STATUS ────────────────────────────────────────────────────
+var STATUS_MAP = {
+  Naujas:      {bg:C.acD,  c:C.ac, dot:C.ac},
+  Priskirtas:  {bg:C.ylD,  c:C.yl, dot:C.yl},
+  Pateikta:    {bg:"rgba(139,92,246,.12)",c:"#8B5CF6",dot:"#8B5CF6"},
+  Vykdomas:    {bg:C.orD,  c:C.or, dot:C.or},
+  Baigtas:     {bg:"rgba(59,130,246,.15)",c:"#60A5FA",dot:"#60A5FA"},
+  Gautas:      {bg:C.gnD,  c:C.gn, dot:C.gn},
+  Nebegalioja: {bg:"rgba(107,114,128,.12)",c:"#6B7280",dot:"#6B7280"},
+  Atmestas:    {bg:C.rdD,  c:C.rd, dot:C.rd},
+};
+var SL = {
+  Naujas:"Naujas", Priskirtas:"Priskirtas", Pateikta:"Pateikta",
+  Vykdamos:"Vykdamos", Baigtas:"Baigtas (laukia leidimo)",
+  Gautas:"Leidimas gautas", Nebegalioja:"Nebegalioja", Atmestas:"Atmestas",
+};
+
+var ROLES = {orderer:"Užsakovas",dokumentacija:"Dokumentacija",admin:"Administratorius",pending:"Laukia patvirtinimo"};
+
+// ── LOCAL STORAGE helpers (vietoj serverio) ───────────────────
+function lsGet(k){ try{var v=localStorage.getItem(k); return v?JSON.parse(v):null}catch(e){return null} }
+function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v))}catch(e){} }
+
+// ── Vartotojai: importuojami iš Geopoint (gp-users) ──────────
+// Geopoint rolių atitikimas:
+//   admin    → admin
+//   orderer  → orderer
+//   surveyor → orderer (geodezininkai čia gali pateikti paraiškas)
+//   pending  → pending
+// Papildomai visada užtikrinamas kladmin admin vartotojas.
+(function initUsers(){
+  var gpUsers = lsGet('gp-users');
+  var klUsers = lsGet('kl-users') || [];
+
+  // Surenkame jau esančių kl vartotojų id sąrašą
+  var existingIds = klUsers.map(function(u){ return u.id });
+
+  if(gpUsers && gpUsers.length){
+    var toAdd = gpUsers
+      .filter(function(u){ return !existingIds.includes(u.id) })
+      .map(function(u){
+        var role = u.role === 'admin' ? 'admin'
+                 : u.role === 'pending' ? 'pending'
+                 : 'orderer'; // orderer ir surveyor → orderer
+        // slaptažodis perkeliamas tik vietiniams vartotojams
+        return {
+          id: u.id,
+          name: u.name,
+          username: u.username || '',
+          email: u.email || '',
+          password: u.adAuth ? null : (u.password || null),
+          role: role,
+          adAuth: u.adAuth || false,
+          mustChangePassword: u.mustChangePassword || false,
+          createdAt: u.createdAt || new Date().toISOString(),
+          importedFromGeopoint: true,
+        };
+      });
+    klUsers = klUsers.concat(toAdd);
+    if(toAdd.length) console.log('[KL] Importuota iš Geopoint: ' + toAdd.length + ' vartotojai');
+  }
+
+  // Užtikriname, kad kladmin visada egzistuoja
+  var hasAdmin = klUsers.find(function(u){ return !u.adAuth && u.username === 'kladmin' });
+  if(!hasAdmin){
+    klUsers = klUsers.concat([{id:'admin1',name:'Administratorius',username:'kladmin',password:'Admin99',email:'',role:'admin',adAuth:false,mustChangePassword:false,createdAt:new Date().toISOString()}]);
+  }
+
+  lsSet('kl-users', klUsers);
+})();
+
+// ── Utilities ─────────────────────────────────────────────────
+var uid = function(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7) };
+function fmtDate(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0") }
+function fmtSize(b){ if(b<1024)return b+"B"; if(b<1048576)return Math.round(b/1024)+"KB"; return (b/1048576).toFixed(1)+"MB" }
+
+// ── El. pašto helperiai (identiškai Geopoint) ─────────────────
+function emailRow(label,value){return'<tr><td style="padding:4px 12px 4px 0;color:#6B7280;font-size:13px;white-space:nowrap">'+label+'</td><td style="padding:4px 0;color:#111827;font-size:13px;font-weight:600">'+value+'</td></tr>'}
+function emailWrap(title,color,body){return'<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,sans-serif"><div style="max-width:540px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)"><div style="background:'+color+';padding:20px 28px"><h2 style="margin:0;color:#fff;font-size:18px">\uD83D\uDEA7 Kasimo leidimai &nbsp;&middot;&nbsp; '+title+'</h2></div><div style="padding:24px 28px">'+body+'</div><div style="padding:12px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF">EnergoLT &middot; Kasimo leid\u0173 valdymo sistema &middot; <a href="mailto:leidimai@energolt.eu" style="color:#6B7280">leidimai@energolt.eu</a></div></div></body></html>'}
+async function sendEmail(toEmail,subject,html){
+  if(!toEmail)return;
+  try{
+    await fetch("/api/notify/email",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({to:toEmail,subject,html})});
+  }catch(e){console.warn("El. laiško klaida:",e)}
+}
+
+// ── Demo duomenų generatorius ─────────────────────────────────
+function generateDemoPermits(currentUserId){
+  var d=function(y,m,day){return y+"-"+String(m).padStart(2,"0")+"-"+String(day).padStart(2,"0")};
+  var now=new Date();
+  var y=now.getFullYear();
+  // Adresai — kai kurie pasikartoja keliuose užsakymuose
+  var A1="Smolensko g. 10, Kaunas";        // 3 ESO užsakymai
+  var A2="Architektų g. 182, Kaunas";       // 2 ESO užsakymai
+  var A3="Savanorių pr. 347, Kaunas";       // 1 ESO + 1 Savivaldybė
+  var A4="Raudondvario pl. 99, Kaunas";     // 2 ESO užsakymai
+  var A5="Laisvės al. 82, Kaunas";          // 1 Savivaldybė
+  var A6="Jonavos g. 60, Kaunas";           // 1 Savivaldybė
+  var A7="Taikos pr. 145, Kaunas";          // 1 Savivaldybė
+  var permits=[
+    // ── A1: Smolensko g. — 3 ESO užsakymai skirtingais laikotarpiais ──
+    {id:uid(),organization:"AB ESO",manager:"Tomas Ruzveltas",managerPhone:"+37061234567",email:"t.ruzveltas@energolt.eu",location:A1,startDate:d(y,3,10),endDate:d(y,3,28),description:"",files:[],status:"Gautas",assignedTo:"doc1",permitValidFrom:d(y,3,12),permitValidUntil:d(y,6,12),createdBy:currentUserId,createdAt:d(y,3,5),history:[{status:"Naujas",date:d(y,3,5)},{status:"Gautas",date:d(y,3,12),note:"Leidimas gautas, galioja iki "+d(y,6,12)}]},
+    {id:uid(),organization:"AB ESO",manager:"Petras Petraitis",managerPhone:"+37062345678",email:"p.petraitis@energolt.eu",location:A1,startDate:d(y,4,14),endDate:d(y,5,2),description:"",files:[],status:"Gautas",assignedTo:"doc1",permitValidFrom:d(y,4,16),permitValidUntil:fmtDate(new Date(now.getTime()+9*24*60*60*1000)),createdBy:currentUserId,createdAt:d(y,4,8),history:[{status:"Naujas",date:d(y,4,8)},{status:"Gautas",date:d(y,4,16)}]},
+    {id:uid(),organization:"AB ESO",manager:"Jonas Kazlauskas",managerPhone:"+37063456789",email:"j.kazlauskas@energolt.eu",location:A1,startDate:d(y,5,19),endDate:d(y,6,13),description:"",files:[],status:"Vykdomas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,5,12),history:[{status:"Naujas",date:d(y,5,12)},{status:"Priskirtas",date:d(y,5,13)},{status:"Vykdomas",date:d(y,5,16)}]},
+    // ── A2: Architektų g. — 2 ESO užsakymai ──
+    {id:uid(),organization:"AB ESO",manager:"Aistė Stankevičienė",managerPhone:"+37064567890",email:"a.stankeviciene@energolt.eu",location:A2,startDate:d(y,4,1),endDate:d(y,4,18),description:"",files:[],status:"Gautas",assignedTo:"doc1",permitValidFrom:d(y,4,3),permitValidUntil:d(y,7,3),createdBy:currentUserId,createdAt:d(y,3,25),history:[{status:"Gautas",date:d(y,4,3)}]},
+    {id:uid(),organization:"AB ESO",manager:"Mindaugas Grigas",managerPhone:"+37065678901",email:"m.grigas@energolt.eu",location:A2,startDate:d(y,5,5),endDate:d(y,5,23),description:"",files:[],status:"Baigtas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,4,28),history:[{status:"Naujas",date:d(y,4,28)},{status:"Vykdomas",date:d(y,5,5)},{status:"Baigtas",date:d(y,5,22)}]},
+    // ── A3: Savanorių pr. — ESO + Savivaldybė ──
+    {id:uid(),organization:"AB ESO",manager:"Rasa Mockevičienė",managerPhone:"+37066789012",email:"r.mockeviciene@energolt.eu",location:A3,startDate:d(y,5,26),endDate:d(y,6,20),description:"",files:[],status:"Priskirtas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,5,18),history:[{status:"Naujas",date:d(y,5,18)},{status:"Priskirtas",date:d(y,5,20)}]},
+    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Valdas Urbonas",managerPhone:"+37067890123",email:"v.urbonas@energolt.eu",location:A3,startDate:d(y,6,2),endDate:d(y,6,27),description:"Šaligatvio rekonstrukcija",files:[],status:"Naujas",assignedTo:null,createdBy:currentUserId,createdAt:d(y,5,22),history:[{status:"Naujas",date:d(y,5,22)}]},
+    // ── A4: Raudondvario pl. — 2 ESO (vienas atmestas) ──
+    {id:uid(),organization:"AB ESO",manager:"Laura Butėnaitė",managerPhone:"+37068901234",email:"l.butenaite@energolt.eu",location:A4,startDate:d(y,2,10),endDate:d(y,2,28),description:"",files:[],status:"Atmestas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,2,5),history:[{status:"Naujas",date:d(y,2,5)},{status:"Atmestas",date:d(y,2,12),note:"Trūksta projekto dokumentų"}]},
+    {id:uid(),organization:"AB ESO",manager:"Saulius Liaugminas",managerPhone:"+37069012345",email:"s.liaugminas@energolt.eu",location:A4,startDate:d(y,3,18),endDate:d(y,4,8),description:"",files:[],status:"Gautas",assignedTo:"doc1",permitValidFrom:d(y,3,20),permitValidUntil:d(y,3,15),createdBy:currentUserId,createdAt:d(y,3,12),history:[{status:"Gautas",date:d(y,3,20)}]},
+    // ── A5–A7: Savivaldybės objektai ──
+    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Eglė Paulauskienė",managerPhone:"+37060123456",email:"e.paulauskiene@energolt.eu",location:A5,startDate:d(y,4,7),endDate:d(y,4,25),description:"Vandentiekio tiesimas",files:[],status:"Gautas",assignedTo:"doc1",permitValidFrom:d(y,4,9),permitValidUntil:d(y,7,9),createdBy:currentUserId,createdAt:d(y,4,2),history:[{status:"Gautas",date:d(y,4,9)}]},
+    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Tomas Ruzveltas",managerPhone:"+37061234567",email:"t.ruzveltas@energolt.eu",location:A6,startDate:d(y,6,9),endDate:d(y,7,4),description:"Lietaus kanalizacija",files:[],status:"Naujas",assignedTo:null,createdBy:currentUserId,createdAt:d(y,5,28),history:[{status:"Naujas",date:d(y,5,28)}]},
+    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Petras Petraitis",managerPhone:"+37062345678",email:"p.petraitis@energolt.eu",location:A7,startDate:d(y,3,3),endDate:d(y,3,21),description:"Dujotiekio keitimas",files:[],status:"Atmestas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,2,25),history:[{status:"Naujas",date:d(y,2,25)},{status:"Atmestas",date:d(y,3,4),note:"Netinkamas projektas"}]},
+  ];
+  return permits;
+}
+
+// ═════════════════════════════════════════════════════════════
+// UI KOMPONENTAI
+// ═════════════════════════════════════════════════════════════
+function Badge(p){
+  return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:14,background:p.bg||C.acD,color:p.color||C.ac,fontSize:10,fontWeight:700,fontFamily:F,border:"1px solid "+(p.color||C.ac)+"22",whiteSpace:"nowrap"}}>{p.children}</span>
+}
+function StatusBadge(p){
+  var s=STATUS_MAP[p.status]||STATUS_MAP.Naujas;
+  return <Badge color={s.c} bg={s.bg}><span style={{width:5,height:5,borderRadius:"50%",background:s.dot,display:"inline-block"}}/> {SL[p.status]||p.status}</Badge>
+}
+function Btn(p){
+  var _h=useState(false);var h=_h[0],sH=_h[1];
+  var vr=p.v||"primary";
+  var vs={primary:{bg:C.ac,bh:C.acH,c:"#fff",bd:"none"},secondary:{bg:C.s3,bh:C.b1,c:C.tx,bd:"1px solid "+C.b1},ghost:{bg:"transparent",bh:C.s3,c:C.t2,bd:"none"},danger:{bg:C.rdD,bh:"#EF444433",c:C.rd,bd:"1px solid "+C.rd+"33"}};
+  var st=vs[vr]||vs.primary;
+  return <button onClick={p.onClick} disabled={p.disabled} onMouseEnter={function(){sH(true)}} onMouseLeave={function(){sH(false)}}
+    style={Object.assign({padding:p.sm?"4px 10px":"8px 16px",borderRadius:8,background:h&&!p.disabled?st.bh:st.bg,color:p.disabled?C.t3:st.c,border:st.bd,cursor:p.disabled?"not-allowed":"pointer",fontFamily:F,fontSize:p.sm?11:13,fontWeight:600,transition:"all .15s",opacity:p.disabled?.5:1,display:"inline-flex",alignItems:"center",gap:6},p.style||{})}>
+    {p.children}
+  </button>
+}
+function Inp(p){
+  var _f=useState(false);var f=_f[0],sF=_f[1];
+  var s={width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid "+(f?C.ac:C.b1),background:C.bg,color:C.tx,fontFamily:F,fontSize:13,outline:"none",transition:"border .15s",resize:p.ml?"vertical":undefined,boxSizing:"border-box"};
+  return <div style={{marginBottom:12}}>
+    {p.label&&<label style={{display:"block",fontSize:11,fontWeight:600,color:C.t2,marginBottom:4,fontFamily:F}}>{p.label}{p.req&&<span style={{color:C.rd}}> *</span>}</label>}
+    {p.ml
+      ?<textarea value={p.value} onChange={function(e){p.onChange(e.target.value)}} placeholder={p.ph} rows={p.rows||3} onFocus={function(){sF(true)}} onBlur={function(){sF(false)}} style={s}/>
+      :<input type={p.type||"text"} value={p.value} onChange={function(e){p.onChange(e.target.value)}} placeholder={p.ph} onFocus={function(){sF(true)}} onBlur={function(){sF(false)}} style={s} min={p.min}/>}
+  </div>
+}
+function Sel(p){
+  var _f=useState(false);var f=_f[0],sF=_f[1];
+  return <div style={{marginBottom:12}}>
+    {p.label&&<label style={{display:"block",fontSize:11,fontWeight:600,color:C.t2,marginBottom:4,fontFamily:F}}>{p.label}{p.req&&<span style={{color:C.rd}}> *</span>}</label>}
+    <select value={p.value} onChange={function(e){p.onChange(e.target.value)}} onFocus={function(){sF(true)}} onBlur={function(){sF(false)}}
+      style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid "+(f?C.ac:C.b1),background:C.bg,color:p.value?C.tx:C.t3,fontFamily:F,fontSize:13,outline:"none",cursor:"pointer",appearance:"none",boxSizing:"border-box",backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%235A6178' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 10px center"}}>
+      <option value="" disabled>{p.ph||"Pasirinkite..."}</option>
+      {(p.options||[]).map(function(o){var val=typeof o==="string"?o:o.value;var lab=typeof o==="string"?o:o.label;return <option key={val} value={val}>{lab}</option>})}
+    </select>
+  </div>
+}
+function Modal(p){
+  if(!p.open)return null;
+  return <div onClick={p.onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(5px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}}>
+    <div onClick={function(e){e.stopPropagation()}} style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:16,width:"100%",maxWidth:p.w||520,maxHeight:"90vh",overflow:"auto",boxShadow:"0 24px 48px rgba(0,0,0,.5)"}}>
+      <div style={{padding:"14px 18px",borderBottom:"1px solid "+C.b1,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700,color:C.tx,fontFamily:F}}>{p.title}</h3>
+        <button onClick={p.onClose} style={{background:"none",border:"none",color:C.t3,fontSize:18,cursor:"pointer"}}>x</button>
+      </div>
+      <div style={{padding:18}}>{p.children}</div>
+    </div>
+  </div>
+}
+function Av(p){
+  var s=p.size||32;
+  var ini=p.name?p.name.split(" ").map(function(w){return w[0]}).join("").slice(0,2).toUpperCase():"?";
+  var h=(p.name||"").split("").reduce(function(a,c){return a+c.charCodeAt(0)},0);
+  return <div style={{width:s,height:s,borderRadius:"50%",background:"hsl("+(h%360)+",48%,40%)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:s*.35,fontWeight:700,fontFamily:FM,flexShrink:0}}>{ini}</div>
+}
+function Empty(p){
+  return <div style={{textAlign:"center",padding:"40px 20px"}}>
+    <div style={{fontSize:36,marginBottom:8}}>{p.icon}</div>
+    <div style={{fontSize:14,fontWeight:600,color:C.t2,fontFamily:F}}>{p.title}</div>
+  </div>
+}
+function HistoryTimeline(p){
+  if(!p.history||!p.history.length)return <div style={{fontSize:11,color:C.t3,fontFamily:F}}>Nera istorijos.</div>;
+  return <div style={{display:"flex",flexDirection:"column",gap:0}}>
+    {p.history.map(function(h,i){
+      var s=STATUS_MAP[h.status]||STATUS_MAP.Naujas;var isLast=i===p.history.length-1;
+      return <div key={i} style={{display:"flex",gap:10}}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:16}}>
+          <div style={{width:10,height:10,borderRadius:"50%",background:s.dot,border:"2px solid "+C.s1,zIndex:1,flexShrink:0}}/>
+          {!isLast&&<div style={{width:2,flex:1,background:C.b1,marginTop:-1}}/>}
+        </div>
+        <div style={{paddingBottom:isLast?0:10,flex:1}}>
+          <div style={{fontSize:11,fontWeight:600,color:s.c,fontFamily:F}}>{SL[h.status]||h.status}</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>{h.date}{h.note?" — "+h.note:""}</div>
+        </div>
+      </div>
+    })}
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// PERMIT FORM
+// ═════════════════════════════════════════════════════════════
+
+
+var PERMIT_ORGS=["AB ESO","Kauno miesto savivaldybe","Telia, Kaunas","Kauno energija"];
+var TELIA_EMAIL="ligita.rutkauskiene@telia.lt";
+function FileDropZone(p){
+  var _drag=useState(false);var drag=_drag[0],sDrag=_drag[1];
+  var ref=useRef(null);
+  function readFiles(fileList){
+    Array.from(fileList).forEach(function(file){
+      var reader=new FileReader();
+      reader.onload=function(e){
+        p.onAdd({name:file.name,size:file.size,type:file.type,data:e.target.result});
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  return <div>
+    <div onDragOver={function(e){e.preventDefault();sDrag(true)}} onDragLeave={function(){sDrag(false)}}
+      onDrop={function(e){e.preventDefault();sDrag(false);readFiles(e.dataTransfer.files)}}
+      onClick={function(){ref.current&&ref.current.click()}}
+      style={{border:"2px dashed "+(drag?C.ac:C.b1),borderRadius:8,padding:"14px 12px",textAlign:"center",cursor:"pointer",background:drag?C.acD:C.bg,transition:"all .15s",marginBottom:8}}>
+      <div style={{fontSize:20,marginBottom:4}}>📎</div>
+      <div style={{fontSize:11,color:C.t2,fontFamily:F}}>Vilkite failus arba <span style={{color:C.ac,fontWeight:700}}>spauskite cia</span></div>
+      <div style={{fontSize:9,color:C.t3,fontFamily:F,marginTop:2}}>PDF, DWG, DXF, JPG, PNG</div>
+      <input ref={ref} type="file" multiple accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png" style={{display:"none"}} onChange={function(e){readFiles(e.target.files);e.target.value=""}}/>
+    </div>
+    {p.files&&p.files.length>0&&<div>
+      {p.files.map(function(f,i){return <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",background:C.s2,borderRadius:6,border:"1px solid "+C.b1,marginBottom:3}}>
+        <span style={{fontSize:14}}>{f.name.match(/\.pdf$/i)?"📄":f.name.match(/\.(jpg|jpeg|png)$/i)?"🖼️":"📐"}</span>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:11,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>{fmtSize(f.size)}</div>
+        </div>
+        <button onClick={function(){p.onRemove(i)}} style={{background:"none",border:"none",color:C.rd,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>×</button>
+      </div>})}
+    </div>}
+  </div>
+}
+
+function PermitForm(p){
+  var _mgr=useState(p.user.name||"");var mgr=_mgr[0],sMgr=_mgr[1];
+  var _ph=useState(p.user.phone||"");var ph=_ph[0],sPh=_ph[1];
+  var _em=useState(p.user.email||"");var em=_em[0],sEm=_em[1];
+  var _orgs=useState([]);var orgs=_orgs[0],sOrgs=_orgs[1];
+  var _s=useState("");var start=_s[0],sStart=_s[1];
+  var _e=useState("");var end=_e[0],sEnd=_e[1];
+  var _desc=useState("");var desc=_desc[0],sDesc=_desc[1];
+  var _files=useState([]);var files=_files[0],sFiles=_files[1];
+  var _trFrom=useState("");var trFrom=_trFrom[0],sTrFrom=_trFrom[1];
+  var _trTo=useState("");var trTo=_trTo[0],sTrTo=_trTo[1];
+  var isESO=orgs.indexOf("AB ESO")!==-1;
+  var isTelia=orgs.indexOf("Telia, Kaunas")!==-1;
+  var isKE=orgs.indexOf("Kauno energija")!==-1;
+  var teliaOk=!(isTelia||isKE)||(trFrom&&trTo);
+  var ok=mgr&&ph&&em&&orgs.length>0&&start&&end&&!(start&&end&&end<start)&&teliaOk;
+  function toggleOrg(o){sOrgs(function(prev){var idx=prev.indexOf(o);return idx===-1?prev.concat([o]):prev.filter(function(x){return x!==o});});}
+  function addFile(f){sFiles(function(prev){return prev.concat([f])})}
+  function removeFile(i){sFiles(function(prev){return prev.filter(function(_,idx){return idx!==i})})}
+  function submit(){
+    if(!ok)return;
+    var orgLabel=orgs.join(", ");
+    var loc=isTelia?(trFrom&&trTo?trFrom+" - "+trTo:""):"";
+    p.onSubmit({id:uid(),manager:mgr,managerPhone:ph,email:em,location:loc,
+      organization:orgLabel,organizations:orgs,
+      startDate:start,endDate:end,description:desc,files:files,
+      teliaRouteFrom:trFrom,teliaRouteTo:trTo,
+      createdBy:p.user.id,status:"Naujas",assignedTo:null,
+      createdAt:fmtDate(new Date()),history:[{status:"Naujas",date:fmtDate(new Date())}]});
+  }
+  return <div style={{maxWidth:560}}>
+    <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:4}}>Nauja kasimo leidimo paraiska</h2>
+    <p style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:20}}>Uzpildykite forma ir pateikite dokumentacijai.</p>
+    <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Kontaktine informacija</div>
+      <Inp label="Darbu vadovas" value={mgr} onChange={sMgr} ph="Vardas Pavarde" req/>
+      <Inp label="Darbu vadovo tel. nr." value={ph} onChange={sPh} ph="+370 600 00000" req/>
+      <Inp label="El. pasto adresas" type="email" value={em} onChange={sEm} ph="vardas@imone.lt" req/>
+    </div>
+    <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>
+        Institucijos <span style={{color:C.rd}}>*</span>
+        <span style={{fontSize:9,fontWeight:400,color:C.t3,marginLeft:6,textTransform:"none"}}>galima pasirinkti kelias</span>
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+        {PERMIT_ORGS.map(function(o){var sel=orgs.indexOf(o)!==-1;return <label key={o} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 12px",borderRadius:8,border:"1.5px solid "+(sel?C.ac:C.b1),background:sel?C.acD:C.bg,cursor:"pointer",fontSize:12,color:sel?C.ac:C.tx,fontFamily:F,fontWeight:sel?700:400,transition:"all .15s",userSelect:"none"}}>
+          <input type="checkbox" checked={sel} onChange={function(){toggleOrg(o)}} style={{accentColor:C.ac,margin:0,width:13,height:13}}/>
+          {o}
+        </label>})}
+      </div>
+      {orgs.length===0&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:8}}>Pasirinkite bent viena institucija.</div>}
+    </div>
+    {(isTelia||isKE)&&<div style={{background:C.s2,borderRadius:12,border:"1.5px solid "+C.b1,padding:16,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Trasos informacija <span style={{color:C.rd}}>*</span></div>
+      <Inp label="Trasos pradzia (gatve, namo nr.)" value={trFrom} onChange={sTrFrom} ph="pvz.: Pilies g. 1, Kaunas" req/>
+      <Inp label="Trasos pabaiga (gatve, namo nr., savivaldybe)" value={trTo} onChange={sTrTo} ph="pvz.: M. Dauksos g. 10, Kaunas, Kauno m. sav." req/>
+    </div>}
+    <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbu laikotarpis</div>
+      <div style={{display:"flex",gap:12}}>
+        <div style={{flex:1}}><Inp label="Darbu pradzia" type="date" value={start} onChange={sStart} req/></div>
+        <div style={{flex:1}}><Inp label="Darbu pabaiga" type="date" value={end} onChange={sEnd} req/></div>
+      </div>
+      {start&&end&&end<start&&<div style={{color:C.rd,fontSize:11,marginTop:-8,marginBottom:8,fontFamily:F}}>Pabaigos data negali buti ankstesne uz pradzios.</div>}
+    </div>
+    <div style={{background:C.s2,borderRadius:12,border:"1px solid "+(orgs.length>0&&files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i)}).length===0?C.rd:C.b1),padding:16,marginBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Projekto dokumentai</div>
+        {orgs.length>0&&<div style={{fontSize:11,fontWeight:700,color:C.rd,fontFamily:F}}>Prideti pilna projekta PDF</div>}
+      </div>
+      <FileDropZone files={files} onAdd={addFile} onRemove={removeFile}/>
+    </div>
+    <Inp label="Papildomas aprasas (neprivaloma)" value={desc} onChange={sDesc} ml rows={3} ph="Papildoma informacija apie darbus..."/>
+    <div style={{display:"flex",gap:6,marginTop:14,justifyContent:"flex-end"}}>
+      {p.onCancel&&<Btn v="secondary" onClick={p.onCancel}>Atsaukti</Btn>}
+      <Btn onClick={submit} disabled={!ok}>Pateikti paraiskas</Btn>
+    </div>
+  </div>
+}
+// ═════════════════════════════════════════════════════════════
+// ESO AUTOMATIZAVIMO MYGTUKAS
+// Saugo užduotį į localStorage ir rodo instrukciją Cowork naudotojui
+// ═════════════════════════════════════════════════════════════
+var ESO_EMAIL = "leidimai@energolt.eu";
+var ESO_COMPANY = "EnergoLT";
+var ESO_URL = "https://www.eso.lt/aktualios-formos/kasimo-darbai/30";
+
+function EsoSubmitBtn(p){
+  var o=p.permit;
+  var _open=useState(false);var open=_open[0],sOpen=_open[1];
+  var _st=useState("idle");var st=_st[0],sSt=_st[1]; // idle | ready | done | error
+  var _msg=useState("");var msg=_msg[0],sMsg=_msg[1];
+  var _emailSent=useState(false);var emailSent=_emailSent[0],sEmailSent=_emailSent[1];
+
+  var pdfFiles=(o.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+  var hasPdf=pdfFiles.length>0;
+  var permitNo=o.id?o.id.slice(-5).toUpperCase():"?????";
+
+  function openModal(){
+    sOpen(true);
+    // Automatiškai siunčiame patvirtinimą užsakovui kai atidaromas modalas
+    if(!emailSent&&o.email){
+      var subject="\uD83D\uDEA7 Kasimo leidimo paraiška #"+permitNo+" pateikta AB ESO";
+      var body='<p style="color:#374151;font-size:14px;margin-bottom:16px">Gerb. <strong>'+o.manager+'</strong>,<br><br>informuojame, kad Jūsų kasimo leidimo paraiška <strong>#'+permitNo+'</strong> buvo pateikta AB ESO ir šiuo metu laukia patvirtinimo. Sutikimas bus išsiųstas adresu <strong>'+ESO_EMAIL+'</strong>.</p>'
+        +'<table style="border-collapse:collapse;width:100%">'
+        +emailRow("Paraiškos Nr.:","#"+permitNo)
+        +emailRow("Institucija:","AB ESO")
+        +emailRow("Darbų vadovas:",o.manager||"-")
+        +emailRow("Tel. nr.:",o.managerPhone||"-")
+        +emailRow("Darbų laikotarpis:",(o.startDate||"-")+" \u2013 "+(o.endDate||"-"))
+        +emailRow("Pateikta:",new Date().toLocaleDateString("lt-LT",{year:"numeric",month:"long",day:"numeric",hour:"2-digit",minute:"2-digit"}))
+        +'</table>'
+        +'<p style="color:#6B7280;font-size:12px;margin-top:16px">Gavus ESO sutikimą, būsite informuoti papildomu el. laišku.</p>';
+      var html=emailWrap("Paraiška pateikta AB ESO","#F97316",body);
+      sendEmail(o.email,subject,html);
+      sEmailSent(true);
+    }
+  }
+
+  function prepareTask(){
+    // Sukuriame ESO užduoties objektą
+    var task={
+      permitId:o.id,
+      manager:o.manager,
+      managerPhone:o.managerPhone,
+      location:o.location,
+      startDate:o.startDate,
+      endDate:o.endDate,
+      company:ESO_COMPANY,
+      email:ESO_EMAIL,
+      url:ESO_URL,
+      files:pdfFiles.map(function(f){return {name:f.name,size:f.size}}),
+      createdAt:new Date().toISOString(),
+      status:"pending"
+    };
+    lsSet('kl-eso-task', task);
+    sSt("ready");
+    sMsg("Uzduotis issaugota. Dabar galite paleisti automatizavima.");
+  }
+
+  var coworkPrompt = [
+    "=== ESO KASIMO DARBU PARAISKAS PATEIKIMAS ===",
+    "Paraiskas ID: #"+o.id.slice(-5).toUpperCase()+" | "+o.startDate+" - "+o.endDate,
+    "",
+    "1. Atidaryti: "+ESO_URL,
+    "2. Surasti bloka 'ESO rangovas' (tekstas: 'Prasyma pildo ESO (sub)rangovo organizacija...')",
+    "3. Paspausti mygtuka 'Toliau' ties ESO rangovas bloku.",
+    "4. Uzpildyti forma:",
+    "   Organizacijos/imones pavadinimas: "+ESO_COMPANY,
+    "   Darbu vadovo vardas, pavarde: "+o.manager,
+    "   Darbu vadovo telefono numeris: "+o.managerPhone+" (formatas: +370XXXXXXXX)",
+    "   El. pastas sutikimo gavimui: "+ESO_EMAIL,
+    "   Savivaldybe: NUSKAITYTI is ikeltų PDF failu kampinio stampo arba techniniu salygu skilties, pasirinkti atitinkama savivaldybe is saraso.",
+    "   Darbu vykdymo vieta: "+o.location,
+    "   Numatomy darbu paskirtis ir pobudis: "+(o.description||"Kasimo darbai pagal projekta"),
+    "   Kasimo darbu pradzia: "+o.startDate,
+    "   Kasimo darbu pabaiga: "+o.endDate,
+    "   Darbu vietos nuoroda: PALIKTI TUSCIA",
+    "   Briezinys: PRIDETI siu failu: "+(pdfFiles.length>0?pdfFiles.map(function(f){return f.name}).join(", "):"(nera PDF failu - ikelta paraiskai)"),
+    "   Investicini numeri: NUSKAITYTI is PDF projekto dokumento (ieskoti 'Investicinis nr.' arba 'Proj. Nr.' kampiniame stampe).",
+    "   Jusu zinute mums: PALIKTI TUSCIA",
+    "5. Pazymeti varnele: 'Patvirtinu, kad susipazinau su darbu atlikimo taisyklemis...'",
+    "6. NESPAUSK 'Siusti' - palaukti Tomo patvirtinimo.",
+  ].join("\n");
+
+  return <div style={{marginBottom:12}}>
+    <div style={{background:"#FF6B2B18",border:"1px solid #FF6B2B44",borderRadius:8,padding:"10px 12px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <span style={{fontSize:16}}>🌐</span>
+        <div style={{fontSize:12,fontWeight:700,color:"#FF6B2B",fontFamily:F}}>AB ESO Automatinis pateikimas</div>
+      </div>
+      <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:10,lineHeight:1.5}}>
+        Sistema automatiskai uzpildys ESO forma su sios paraiskas duomenimis.
+        {!hasPdf&&<span style={{color:C.yl,fontWeight:600,display:"block",marginTop:4}}>⚠️ Neikelta PDF dokumentu. Failus galima prideti pries pateikiant.</span>}
+      </div>
+      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+        <Btn onClick={openModal} sm style={{background:"#FF6B2B",color:"#fff",border:"none"}}>
+          🚀 Pateikti ESO automatiskai
+        </Btn>
+        {hasPdf&&<span style={{fontSize:9,color:C.t3,fontFamily:FM}}>{pdfFiles.length} PDF</span>}
+      </div>
+    </div>
+
+    <Modal open={open} onClose={function(){sOpen(false)}} title="ESO automatinis pateikimas" w={560}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{background:C.s2,borderRadius:8,padding:"10px 14px",border:"1px solid "+C.b1}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Duomenys kurie bus pateikti ESO</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            {[
+              ["Imone",ESO_COMPANY],
+              ["El. pastas",ESO_EMAIL],
+              ["Darbu vadovas",o.manager],
+              ["Telefonas",o.managerPhone],
+              ["Laikotarpis",o.startDate+" - "+o.endDate],
+              ["Vieta",o.location]
+            ].map(function(row){return <div key={row[0]}>
+              <div style={{fontSize:9,color:C.t3,fontFamily:F}}>{row[0]}</div>
+              <div style={{fontSize:11,fontWeight:600,color:C.tx,fontFamily:F}}>{row[1]}</div>
+            </div>})}
+          </div>
+          {hasPdf&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid "+C.b1}}>
+            <div style={{fontSize:9,color:C.t3,fontFamily:F,marginBottom:4}}>PDF failai</div>
+            {pdfFiles.map(function(f,i){return <div key={i} style={{fontSize:10,color:C.ac,fontFamily:FM}}>📄 {f.name}</div>})}
+          </div>}
+          {!hasPdf&&<div style={{marginTop:8,padding:"6px 8px",background:C.ylD,borderRadius:6,fontSize:10,color:C.yl,fontFamily:F,border:"1px solid "+C.yl+"33"}}>
+            ⚠️ Neikelta PDF. Brieziniai nebus prideti automatiskai.
+          </div>}
+        </div>
+
+        <div style={{background:C.bg,borderRadius:8,padding:"10px 14px",border:"1px solid "+C.b1}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Cowork komanda (nukopijuokite ir vykdykite)</div>
+          <div style={{position:"relative"}}>
+            <pre style={{fontSize:9,color:C.t2,fontFamily:FM,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word",margin:0,padding:"8px 10px",background:C.s2,borderRadius:6,border:"1px solid "+C.b1}}>{coworkPrompt}</pre>
+            <button onClick={function(){
+              try{navigator.clipboard.writeText(coworkPrompt);sMsg("Nukopijuota!");setTimeout(function(){sMsg("")},2000)}catch(e){}
+            }} style={{position:"absolute",top:4,right:4,padding:"3px 8px",borderRadius:5,border:"1px solid "+C.b1,background:C.s3,color:C.t2,fontSize:9,fontFamily:F,cursor:"pointer"}}>
+              {msg||"Kopijuoti"}
+            </button>
+          </div>
+        </div>
+
+        {/* El. pašto patvirtinimo indikatorius */}
+        {o.email&&<div style={{background:emailSent?C.gnD:C.ylD,border:"1px solid "+(emailSent?C.gn:C.yl)+"44",borderRadius:8,padding:"8px 12px",fontSize:10,color:emailSent?C.gn:C.yl,fontFamily:F,lineHeight:1.6}}>
+          {emailSent
+            ?<span>✅ <strong>Patvirtinimas išsiųstas</strong> užsakovui: <span style={{fontFamily:FM}}>{o.email}</span></span>
+            :<span>⏳ Siunčiamas patvirtinimas → <span style={{fontFamily:FM}}>{o.email}</span></span>}
+        </div>}
+        {!o.email&&<div style={{background:C.ylD,border:"1px solid "+C.yl+"44",borderRadius:8,padding:"8px 12px",fontSize:10,color:C.yl,fontFamily:F}}>
+          ⚠️ Užsakovo el. paštas nenurodytas — patvirtinimas neišsiųstas.
+        </div>}
+
+        <div style={{background:C.acD,border:"1px solid "+C.ac+"44",borderRadius:8,padding:"8px 12px",fontSize:10,color:C.ac,fontFamily:F,lineHeight:1.6}}>
+          <strong>Kaip naudoti:</strong> Nukopijuokite komanda ir iiklijuokite i Cowork pokalbio langa. Claude automatiskai atliks visus veiksmus ESO svetainese iki paskutinio patvirtinimo — siuntimas vykdomas tik Jusu rankiniu patvirtinimu.
+        </div>
+        <div style={{background:C.ylD,border:"1px solid "+C.yl+"44",borderRadius:8,padding:"8px 12px",fontSize:10,color:C.yl,fontFamily:F,lineHeight:1.6}}>
+          ⚠️ <strong>Pastaba:</strong> Automatinis PDF failu priedejimas ir el. laistu siuntimas veiks tik kai sistema paleista per HTTP serveri (ne file://). Paleidimui: <span style={{fontFamily:FM}}>npm start</span> kasimo-leidimai aplanke.
+        </div>
+
+        <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+          <Btn v="secondary" onClick={function(){sOpen(false)}} sm>Uzdaryti</Btn>
+        </div>
+      </div>
+    </Modal>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// PERMIT DETAIL
+// ═════════════════════════════════════════════════════════════
+function PermitDetail(p){
+  var o=p.permit;
+  var _st=useState(o.status);var st=_st[0],sSt=_st[1];
+  var _at=useState(o.assignedTo||"");var at=_at[0],sAt=_at[1];
+  var _note=useState("");var note=_note[0],sNote=_note[1];
+  var _pvf=useState(o.permitValidFrom||"");var pvf=_pvf[0],sPvf=_pvf[1];
+  var _cFiles=useState(o.closeFiles||[]);var cFiles=_cFiles[0],sCFiles=_cFiles[1];
+  var _lbcFiles=useState(o.lbcFiles||[]);var lbcFiles=_lbcFiles[0],sLbcFiles=_lbcFiles[1];
+  var _cFiles=useState(o.closeFiles||[]);var cFiles=_cFiles[0],sCFiles=_cFiles[1];
+  var _lbcFiles=useState(o.lbcFiles||[]);var lbcFiles=_lbcFiles[0],sLbcFiles=_lbcFiles[1];
+  var _pvu=useState(o.permitValidUntil||"");var pvu=_pvu[0],sPvu=_pvu[1];
+  var isA=p.user.role==="admin";
+  var isD=p.user.role==="dokumentacija";
+  var cr=p.users.find(function(u){return u.id===o.createdBy});
+  var asgnUser=at?p.users.find(function(u){return u.id===at}):null;
+  var docsWorkers=p.users.filter(function(u){return u.role==="dokumentacija"});
+
+  function save(){
+    var u=Object.assign({},o);
+    if(isA){
+      if(at&&at!==o.assignedTo){
+        var aw=p.users.find(function(u){return u.id===at});
+        u.assignedTo=at;u.status="Priskirtas";
+        u.history=(o.history||[]).concat([{status:"Priskirtas",date:fmtDate(new Date()),note:"priskirta: "+(aw?aw.name:at)}]);
+      }
+      if((st==="Gautas"||st==="Atmestas")&&st!==o.status){
+        u.status=st;
+        if(st==="Gautas"){
+          if(pvf) u.permitValidFrom=pvf;
+          if(pvu) u.permitValidUntil=pvu;
+        }
+        u.history=(u.history||o.history||[]).concat([{status:st,date:fmtDate(new Date()),note:note||(st==="Gautas"&&pvu?"Leidimas gautas, galioja iki "+pvu:"")}]);
+      }
+    }
+    if(isD&&o.assignedTo===p.user.id&&st!==o.status){
+      u.status=st;
+      u.history=(o.history||[]).concat([{status:st,date:fmtDate(new Date()),note:note||""}]);
+    }
+    u.closeFiles=cFiles;u.lbcFiles=lbcFiles;u.closeFiles=cFiles;u.lbcFiles=lbcFiles;p.onUpdate(u);p.onClose();
+  }
+
+  return <Modal open={true} onClose={p.onClose} title={"Paraiskas #"+o.id.slice(-5).toUpperCase()} w={600}>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <StatusBadge status={o.status}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:3,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbu vadovas</div>
+          <div style={{fontSize:13,color:C.tx,fontFamily:F,fontWeight:600}}>{o.manager}</div>
+          <div style={{fontSize:11,color:C.t2,fontFamily:FM}}>{o.managerPhone}</div>
+          <div style={{fontSize:11,color:C.ac,fontFamily:FM}}>{o.email}</div>
+        </div>
+        <div>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:3,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Organizacija</div>
+          <div style={{fontSize:12,color:C.tx,fontFamily:F}}>{o.organization}</div>
+        </div>
+      </div>
+      <div>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:3,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbu vykdymo vieta</div>
+        <div style={{fontSize:13,color:C.tx,fontFamily:F}}>{o.location}</div>
+      </div>
+      <div style={{display:"flex",gap:12}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:3,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Laikotarpis</div>
+          <div style={{fontSize:12,color:C.tx,fontFamily:FM}}>{o.startDate} ir {o.endDate}</div>
+        </div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:3,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Pateike</div>
+          <div style={{display:"flex",alignItems:"center",gap:5}}>
+            <Av name={cr?cr.name:""} size={20}/>
+            <span style={{fontSize:11,color:C.tx,fontFamily:F}}>{cr?cr.name:"-"}</span>
+          </div>
+        </div>
+      </div>
+      {o.description&&<div>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:3,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Aprasas</div>
+        <div style={{fontSize:11,color:C.t2,fontFamily:F,background:C.bg,padding:8,borderRadius:6,border:"1px solid "+C.b1}}>{o.description}</div>
+      </div>}
+      {o.permitValidUntil&&(function(){
+        var expired=new Date(o.permitValidUntil)<new Date();
+        var expiring=!expired&&(new Date(o.permitValidUntil)-new Date())/(1000*60*60*24)<=14;
+        var col=expired?C.rd:expiring?C.yl:C.gn;
+        var colD=expired?C.rdD:expiring?C.ylD:C.gnD;
+        return <div style={{background:colD,borderRadius:8,padding:"10px 14px",border:"1px solid "+col+"33"}}>
+          <div style={{fontSize:10,fontWeight:700,color:col,marginBottom:4,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>
+            {expired?"Leidimas baige galioti":expiring?"Leidimas baigiasi greitai":"Leidimas galioja"}
+          </div>
+          <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
+            {o.permitValidFrom&&<div>
+              <div style={{fontSize:9,color:col,fontFamily:F,opacity:.7}}>Nuo</div>
+              <div style={{fontSize:13,fontWeight:700,color:col,fontFamily:FM}}>{o.permitValidFrom}</div>
+            </div>}
+            <div>
+              <div style={{fontSize:9,color:col,fontFamily:F,opacity:.7}}>Iki</div>
+              <div style={{fontSize:13,fontWeight:700,color:col,fontFamily:FM}}>{o.permitValidUntil}</div>
+            </div>
+            {expiring&&!expired&&<div style={{display:"flex",alignItems:"center"}}>
+              <span style={{fontSize:10,fontWeight:600,color:col,fontFamily:F}}>
+                Liko: {Math.ceil((new Date(o.permitValidUntil)-new Date())/(1000*60*60*24))} d.
+              </span>
+            </div>}
+          </div>
+        </div>
+      })()}
+      {asgnUser&&<div style={{background:C.acD,borderRadius:8,padding:"8px 12px",border:"1px solid "+C.ac+"33",display:"flex",alignItems:"center",gap:8}}>
+        <Av name={asgnUser.name} size={24}/>
+        <div>
+          <div style={{fontSize:10,fontWeight:700,color:C.ac,fontFamily:F}}>Priskirta</div>
+          <div style={{fontSize:12,color:C.tx,fontFamily:F}}>{asgnUser.name}</div>
+        </div>
+      </div>}
+      <div>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Istorija</div>
+        <div style={{background:C.bg,borderRadius:8,padding:12,border:"1px solid "+C.b1}}>
+          <HistoryTimeline history={o.history}/>
+        </div>
+      </div>
+
+      {/* Admin veiksmai */}
+      {isA&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Administravimas</div>
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:6,fontFamily:F}}>Priskirti dokumentacijos darbuotojui:</div>
+          {docsWorkers.length===0
+            ?<div style={{fontSize:11,color:C.t3,fontFamily:F}}>Nera dokumentacijos darbuotoju. Pridekite juos vartotoju valdyme.</div>
+            :<div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {docsWorkers.map(function(u){var checked=at===u.id;return <label key={u.id} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 9px",borderRadius:7,border:"1px solid "+(checked?C.ac:C.b1),background:checked?C.acD:C.s2,cursor:"pointer",fontSize:11,color:checked?C.ac:C.tx,fontFamily:F,fontWeight:checked?700:400,transition:"all .15s"}}>
+                <input type="radio" name="docWorker" checked={checked} onChange={function(){sAt(u.id)}} style={{accentColor:C.ac,margin:0}}/>{u.name}
+              </label>})}
+            </div>}
+        </div>
+        <Sel label="Keisti busena" value={st} onChange={sSt} options={[{value:"Naujas",label:"Naujas"},{value:"Priskirtas",label:"Priskirtas"},{value:"Pateikta",label:"Pateikta"},{value:"Gautas",label:"Leidimas gautas"},{value:"Atmestas",label:"Atmestas"}]}/>
+        {st==="Gautas"&&<div style={{background:C.gnD,borderRadius:8,padding:"10px 12px",border:"1px solid "+C.gn+"33",marginBottom:8}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.gn,fontFamily:F,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Leidimo galiojimo terminas</div>
+          <div style={{display:"flex",gap:10}}>
+            <div style={{flex:1}}><Inp label="Galioja nuo" type="date" value={pvf} onChange={sPvf}/></div>
+            <div style={{flex:1}}><Inp label="Galioja iki" type="date" value={pvu} onChange={sPvu}/></div>
+          </div>
+          {o.permitValidUntil&&<div style={{fontSize:10,color:C.gn,fontFamily:FM}}>Esama reiksme: {o.permitValidFrom||"?"} — {o.permitValidUntil}</div>}
+        </div>}
+        {(st==="Gautas"||st==="Atmestas")&&<Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>}
+        <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:8}}>
+          <Btn v="secondary" onClick={p.onClose} sm>Atsaukti</Btn>
+          <Btn v="danger" sm onClick={function(){if(window.confirm("Istrinti sias paraiskas?")){p.onDelete(o.id);p.onClose()}}}>Istrinti</Btn>
+          <Btn onClick={save} sm>Issaugoti</Btn>
+        </div>
+      </div>}
+
+      {/* Dokumentacija veiksmai */}
+      {isD&&o.assignedTo===p.user.id&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Veiksmai</div>
+        {o.organization==="AB ESO"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
+        <Sel label="Busena" value={st} onChange={sSt} options={[{value:"Priskirtas",label:"Priskirtas"},{value:"Vykdomas",label:"Vykdomas"},{value:"Baigtas",label:"Baigtas (laukia leidimo)"}]}/>
+        <Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>
+        <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:8}}>
+          <Btn v="secondary" onClick={p.onClose} sm>Atsaukti</Btn>
+          <Btn onClick={save} sm>Issaugoti</Btn>
+        </div>
+      </div>}
+
+
+      {/* Leidimo uzdarymas — tik uzsakovas, tik kai gautas leidimas */}
+      {p.user.role==="orderer"&&(o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Kasimo leidimo uzdarymas</div>
+        <div style={{background:C.s2,borderRadius:10,border:"1px solid "+(cFiles.length===0?C.rd:C.b1),padding:14,marginBottom:10}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F}}>Objekto nuotraukos po darbu <span style={{color:C.rd}}>*</span></div>
+            {cFiles.length===0&&<span style={{fontSize:10,fontWeight:700,color:C.rd,fontFamily:F}}>Butina prideti</span>}
+            {cFiles.length>0&&<span style={{fontSize:10,color:C.gn,fontFamily:F,fontWeight:700}}>{cFiles.length} failai</span>}
+          </div>
+          <FileDropZone files={cFiles} onAdd={function(f){sCFiles(function(prev){return prev.concat([f])})}} onRemove={function(i){sCFiles(function(prev){return prev.filter(function(_,idx){return idx!==i})})}}/>
+        </div>
+        <div style={{background:C.s2,borderRadius:10,border:"1px solid "+C.b1,padding:14,marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F}}>LBC protokolai <span style={{fontSize:10,color:C.t3,fontWeight:400}}>(nebutina)</span></div>
+            {lbcFiles.length>0&&<span style={{fontSize:10,color:C.gn,fontFamily:F,fontWeight:700}}>{lbcFiles.length} failai</span>}
+          </div>
+          <FileDropZone files={lbcFiles} onAdd={function(f){sLbcFiles(function(prev){return prev.concat([f])})}} onRemove={function(i){sLbcFiles(function(prev){return prev.filter(function(_,idx){return idx!==i})})}}/>
+        </div>
+        <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+          <Btn v="secondary" onClick={p.onClose} sm>Atsaukti</Btn>
+          <Btn onClick={function(){
+            if(cFiles.length===0){alert("Pridekite objekto nuotraukas po darbu!");return;}
+            var u=Object.assign({},o,{closeFiles:cFiles,lbcFiles:lbcFiles,closingSubmitted:true,closingSubmittedAt:fmtDate(new Date()),
+              history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Pateikta leidimo uzdarymo informacija"}])});
+            p.onUpdate(u);p.onClose();
+          }} sm>Perduoti uzdarymui</Btn>
+        </div>
+      </div>}
+
+      {/* Leidimo uzdarymas */}
+      {p.user.role==="orderer"&&(o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Kasimo leidimo uzdarymas</div>
+        <div style={{background:C.s2,borderRadius:10,border:"1px solid "+(cFiles.length===0?C.rd:C.b1),padding:14,marginBottom:10}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F}}>Objekto nuotraukos po darbu <span style={{color:C.rd}}>*</span></div>
+            {cFiles.length===0&&<span style={{fontSize:10,fontWeight:700,color:C.rd,fontFamily:F}}>Butina prideti</span>}
+            {cFiles.length>0&&<span style={{fontSize:10,color:C.gn,fontFamily:F,fontWeight:700}}>{cFiles.length} failai</span>}
+          </div>
+          <FileDropZone files={cFiles} onAdd={function(f){sCFiles(function(prev){return prev.concat([f])})}} onRemove={function(i){sCFiles(function(prev){return prev.filter(function(_,idx){return idx!==i})})}}/>
+        </div>
+        <div style={{background:C.s2,borderRadius:10,border:"1px solid "+C.b1,padding:14,marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F}}>LBC protokolai <span style={{fontSize:10,color:C.t3,fontWeight:400}}>(nebutina)</span></div>
+            {lbcFiles.length>0&&<span style={{fontSize:10,color:C.gn,fontFamily:F,fontWeight:700}}>{lbcFiles.length} failai</span>}
+          </div>
+          <FileDropZone files={lbcFiles} onAdd={function(f){sLbcFiles(function(prev){return prev.concat([f])})}} onRemove={function(i){sLbcFiles(function(prev){return prev.filter(function(_,idx){return idx!==i})})}}/>
+        </div>
+        <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+          <Btn v="secondary" onClick={p.onClose} sm>Atsaukti</Btn>
+          <Btn onClick={function(){
+            if(cFiles.length===0){alert("Pridekite objekto nuotraukas po darbu!");return;}
+            var u=Object.assign({},o,{closeFiles:cFiles,lbcFiles:lbcFiles,closingSubmitted:true,
+              history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Pateikta leidimo uzdarymo informacija"}])});
+            p.onUpdate(u);p.onClose();
+          }} sm>Perduoti uzdarymui</Btn>
+        </div>
+      </div>}
+      {/* Skaitymo rezimas */}
+      {(p.user.role==="orderer"||(isD&&o.assignedTo!==p.user.id)||o.status==="Gautas"||o.status==="Atmestas")&&!isA&&
+        <div style={{display:"flex",justifyContent:"flex-end"}}><Btn v="secondary" onClick={p.onClose} sm>Uzdaryti</Btn></div>}
+    </div>
+  </Modal>
+}
+
+// ═════════════════════════════════════════════════════════════
+// PERMIT ROW
+// ═════════════════════════════════════════════════════════════
+
+function workDaysUntil(dateStr){
+  if(!dateStr)return null;
+  var today=new Date();today.setHours(0,0,0,0);
+  var target=new Date(dateStr);target.setHours(0,0,0,0);
+  if(target<today)return -1;
+  var LTH={"01-01":1,"02-16":1,"03-11":1,"05-01":1,"06-24":1,"07-06":1,"08-15":1,"11-01":1,"11-02":1,"12-24":1,"12-25":1,"12-26":1};
+  var count=0;var cur=new Date(today);
+  while(cur<=target){
+    var dow=cur.getDay();
+    var mm=String(cur.getMonth()+1).padStart(2,"0");
+    var dd=String(cur.getDate()).padStart(2,"0");
+    if(dow!==0&&dow!==6&&!LTH[mm+"-"+dd])count++;
+    cur=new Date(cur.getTime()+24*60*60*1000);
+  }
+  return count;
+}
+
+function PermitRow(p){
+  var _h=useState(false);var h=_h[0],sH=_h[1];
+  var o=p.permit;
+  var cr=p.users.find(function(u){return u.id===o.createdBy});
+  var asgn=o.assignedTo?p.users.find(function(u){return u.id===o.assignedTo}):null;
+  var loc=o.location&&o.location!=="[Bus nustatyta is PDF]"?o.location:"";
+  var rowBg=C.s2;var rowBorder=C.b1;var rowBorderW="1px";var warnLabel=null;
+  if(o.status==="Nebegalioja"){
+    rowBg=C.rdD;rowBorder=C.rd;rowBorderW="1.5px";
+    warnLabel=<span style={{fontSize:9,fontWeight:700,color:C.rd,fontFamily:FM}}>Nebegalioja</span>;
+  } else if(o.status==="Gautas"&&o.permitValidUntil){
+    var wd=workDaysUntil(o.permitValidUntil);
+    if(wd>=0&&wd<=5){
+      rowBg=C.ylD;rowBorder=C.yl;rowBorderW="1.5px";
+      warnLabel=<span style={{fontSize:9,fontWeight:700,color:C.yl,fontFamily:FM}}>Baigiasi: {wd} d.d.</span>;
+    } else {
+      rowBg=C.gnD;rowBorder=C.gn;rowBorderW="1.5px";
+    }
+  }
+  return <div onClick={p.onClick} onMouseEnter={function(){sH(true)}} onMouseLeave={function(){sH(false)}}
+    style={{padding:"10px 14px",background:h?C.s3:rowBg,border:rowBorderW+" solid "+(h?C.b2:rowBorder),borderRadius:10,cursor:"pointer",transition:"all .15s",marginBottom:4}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+      <div style={{flex:1,minWidth:0,marginRight:8}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{loc||o.organization}</div>
+        {loc&&<div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:1}}>{o.organization}</div>}
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+        {warnLabel}
+        <StatusBadge status={o.status}/>
+      </div>
+    </div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:4}}>
+      <div style={{display:"flex",alignItems:"center",gap:4}}>
+        <Av name={cr?cr.name:""} size={16}/>
+        <span style={{fontSize:10,color:C.t2,fontFamily:F}}>{cr?cr.name:"-"}</span>
+        {asgn&&<span style={{fontSize:10,color:C.or,fontFamily:F}}> / {asgn.name}</span>}
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        {o.status==="Gautas"&&o.permitValidUntil&&<span style={{fontSize:9,color:C.gn,fontFamily:FM,fontWeight:600}}>iki {o.permitValidUntil}</span>}
+        <span style={{fontSize:9,color:C.t3,fontFamily:FM}}>{o.startDate} — {o.endDate}</span>
+      </div>
+    </div>
+  </div>
+}
+// ═════════════════════════════════════════════════════════════
+// SCHEDULE VIEW — Leidimų grafikas (Gantt tipo)
+// ═════════════════════════════════════════════════════════════
+function ScheduleView(p){
+  var now=new Date();
+  var _vm=useState(now.getMonth());var viewMonth=_vm[0],sViewMonth=_vm[1];
+  var _vy=useState(now.getFullYear());var viewYear=_vy[0],sViewYear=_vy[1];
+  var _orgF=useState("");var orgF=_orgF[0],sOrgF=_orgF[1];
+  var _stF=useState("");var stF=_stF[0],sStF=_stF[1];
+  var _locF=useState("");var locF=_locF[0],sLocF=_locF[1];
+
+  function goPrev(){if(viewMonth===0){sViewMonth(11);sViewYear(viewYear-1);}else sViewMonth(viewMonth-1);}
+  function goNext(){if(viewMonth===11){sViewMonth(0);sViewYear(viewYear+1);}else sViewMonth(viewMonth+1);}
+
+  var rangeStart=new Date(viewYear,viewMonth,1);
+  var rangeEnd=new Date(viewYear,viewMonth+1,0);
+  var totalDays=rangeEnd.getDate();
+
+  // LT šventės
+  var LTH={"01-01":1,"02-16":1,"03-11":1,"05-01":1,"06-24":1,"07-06":1,"08-15":1,"11-01":1,"11-02":1,"12-24":1,"12-25":1,"12-26":1};
+  function isLtHoliday(d){
+    var mm=String(d.getMonth()+1).padStart(2,"0");
+    var dd=String(d.getDate()).padStart(2,"0");
+    return !!LTH[mm+"-"+dd];
+  }
+
+  // Dienos žymės
+  var DAY_LT=["S","P","A","T","K","Pn","\u0160"];
+  var dayLabels=[];
+  for(var di=1;di<=totalDays;di++){
+    var dt=new Date(viewYear,viewMonth,di);
+    var dow=dt.getDay();
+    var isWeekend=dow===0||dow===6;
+    var isHoliday=isLtHoliday(dt);
+    var isNonWork=isWeekend||isHoliday;
+    var isToday=dt.toDateString()===now.toDateString();
+    dayLabels.push({
+      date:di,letter:DAY_LT[dow],
+      offsetPct:(di-1)/totalDays*100,
+      widthPct:1/totalDays*100,
+      isMonday:dow===1,isWeekend:isWeekend,isHoliday:isHoliday,
+      isNonWork:isNonWork,isToday:isToday
+    });
+  }
+
+  var todayPct=(now.getFullYear()===viewYear&&now.getMonth()===viewMonth)
+    ?(now.getDate()-1)/totalDays*100:-1;
+
+  // Filtravimas
+  var allLocs=[...new Set(p.permits.map(function(x){return x.location||""}).filter(Boolean))].sort();
+  var orgs=[...new Set(p.permits.map(function(x){return x.organization}).filter(Boolean))];
+  var filtered=p.permits.filter(function(permit){
+    if(orgF&&permit.organization!==orgF)return false;
+    if(stF&&permit.status!==stF)return false;
+    if(locF&&(permit.location||"")!==locF)return false;
+    return true;
+  });
+
+  // Grupuojame pagal lokaciją
+  var locMap={};
+  filtered.forEach(function(permit){
+    var loc=permit.location||"(vieta nenurodyta)";
+    if(!locMap[loc])locMap[loc]=[];
+    locMap[loc].push(permit);
+  });
+  var locKeys=Object.keys(locMap).sort(function(a,b){
+    var aMin=locMap[a].reduce(function(m,x){return (!m||x.startDate<m)?x.startDate:m},null)||"";
+    var bMin=locMap[b].reduce(function(m,x){return (!m||x.startDate<m)?x.startDate:m},null)||"";
+    return aMin>bMin?1:-1;
+  });
+
+  function barStyle(permit){
+    if(!permit.startDate||!permit.endDate)return null;
+    var s=new Date(permit.startDate);var e=new Date(permit.endDate);
+    if(s>rangeEnd||e<rangeStart)return null;
+    var effS=s<rangeStart?rangeStart:s;
+    var effE=e>rangeEnd?rangeEnd:e;
+    var left=(effS.getDate()-1)/totalDays*100;
+    var width=Math.max(0.5,(effE.getDate()-effS.getDate()+1)/totalDays*100);
+    var sm=STATUS_MAP[permit.status]||STATUS_MAP["Naujas"];
+    return {left:left+"%",width:width+"%",background:sm.dot,opacity:0.85};
+  }
+
+  function permitBarStyle(permit){
+    if(!permit.permitValidFrom||!permit.permitValidUntil)return null;
+    var s=new Date(permit.permitValidFrom);var e=new Date(permit.permitValidUntil);
+    if(s>rangeEnd||e<rangeStart)return null;
+    var effS=s<rangeStart?rangeStart:s;
+    var effE=e>rangeEnd?rangeEnd:e;
+    var left=(effS.getDate()-1)/totalDays*100;
+    var width=Math.max(0.5,(effE.getDate()-effS.getDate()+1)/totalDays*100);
+    var expired=new Date(permit.permitValidUntil)<now;
+    var expiring=!expired&&(new Date(permit.permitValidUntil)-now)/(1000*60*60*24)<=14;
+    var col=expired?C.rd:expiring?C.yl:C.gn;
+    return {left:left+"%",width:width+"%",color:col};
+  }
+
+  var BAR_H=18;var PERMIT_H=7;var ROW_H=44;var LEFT_W=240;
+
+  return <div>
+    {/* Antraštė su navigacija */}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+      <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F}}>Leidimu grafikas</h2>
+      <div style={{display:"flex",alignItems:"center",gap:6,background:C.s2,borderRadius:9,border:"1px solid "+C.b1,padding:"3px 6px"}}>
+        <button onClick={goPrev} style={{background:"none",border:"none",color:C.t2,cursor:"pointer",fontSize:18,padding:"0 4px",lineHeight:1}}>&#8249;</button>
+        <span style={{fontSize:13,fontWeight:700,color:C.tx,fontFamily:F,minWidth:120,textAlign:"center"}}>
+          {new Date(viewYear,viewMonth,1).toLocaleDateString("lt-LT",{month:"long",year:"numeric"})}
+        </span>
+        <button onClick={goNext} style={{background:"none",border:"none",color:C.t2,cursor:"pointer",fontSize:18,padding:"0 4px",lineHeight:1}}>&#8250;</button>
+        <button onClick={function(){sViewMonth(now.getMonth());sViewYear(now.getFullYear())}} style={{background:C.acD,border:"none",color:C.ac,cursor:"pointer",fontSize:10,padding:"3px 8px",borderRadius:5,fontFamily:F,fontWeight:600,marginLeft:2}}>Siandien</button>
+      </div>
+    </div>
+
+    {/* Filtrai */}
+    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+      <select value={locF} onChange={function(e){sLocF(e.target.value)}} style={{padding:"5px 8px",borderRadius:7,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontFamily:F,fontSize:11,outline:"none",maxWidth:200}}>
+        <option value="">Visi objektai</option>
+        {allLocs.map(function(l){return <option key={l} value={l}>{l}</option>})}
+      </select>
+      <select value={orgF} onChange={function(e){sOrgF(e.target.value)}} style={{padding:"5px 8px",borderRadius:7,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontFamily:F,fontSize:11,outline:"none"}}>
+        <option value="">Visos institucijos</option>
+        {orgs.map(function(o){return <option key={o} value={o}>{o}</option>})}
+      </select>
+      <select value={stF} onChange={function(e){sStF(e.target.value)}} style={{padding:"5px 8px",borderRadius:7,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontFamily:F,fontSize:11,outline:"none"}}>
+        <option value="">Visos busenos</option>
+        {Object.keys(STATUS_MAP).map(function(s){return <option key={s} value={s}>{SL[s]||s}</option>})}
+      </select>
+    </div>
+
+    {/* Legenda */}
+    <div style={{display:"flex",gap:12,marginBottom:10,flexWrap:"wrap"}}>
+      {[{c:C.ac,l:"Darbu laikotarpis"},{c:C.gn,l:"Leidimas galioja"},{c:C.yl,l:"Baigiasi (<14d.)"},{c:C.rd,l:"Nebegalioja"}].map(function(item){return <div key={item.l} style={{display:"flex",alignItems:"center",gap:5}}>
+        <div style={{width:18,height:7,borderRadius:2,background:item.c,opacity:.9}}/>
+        <span style={{fontSize:10,color:C.t2,fontFamily:F}}>{item.l}</span>
+      </div>})}
+    </div>
+
+    {locKeys.length===0
+      ?<Empty icon="&#128197;" title="Paraiskas pagal filtrus nerasta."/>
+      :<div style={{background:C.s1,borderRadius:12,border:"1px solid "+C.b1,overflow:"hidden"}}>
+
+        {/* Antraštė: Objektas + dienos */}
+        <div style={{display:"flex",borderBottom:"2px solid "+C.b1,background:C.s2}}>
+          <div style={{width:LEFT_W,flexShrink:0,padding:"6px 12px",fontSize:10,fontWeight:700,color:C.t3,fontFamily:F,textTransform:"uppercase",letterSpacing:1,borderRight:"1px solid "+C.b1,display:"flex",alignItems:"flex-end"}}>Objektas</div>
+          <div style={{flex:1,position:"relative",overflow:"hidden"}}>
+            {/* Dienų antraštė */}
+            <div style={{position:"relative",height:34}}>
+              {dayLabels.map(function(d,i){return <div key={i} style={{
+                position:"absolute",left:d.offsetPct+"%",width:d.widthPct+"%",
+                top:0,bottom:0,
+                borderLeft:d.isMonday?"2px solid "+C.b2:"1px solid "+C.b1,
+                background:d.isToday?C.acD:d.isNonWork?"rgba(239,68,68,.07)":"transparent",
+                display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden",gap:1
+              }}>
+                <span style={{fontSize:7,fontWeight:d.isToday?800:400,color:d.isToday?C.ac:d.isNonWork?C.rd:C.t3,fontFamily:FM,lineHeight:1}}>{d.date}</span>
+                <span style={{fontSize:6,color:d.isToday?C.ac:d.isNonWork?C.rd+"99":C.t3+"88",fontFamily:FM,lineHeight:1}}>{d.letter}</span>
+              </div>})}
+              {todayPct>=0&&<div style={{position:"absolute",left:todayPct+"%",top:0,bottom:0,width:2,background:C.ac,opacity:.9,zIndex:2}}/>}
+            </div>
+          </div>
+        </div>
+
+        {/* Objektų grupės */}
+        {locKeys.map(function(loc,gIdx){
+          var permits=locMap[loc];
+          var isLastGroup=gIdx===locKeys.length-1;
+          return <div key={loc} style={{borderBottom:isLastGroup?"none":"2px solid "+C.b1}}>
+
+            {/* Objekto antraštė */}
+            <div style={{display:"flex",background:"linear-gradient(90deg,"+C.acD+" 0%,"+C.s2+" 100%)",borderTop:"2px solid "+C.ac,borderBottom:"1px solid "+C.b1}}>
+              <div style={{width:LEFT_W,flexShrink:0,padding:"6px 12px",borderRight:"1px solid "+C.b1,display:"flex",alignItems:"center",gap:7}}>
+                <span style={{fontSize:12,color:C.ac}}>&#128205;</span>
+                <span style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{loc}</span>
+              </div>
+              <div style={{flex:1,position:"relative",height:28}}>
+                {dayLabels.map(function(d,i){return <div key={i} style={{position:"absolute",left:d.offsetPct+"%",top:0,bottom:0,width:d.widthPct+"%",background:d.isNonWork?"rgba(239,68,68,.04)":"transparent",pointerEvents:"none"}}/>})}
+                {dayLabels.map(function(d,i){return <div key={"l"+i} style={{position:"absolute",left:d.offsetPct+"%",top:0,bottom:0,width:1,background:d.isMonday?C.b2:C.b1,opacity:d.isMonday?.4:.15,pointerEvents:"none"}}/>})}
+                {todayPct>=0&&<div style={{position:"absolute",left:todayPct+"%",top:0,bottom:0,width:1,background:C.ac,opacity:.3}}/>}
+              </div>
+            </div>
+
+            {/* Leidimų eilutės */}
+            {permits.map(function(permit,pIdx){
+              var bs=barStyle(permit);
+              var ps=permitBarStyle(permit);
+              var sm=STATUS_MAP[permit.status]||STATUS_MAP["Naujas"];
+              var isLastRow=pIdx===permits.length-1;
+              return <div key={permit.id} onClick={function(){p.onSelect(permit)}}
+                style={{display:"flex",borderBottom:isLastRow?"none":"1px solid "+C.b1,cursor:"pointer",transition:"background .1s"}}
+                onMouseEnter={function(e){e.currentTarget.style.background=C.s3}}
+                onMouseLeave={function(e){e.currentTarget.style.background="transparent"}}>
+
+                <div style={{width:LEFT_W,flexShrink:0,padding:"5px 12px 5px 24px",borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",justifyContent:"center",gap:2}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <span style={{width:6,height:6,borderRadius:"50%",background:sm.dot,flexShrink:0}}/>
+                    <span style={{fontSize:10,fontWeight:700,color:C.tx,fontFamily:F}}>{permit.organization}</span>
+                    <span style={{fontSize:8,color:C.t3,fontFamily:FM,background:C.bg,padding:"1px 3px",borderRadius:2}}>#{permit.id.slice(-5).toUpperCase()}</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:5,paddingLeft:11}}>
+                    <span style={{fontSize:9,color:C.t3,fontFamily:F}}>{SL[permit.status]||permit.status}</span>
+                    {permit.permitValidUntil&&<span style={{fontSize:8,color:ps?ps.color:C.t3,fontFamily:FM,fontWeight:600}}>iki {permit.permitValidUntil}</span>}
+                  </div>
+                </div>
+
+                <div style={{flex:1,position:"relative",height:ROW_H}}>
+                  {dayLabels.map(function(d,i){return <div key={i} style={{position:"absolute",left:d.offsetPct+"%",top:0,bottom:0,width:d.widthPct+"%",background:d.isNonWork?"rgba(239,68,68,.04)":"transparent",pointerEvents:"none"}}/>})}
+                  {dayLabels.map(function(d,i){return <div key={"l"+i} style={{position:"absolute",left:d.offsetPct+"%",top:0,bottom:0,width:1,background:d.isMonday?C.b2:C.b1,opacity:d.isMonday?.4:.15,pointerEvents:"none"}}/>})}
+                  {todayPct>=0&&<div style={{position:"absolute",left:todayPct+"%",top:0,bottom:0,width:2,background:C.ac,opacity:.4,zIndex:1}}/>}
+                  {bs&&<div style={Object.assign({position:"absolute",top:8,height:BAR_H,borderRadius:3,opacity:.85,zIndex:2,minWidth:3},bs)}>
+                    <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",paddingLeft:3,overflow:"hidden"}}>
+                      <span style={{fontSize:7,color:"#fff",fontFamily:FM,whiteSpace:"nowrap",textShadow:"0 1px 2px rgba(0,0,0,.5)"}}>{permit.startDate} — {permit.endDate}</span>
+                    </div>
+                  </div>}
+                  {ps&&<div style={{position:"absolute",left:ps.left,width:ps.width,top:30,height:PERMIT_H,borderRadius:2,background:ps.color,opacity:.9,zIndex:2,minWidth:3}}/>}
+                </div>
+              </div>;
+            })}
+          </div>;
+        })}
+      </div>}
+
+    {/* Statistika */}
+    {p.permits.length>0&&<div style={{display:"flex",gap:8,marginTop:12,flexWrap:"wrap"}}>
+      {(function(){
+        var wp=p.permits.filter(function(x){return x.permitValidUntil});
+        var exp=wp.filter(function(x){return new Date(x.permitValidUntil)<now}).length;
+        var soon=wp.filter(function(x){var d=(new Date(x.permitValidUntil)-now)/(1000*60*60*24);return d>=0&&d<=14}).length;
+        var ok=wp.filter(function(x){return new Date(x.permitValidUntil)>=now&&(new Date(x.permitValidUntil)-now)/(1000*60*60*24)>14}).length;
+        return [{n:p.permits.length,l:"Is viso",c:C.tx},{n:wp.length,l:"Turi leidima",c:C.ac},{n:ok,l:"Galioja",c:C.gn},{n:soon,l:"Baigiasi",c:C.yl},{n:exp,l:"Pasibaige",c:C.rd}]
+          .map(function(item){return <div key={item.l} style={{padding:"8px 12px",background:C.s2,borderRadius:8,border:"1px solid "+C.b1,flex:"1 1 80px",minWidth:80}}>
+            <div style={{fontSize:18,fontWeight:800,color:item.c,fontFamily:F}}>{item.n}</div>
+            <div style={{fontSize:9,color:C.t2,fontFamily:F}}>{item.l}</div>
+          </div>});
+      })()}
+    </div>}
+  </div>
+}
+// ═════════════════════════════════════════════════════════════
+// USER MANAGEMENT
+// ═════════════════════════════════════════════════════════════
+function UserMgmt(p){
+  var _ar=useState(null);var assignId=_ar[0],sAR=_ar[1];
+  var _arole=useState("");var aRole=_arole[0],sARole=_arole[1];
+  var _add=useState(false);var showAdd=_add[0],sAdd=_add[1];
+  var _nn=useState("");var nn=_nn[0],sNN=_nn[1];
+  var _nu=useState("");var nu=_nu[0],sNU=_nu[1];
+  var _ne=useState("");var ne=_ne[0],sNE=_ne[1];
+  var _np=useState("");var np=_np[0],sNP=_np[1];
+  var _nr=useState("");var nr=_nr[0],sNR=_nr[1];
+  var _del=useState(null);var delId=_del[0],sDel=_del[1];
+
+  function openUser(u){sAR(u.id);sARole(u.role==="pending"?"":u.role)}
+  function closeUser(){sAR(null);sARole("")}
+  function doAssign(){
+    if(!assignId||!aRole)return;
+    p.onAssignRole(assignId,aRole);
+    closeUser();
+  }
+  function doAdd(){
+    if(!nn||!nu||!np||np.length<4||!nr)return;
+    p.onAddUser({id:uid(),name:nn,username:nu,email:ne,password:np,role:nr,mustChangePassword:false,adAuth:false,createdAt:new Date().toISOString()});
+    sAdd(false);sNN("");sNU("");sNE("");sNP("");sNR("");
+  }
+
+  var pending=p.users.filter(function(u){return u.role==="pending"});
+  var active=p.users.filter(function(u){return u.role!=="pending"});
+
+  return <div>
+    {pending.length>0&&<div style={{marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <h2 style={{fontSize:14,fontWeight:800,color:C.tx,fontFamily:F}}>Laukia roles priskyrimo</h2>
+        <span style={{background:C.rdD,color:C.rd,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:10}}>{pending.length}</span>
+      </div>
+      {pending.map(function(u){return <div key={u.id} style={{padding:"10px 14px",background:C.s2,borderRadius:8,border:"1.5px solid "+C.yl+"44",display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+        <Av name={u.name} size={34}/>
+        <div style={{flex:1}}>
+          <div style={{fontSize:12,fontWeight:600,color:C.tx,fontFamily:F}}>{u.name}</div>
+          <div style={{fontSize:10,color:C.t3,fontFamily:F}}>{u.email||u.username}</div>
+        </div>
+        <Btn sm onClick={function(){openUser(u)}}>Priskirti role</Btn>
+        <Btn v="danger" sm onClick={function(){sDel(u.id)}}>Istrinti</Btn>
+      </div>})}
+    </div>}
+
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+      <h2 style={{fontSize:14,fontWeight:800,color:C.tx,fontFamily:F}}>Aktyvus vartotojai</h2>
+      <Btn sm onClick={function(){sAdd(true)}}>+ Sukurti vartotoja</Btn>
+    </div>
+    {active.map(function(u){return <div key={u.id} style={{padding:"10px 14px",background:C.s2,borderRadius:8,border:"1px solid "+C.b1,display:"flex",alignItems:"center",gap:10,marginBottom:4,cursor:"pointer"}} onClick={function(){openUser(u)}}>
+      <Av name={u.name} size={34}/>
+      <div style={{flex:1}}>
+        <div style={{fontSize:12,fontWeight:600,color:C.tx,fontFamily:F}}>{u.name}</div>
+        <div style={{fontSize:10,color:C.t3,fontFamily:F}}>{u.email||u.username} / {ROLES[u.role]||u.role}</div>
+      </div>
+      {u.role!=="admin"&&<Btn v="danger" sm onClick={function(e){e.stopPropagation();sDel(u.id)}}>Istrinti</Btn>}
+    </div>})}
+
+    <Modal open={assignId!==null} onClose={closeUser} title="Pakeisti role" w={380}>
+      {(function(){var u=p.users.find(function(x){return x.id===assignId});if(!u)return null;
+        return <div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,padding:"10px 12px",background:C.s2,borderRadius:8,border:"1px solid "+C.b1}}>
+            <Av name={u.name} size={40}/>
+            <div>
+              <div style={{fontSize:13,fontWeight:700,color:C.tx,fontFamily:F}}>{u.name}</div>
+              <div style={{fontSize:10,color:C.t3,fontFamily:F}}>Dabar: {ROLES[u.role]||u.role}</div>
+            </div>
+          </div>
+          <Sel label="Nauja role" value={aRole} onChange={sARole} req options={[{value:"orderer",label:"Uzsakovas"},{value:"dokumentacija",label:"Dokumentacija"},{value:"admin",label:"Administratorius"}]} ph="Pasirinkite role..."/>
+          <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+            <Btn v="secondary" onClick={closeUser} sm>Atsaukti</Btn>
+            <Btn onClick={doAssign} disabled={!aRole} sm>Issaugoti</Btn>
+          </div>
+        </div>
+      })()}
+    </Modal>
+
+    <Modal open={showAdd} onClose={function(){sAdd(false)}} title="Sukurti vartotoja" w={380}>
+      <Inp label="Vardas Pavarde" value={nn} onChange={sNN} req ph="Petras Petraitis"/>
+      <Inp label="Prisijungimo vardas" value={nu} onChange={sNU} req ph="ppetraitis"/>
+      <Inp label="El. pastas" type="email" value={ne} onChange={sNE} ph="p@imone.lt"/>
+      <Inp label="Slaptazodis (min. 4 simboliai)" type="password" value={np} onChange={sNP} req ph="...."/>
+      <Sel label="Role" value={nr} onChange={sNR} req options={[{value:"orderer",label:"Uzsakovas"},{value:"dokumentacija",label:"Dokumentacija"},{value:"admin",label:"Administratorius"}]}/>
+      <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+        <Btn v="secondary" onClick={function(){sAdd(false)}} sm>Atsaukti</Btn>
+        <Btn onClick={doAdd} disabled={!nn||!nu||!np||np.length<4||!nr} sm>Sukurti</Btn>
+      </div>
+    </Modal>
+
+    <Modal open={delId!==null} onClose={function(){sDel(null)}} title="Istrinti vartotoja" w={360}>
+      <p style={{fontSize:12,color:C.tx,fontFamily:F,marginBottom:16}}>Ar tikrai norite istrinti si vartotoja? Veiksmas negrizstamas.</p>
+      <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+        <Btn v="secondary" onClick={function(){sDel(null)}} sm>Atsaukti</Btn>
+        <Btn v="danger" onClick={function(){p.onDeleteUser(delId);sDel(null)}} sm>Istrinti</Btn>
+      </div>
+    </Modal>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// PASSWORD CHANGE
+// ═════════════════════════════════════════════════════════════
+function PasswordChangePage(p){
+  var _o=useState("");var old=_o[0],sO=_o[1];
+  var _n=useState("");var nw=_n[0],sN=_n[1];
+  var _c=useState("");var conf=_c[0],sC=_c[1];
+  var _err=useState("");var err=_err[0],sErr=_err[1];
+  var _ok=useState(false);var ok=_ok[0],sOk=_ok[1];
+  var forced=p.user.mustChangePassword;
+  function doChange(){
+    if(nw!==conf){sErr("Slaptazodziai nesutampa.");return}
+    if(nw.length<4){sErr("Slaptazodis per trumpas.");return}
+    sErr("");
+    var users=lsGet('kl-users')||[];
+    var u=users.find(function(x){return x.id===p.user.id});
+    if(!u){sErr("Vartotojas nerastas.");return}
+    if(!forced&&u.password!==old){sErr("Neteisingas dabartinis slaptazodis.");return}
+    var updated=Object.assign({},u,{password:nw,mustChangePassword:false});
+    lsSet('kl-users',users.map(function(x){return x.id===updated.id?updated:x}));
+    sOk(true);
+    if(p.onChanged)p.onChanged(Object.assign({},p.user,{mustChangePassword:false}));
+  }
+  return <div style={{maxWidth:400,margin:"0 auto"}}>
+    <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:4}}>Slaptazodzio keitimas</h2>
+    {forced&&<div style={{background:C.ylD,border:"1px solid "+C.yl+"33",borderRadius:8,padding:"8px 12px",marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:600,color:C.yl,fontFamily:F}}>Privalote pakeisti slaptazodi pries tesdami.</div>
+    </div>}
+    {!forced&&<Inp label="Dabartinis slaptazodis" type="password" value={old} onChange={sO} req ph="......"/>}
+    <Inp label="Naujas slaptazodis" type="password" value={nw} onChange={sN} req ph="Min. 4 simboliai"/>
+    <Inp label="Pakartoti nauja slaptazodi" type="password" value={conf} onChange={sC} req ph="......"/>
+    {err&&<div style={{color:C.rd,fontSize:11,marginBottom:8,fontFamily:F}}>{err}</div>}
+    {ok&&<div style={{color:C.gn,fontSize:11,marginBottom:8,fontFamily:F}}>Slaptazodis sekmingai pakeistas.</div>}
+    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+      {!forced&&p.onCancel&&<Btn v="secondary" onClick={p.onCancel}>Atsaukti</Btn>}
+      <Btn onClick={doChange} disabled={!nw||!conf}>Pakeisti</Btn>
+    </div>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// DEMO VIEW
+// ═════════════════════════════════════════════════════════════
+function DemoView(p){
+  var demoPermits=generateDemoPermits(p.user.id);
+  var byOrg={};
+  demoPermits.forEach(function(permit){
+    if(!byOrg[permit.organization])byOrg[permit.organization]=[];
+    byOrg[permit.organization].push(permit);
+  });
+  var byStatus={};
+  demoPermits.forEach(function(permit){
+    byStatus[permit.status]=(byStatus[permit.status]||0)+1;
+  });
+  return <div style={{maxWidth:600}}>
+    <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:4}}>Demo duomenys</h2>
+    <p style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:20}}>Sugeneruojama {demoPermits.length} testinių paraiškų leidimų grafiko demonstracijai.</p>
+    <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Bus sugeneruota</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+        {Object.keys(byStatus).map(function(s){
+          var sm=STATUS_MAP[s]||STATUS_MAP.Naujas;
+          return <div key={s} style={{padding:"6px 10px",borderRadius:7,background:sm.bg,border:"1px solid "+sm.dot+"33"}}>
+            <span style={{fontSize:13,fontWeight:800,color:sm.c}}>{byStatus[s]}</span>
+            <span style={{fontSize:9,color:sm.c,marginLeft:4,fontFamily:F}}>{SL[s]||s}</span>
+          </div>;
+        })}
+      </div>
+      {Object.keys(byOrg).map(function(org){return <div key={org} style={{marginBottom:8}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,fontFamily:F,marginBottom:4}}>{org} ({byOrg[org].length})</div>
+        {byOrg[org].map(function(permit){
+          var sm=STATUS_MAP[permit.status]||STATUS_MAP.Naujas;
+          return <div key={permit.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",background:C.bg,borderRadius:6,marginBottom:2}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:sm.dot,flexShrink:0}}/>
+            <span style={{fontSize:11,color:C.tx,fontFamily:F,flex:1}}>{permit.manager}</span>
+            <span style={{fontSize:9,color:C.t3,fontFamily:FM}}>{permit.startDate} — {permit.endDate}</span>
+            {permit.permitValidUntil&&<span style={{fontSize:9,fontWeight:700,color:C.gn,fontFamily:FM}}>iki {permit.permitValidUntil}</span>}
+          </div>;
+        })}
+      </div>})}
+    </div>
+    {p.permits.length>0&&<div style={{background:C.ylD,border:"1px solid "+C.yl+"33",borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:11,color:C.yl,fontFamily:F}}>
+      ⚠️ Sistemoje jau yra <strong>{p.permits.length}</strong> paraiskas. Demo duomenys bus prideti prie esamų.
+    </div>}
+    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+      <Btn onClick={function(){p.onLoad(demoPermits)}} style={{background:C.ac,color:"#fff",border:"none"}}>
+        Sugeneruoti {demoPermits.length} paraiškas ir eiti i grafika
+      </Btn>
+      {p.permits.length>0&&<Btn v="danger" onClick={p.onClear}>
+        Isvalyti visas paraiškas
+      </Btn>}
+    </div>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// AUTH SCREEN  (analogiškas Geopoint: AD + Vietinis skirtukai)
+// ═════════════════════════════════════════════════════════════
+function AuthScreen(p){
+  var _tab=useState("ad");var tab=_tab[0],sTab=_tab[1];
+  var _lu=useState("");var lu=_lu[0],sLU=_lu[1];
+  var _lp=useState("");var lp=_lp[0],sLP=_lp[1];
+  var _un=useState("");var un=_un[0],sUN=_un[1];
+  var _ap=useState("");var ap=_ap[0],sAP=_ap[1];
+  var _err=useState("");var err=_err[0],sErr=_err[1];
+  var _ld=useState(false);var ld=_ld[0],sLd=_ld[1];
+  function loginAD(){
+    sErr("");
+    if(!un||!ap){sErr("Iveskite prisijungimo duomenis.");return}
+    sLd(true);
+    var users=lsGet('kl-users')||[];
+    var adUser=users.find(function(u){return u.adAuth&&(u.username===un||u.username===un.replace(/@[^@]*$/,''))});
+    if(adUser){
+      var safeUser=Object.assign({},adUser);delete safeUser.password;
+      sLd(false);p.onLogin(safeUser);
+    } else {
+      sLd(false);
+      sErr("AD vartotojas nerastas. Pirma prisijunkite prie Geopoint sistemos.");
+    }
+  }
+  function loginLocal(){
+    sErr("");
+    if(!lu||!lp){sErr("Iveskite prisijungimo duomenis.");return}
+    sLd(true);
+    var users=lsGet('kl-users')||[];
+    var user=users.find(function(u){return !u.adAuth&&u.username===lu&&u.password===lp});
+    if(!user){sLd(false);sErr("Neteisingas vartotojo vardas arba slaptazodis.");return}
+    var safeUser=Object.assign({},user);delete safeUser.password;
+    sLd(false);p.onLogin(safeUser);
+  }
+  function tabSt(t){return{padding:"8px 20px",border:"none",borderBottom:tab===t?"2px solid "+C.ac:"2px solid transparent",background:"transparent",color:tab===t?C.ac:C.t2,fontFamily:F,fontSize:12,fontWeight:tab===t?700:500,cursor:"pointer",transition:"color .15s"}}
+  return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{width:"100%",maxWidth:380,textAlign:"center"}}>
+      <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
+      <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
+      <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:20}}>Zemes darbu leidimo sistema</p>
+      <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
+        <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
+          <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
+          <button style={tabSt("local")} onClick={function(){sTab("local");sErr("")}}>Vietinis</button>
+        </div>
+        <div style={{padding:20}}>
+          {tab==="ad"&&<div>
+            <div style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:14}}>Prisijunkite naudodami <strong>hata.local</strong> paskyrą.</div>
+            <Inp label="Vartotojo vardas" value={un} onChange={sUN} ph="vardas.pavardenis"/>
+            <Inp label="Slaptazodis" type="password" value={ap} onChange={sAP} ph="........"/>
+            {err&&<div style={{color:C.rd,fontSize:10,marginBottom:8,fontFamily:F,padding:"6px 8px",background:C.rdD,borderRadius:6}}>{err}</div>}
+            <Btn onClick={loginAD} disabled={!un||!ap||ld} style={{width:"100%",justifyContent:"center"}}>{ld?"Jungiamasi...":"Prisijungti per AD"}</Btn>
+          </div>}
+          {tab==="local"&&<div>
+            <div style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:14}}>Vietinio administratoriaus prisijungimas.</div>
+            <Inp label="Vartotojo vardas" value={lu} onChange={sLU} ph="kladmin"/>
+            <div onKeyDown={function(e){if(e.key==="Enter")loginLocal()}}><Inp label="Slaptazodis" type="password" value={lp} onChange={sLP} ph="........"/></div>
+            {err&&<div style={{color:C.rd,fontSize:10,marginBottom:8,fontFamily:F,padding:"6px 8px",background:C.rdD,borderRadius:6}}>{err}</div>}
+            <Btn onClick={loginLocal} disabled={!lu||!lp||ld} style={{width:"100%",justifyContent:"center"}}>{ld?"Jungiamasi...":"Prisijungti"}</Btn>
+          </div>}
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// SIDEBAR
+// ═════════════════════════════════════════════════════════════
+function Sidebar(p){
+  var role=p.user.role;
+  var items=[];
+  if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiskas"},{id:"mine",icon:"📋",label:"Mano paraiskas"},{id:"schedule",icon:"📅",label:"Leidimu grafik."},{id:"pwd",icon:"🔑",label:"Slaptazodis"}];
+  else if(role==="dokumentacija") items=[{id:"assigned",icon:"📥",label:"Priskirtos man"},{id:"all",icon:"📋",label:"Visos paraiskas"},{id:"schedule",icon:"📅",label:"Leidimu grafik."},{id:"pwd",icon:"🔑",label:"Slaptazodis"}];
+  else if(role==="admin")  items=[{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"all",icon:"📋",label:"Visos paraiskas"},{id:"schedule",icon:"📅",label:"Leidimu grafik."},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"demo",icon:"🧪",label:"Demo duomenys"},{id:"pwd",icon:"🔑",label:"Slaptazodis"}];
+  return <div style={{width:200,background:C.s1,borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",height:"100vh",flexShrink:0}}>
+    <div style={{padding:"18px 16px 10px",borderBottom:"1px solid "+C.b1}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:20}}>🚧</span>
+        <div>
+          <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.0 demo</div>
+        </div>
+      </div>
+    </div>
+    <nav style={{flex:1,padding:"8px 8px",overflowY:"auto"}}>
+      {items.map(function(item){var active=p.view===item.id;
+        return <button key={item.id} onClick={function(){p.onNav(item.id)}}
+          style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 10px",borderRadius:8,border:"none",background:active?C.acD:"transparent",color:active?C.ac:C.t2,fontFamily:F,fontSize:12,fontWeight:active?700:500,cursor:"pointer",marginBottom:2,transition:"all .15s",textAlign:"left"}}>
+          <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{fontSize:14}}>{item.icon}</span>{item.label}</div>
+          {item.badge>0&&<span style={{background:C.rd,color:"#fff",fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:8}}>{item.badge}</span>}
+        </button>
+      })}
+    </nav>
+    <div style={{padding:"10px 12px",borderTop:"1px solid "+C.b1}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <Av name={p.user.name} size={28}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.user.name}</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:F}}>{ROLES[p.user.role]||p.user.role}</div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:4}}>
+        <button onClick={p.onTheme} style={{flex:1,padding:"4px 0",borderRadius:6,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontSize:9,fontFamily:F,cursor:"pointer"}}>{p.theme==="dark"?"Sviesi":"Tamsi"}</button>
+        <button onClick={p.onLogout} style={{flex:1,padding:"4px 0",borderRadius:6,border:"none",background:C.rdD,color:C.rd,fontSize:9,fontFamily:F,cursor:"pointer",fontWeight:600}}>Atsijungti</button>
+      </div>
+    </div>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
+// MAIN APP
+// ═════════════════════════════════════════════════════════════
+function checkExpired(arr){
+  var today=fmtDate(new Date());
+  var changed=false;
+  var result=arr.map(function(permit){
+    if(permit.status==="Gautas"&&permit.permitValidUntil&&permit.permitValidUntil<today){
+      changed=true;
+      return Object.assign({},permit,{status:"Nebegalioja",history:(permit.history||[]).concat([{status:"Nebegalioja",date:today,note:"Leidimo terminas pasibaige"}])});
+    }
+    return permit;
+  });
+  result.forEach(function(permit){
+    if(permit.status!=="Gautas"||!permit.permitValidUntil)return;
+    var wd=workDaysUntil(permit.permitValidUntil);
+    if(wd!==5)return;
+    var nKey="kl-notif-"+permit.id+"-5dd";
+    if(lsGet(nKey))return;
+    lsSet(nKey,true);
+    var subj="Kasimo leidimas baigiasi per 5 d.d. - "+permit.organization;
+    var rows=emailRow("Organizacija:",permit.organization)+emailRow("Paraiskas:",permit.id.slice(-5).toUpperCase())+emailRow("Galioja iki:",permit.permitValidUntil);
+    var body=emailWrap("Leidimo terminas baigiasi","#EAB308","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Leidimas baigia galioti "+permit.permitValidUntil+" &mdash; liko 5 darbo dienos.</p><table style=\"border-collapse:collapse;width:100%\">"+rows+"</table>");
+    if(permit.email)sendEmail(permit.email,subj,body);
+    sendEmail("leidimai@energolt.eu",subj,body);
+  });
+  return changed?result:arr;
+}
+
+function App(){
+  var _user=useState(null);var user=_user[0],setUser=_user[1];
+  var _view=useState("inbox");var view=_view[0],setView=_view[1];
+  var _permits=useState([]);var permits=_permits[0],setPermits=_permits[1];
+  var _users=useState([]);var users=_users[0],setUsers=_users[1];
+  var _detail=useState(null);var detail=_detail[0],setDetail=_detail[1];
+  var _theme=useState(_t0);var theme=_theme[0],setTheme=_theme[1];
+  var _filter=useState("");var filter=_filter[0],setFilter=_filter[1];
+
+  useEffect(function(){
+    try{var s=localStorage.getItem('kl-session');if(s)setUser(JSON.parse(s))}catch(e){}
+    var raw=lsGet('kl-permits')||[];
+    var today=fmtDate(new Date());
+    var checked=raw.map(function(permit){
+      if(permit.status==="Gautas"&&permit.permitValidUntil&&permit.permitValidUntil<today){
+        return Object.assign({},permit,{status:"Nebegalioja",history:(permit.history||[]).concat([{status:"Nebegalioja",date:today,note:"Leidimo terminas pasibaige"}])});
+      }
+      return permit;
+    });
+    setPermits(checked);lsSet('kl-permits',checked);
+    var rawU=lsGet('kl-users')||[];
+    setUsers(rawU.map(function(u){var s=Object.assign({},u);delete s.password;return s}));
+  },[]);
+
+  useEffect(function(){
+    if(!user)return;
+    if(user.role==="orderer")setView("mine");
+    else if(user.role==="dokumentacija")setView("assigned");
+    else setView("inbox");
+  },[user&&user.id]);
+
+  function savePermits(arr){var checked=checkExpired(arr);setPermits(checked);lsSet('kl-permits',checked);}
+
+  function handleLogin(u){
+    setUser(u);
+    try{localStorage.setItem('kl-session',JSON.stringify(u))}catch(e){}
+    setPermits(lsGet('kl-permits')||[]);
+    setUsers(lsGet('kl-users')||[]);
+    if(u.role==="pending")return;
+    if(u.role==="orderer")setView("mine");
+    else if(u.role==="dokumentacija")setView("assigned");
+    else setView("inbox");
+  }
+  function handleLogout(){setUser(null);try{localStorage.removeItem('kl-session')}catch(e){}}
+  function toggleTheme(){
+    var t=theme==="dark"?"light":"dark";
+    setTheme(t);Object.assign(C,t==="dark"?DARK_C:LIGHT_C);
+    document.body.setAttribute('data-theme',t);
+    try{localStorage.setItem('kl-theme',t)}catch(e){}
+  }
+
+  function addPermit(permit){
+    var orgs=permit.organizations||[];
+    var autoSubmit=orgs.indexOf("AB ESO")!==-1||orgs.indexOf("Telia, Kaunas")!==-1;
+    var orgLabel=permit.organization||orgs.join(", ");
+    var finalPermit=autoSubmit
+      ?Object.assign({},permit,{status:"Pateikta",history:(permit.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Automatiskai pateikta sistemai"}])})
+      :permit;
+    savePermits(permits.concat([finalPermit]));
+    if(orgs.indexOf("Telia, Kaunas")!==-1){
+      var body=emailWrap("Telia kasimo leidimo paraiskas","#0066CC",
+        "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
+        +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Reikalingas Telia kasimo leidimas, Kauno m. sav., trasai einanciai:</p>"
+        +"<table style=\"border-collapse:collapse;width:100%\"><tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Trasa:</td><td style=\"padding:4px 0;color:#111827;font-size:13px;font-weight:600\">"+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+"</td></tr>"
+        +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Darbus atliks:</td><td style=\"padding:4px 0;color:#111827;font-size:13px;font-weight:600\">UAB „EnergoLT“</td></tr>"
+        +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Darbu vadovas:</td><td style=\"padding:4px 0;color:#111827;font-size:13px\">"+(permit.manager||"")+" , tel.: "+(permit.managerPhone||"")+"</td></tr>"
+        +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Laikotarpis:</td><td style=\"padding:4px 0;color:#111827;font-size:13px\">"+(permit.startDate||"")+" – "+(permit.endDate||"")+"</td></tr>"
+        +"</table><p style=\"color:#374151;font-size:13px;margin:0\">Pridedu suderinima.</p>");
+      sendEmail(TELIA_EMAIL,"Telia zemes kasimo leidimas — "+(permit.teliaRouteFrom||""),body);
+    if(orgs.indexOf("Kauno energija")!==-1){
+      var keBody=emailWrap("Kauno energija kasimo leidimas","#DC2626",
+        "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
+        +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Planuojame atlikti elektros kabelio klojimo darbus, [būdas nustatomas iš projekto PDF], pagal proj. Nr.: [proj. nr. iš PDF], objekto adresas: "+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+", Kauno m. sav.</p>"
+        +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Reikia kasimo leidimo bei kontaktų inžinieriaus su kuriuo būtų galima prieš darbų pradžią nustatyti ŠT gyšius.</p>"
+        +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Prisegam failus: projekto brėžiniai; suderinimas su UAB &quot;Kauno Energija&quot;.</p>"
+        +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Darbus atliks įmonė UAB &quot;EnergoLT&quot;, &quot;Energijos skirstymo operatorius&quot; rangovas.</p>"
+        +"<table style=\"border-collapse:collapse;width:100%\">"
+        +emailRow("Projektų vadovas:",(permit.manager||"")+" , tel.: "+(permit.managerPhone||""))
+        +emailRow("Laikotarpis:",(permit.startDate||"")+" – "+(permit.endDate||""))
+        +"</table>");
+      sendEmail("info@kaunoenergija.lt","Kasimo leidimas — "+(permit.teliaRouteFrom||"")+" - "+(permit.teliaRouteTo||""),keBody);
+    }
+    }
+    setView("mine");
+  }
+
+  function updatePermit(updated){
+    if(updated.closingSubmitted){
+      var prev=permits.find(function(x){return x.id===updated.id});
+      if(!prev||!prev.closingSubmitted){
+        var asgn=users.find(function(u){return u.id===updated.assignedTo});
+        var clSubj="Pateikta leidimo uzdarymo informacija - "+updated.organization;
+        var clRows=emailRow("Paraiskas:",updated.id.slice(-5).toUpperCase())+emailRow("Organizacija:",updated.organization);
+        var clBody=emailWrap("Leidimo uzdarymas","#10B981","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Uzsakovas pateike dokumentus leidimo uzdarymui.</p><table style=\"border-collapse:collapse;width:100%\">"+clRows+"</table>");
+        if(asgn&&asgn.email)sendEmail(asgn.email,clSubj,clBody);
+        sendEmail("leidimai@energolt.eu",clSubj,clBody);
+      }
+    }
+    // Kauno m. sav. notifikacija kai gauti ESO ir Telia leidimai
+    var updOrgs=updated.organizations||[];
+    if(updOrgs.indexOf("Kauno miesto savivaldybe")!==-1&&updated.status==="Gautas"){
+      var prevForKauno=permits.find(function(x){return x.id===updated.id});
+      var wasGautas=prevForKauno&&prevForKauno.status==="Gautas";
+      if(!wasGautas){
+        var notifKey="kl-notif-"+updated.id+"-kauno";
+        if(!lsGet(notifKey)){
+          lsSet(notifKey,true);
+          var kRows2=emailRow("Paraiskas:",updated.id.slice(-5).toUpperCase())+emailRow("Darbu vadovas:",updated.manager)+emailRow("Laikotarpis:",updated.startDate+" – "+updated.endDate);
+          var kBody2=emailWrap("Galima pateikti Kauno m. sav.","#10B981","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Gauti visi reikalingi leidimai. Galima pateikti Kauno m. sav. leidimo paraiskas.</p><table style=\"border-collapse:collapse;width:100%\">"+kRows2+"</table>");
+          sendEmail("leidimai@energolt.eu","Galima pateikti Kauno m. sav. - "+updated.organization,kBody2);
+        }
+      }
+    }
+    savePermits(permits.map(function(x){return x.id===updated.id?updated:x}));
+  }
+
+  function deletePermit(id){savePermits(permits.filter(function(x){return x.id!==id}))}
+
+  function addUser(u){
+    var full=lsGet('kl-users')||[];var updated=full.concat([u]);
+    lsSet('kl-users',updated);
+    setUsers(updated.map(function(x){var s=Object.assign({},x);delete s.password;return s}));
+  }
+  function assignRole(userId,role){
+    var full=lsGet('kl-users')||[];
+    var updated=full.map(function(u){return u.id===userId?Object.assign({},u,{role:role}):u});
+    lsSet('kl-users',updated);
+    setUsers(updated.map(function(x){var s=Object.assign({},x);delete s.password;return s}));
+  }
+  function deleteUser(id){
+    var full=lsGet('kl-users')||[];var updated=full.filter(function(u){return u.id!==id});
+    lsSet('kl-users',updated);
+    setUsers(updated.map(function(x){var s=Object.assign({},x);delete s.password;return s}));
+  }
+  function onPasswordChanged(u){
+    setUser(u);try{localStorage.setItem('kl-session',JSON.stringify(u))}catch(e){}
+    if(u.role==="orderer")setView("mine");
+    else if(u.role==="dokumentacija")setView("assigned");
+    else setView("inbox");
+  }
+
+  if(!user)return <AuthScreen onLogin={handleLogin}/>;
+  if(user.mustChangePassword)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:16}}><PasswordChangePage user={user} onChanged={onPasswordChanged}/></div>;
+  if(user.role==="pending")return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F,padding:16}}>
+    <div style={{width:"100%",maxWidth:400,textAlign:"center"}}>
+      <div style={{fontSize:56,marginBottom:16}}>&#x23F3;</div>
+      <h2 style={{fontSize:20,fontWeight:800,color:C.tx,marginBottom:8}}>Laukiama patvirtinimo</h2>
+      <p style={{color:C.t2,fontSize:13,marginBottom:24,lineHeight:1.6}}>Jusu paskyra sekmingai sukurta.<br/>Administratorius turi priskirti jums role.</p>
+      <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,padding:16,marginBottom:20}}>
+        <div style={{fontSize:11,color:C.t3,fontFamily:FM,marginBottom:4}}>Prisijunges kaip</div>
+        <div style={{fontSize:13,fontWeight:700,color:C.tx}}>{user.name}</div>
+        <div style={{fontSize:11,color:C.t2}}>{user.email||user.username}</div>
+      </div>
+      <button onClick={handleLogout} style={{background:"none",border:"1px solid "+C.b1,borderRadius:8,color:C.t2,padding:"8px 20px",cursor:"pointer",fontFamily:F,fontSize:12}}>Atsijungti</button>
+    </div>
+  </div>;
+
+  var docsWorkers=users.filter(function(u){return u.role==="dokumentacija"});
+  var newCount=permits.filter(function(p){return p.status==="Naujas"||p.status==="Pateikta"}).length;
+  var pendingCount=users.filter(function(u){return u.role==="pending"}).length;
+  var closingCount=permits.filter(function(p){return p.closingSubmitted&&!p.closingDone}).length;
+
+  var visible=[];
+  if(view==="mine") visible=permits.filter(function(p){return p.createdBy===user.id});
+  else if(view==="assigned") visible=permits.filter(function(p){return p.assignedTo===user.id});
+  else if(view==="inbox") visible=permits.filter(function(p){return p.status==="Naujas"||p.status==="Pateikta"});
+  else if(view==="all") visible=permits.slice();
+  if(filter)visible=visible.filter(function(p){return p.status===filter});
+  visible=visible.slice().sort(function(a,b){return (b.createdAt||"")>(a.createdAt||"")?1:-1});
+
+  var main=null;
+  if(view==="new"){
+    main=<PermitForm user={user} onSubmit={addPermit} onCancel={function(){setView("mine")}}/>;
+  }else if(view==="schedule"){
+    main=<ScheduleView permits={permits} users={users} onSelect={function(permit){setDetail(permit)}}/>;
+  }else if(view==="demo"){
+    main=<DemoView user={user} permits={permits} onLoad={function(newPermits){savePermits(permits.concat(newPermits));setView("schedule");}} onClear={function(){savePermits([]);setView("inbox");}}/>;
+  }else if(view==="pwd"){
+    main=<PasswordChangePage user={user} onChanged={onPasswordChanged} onCancel={function(){if(user.role==="orderer")setView("mine");else if(user.role==="dokumentacija")setView("assigned");else setView("inbox");}}/>;
+  }else if(view==="users"){
+    main=<UserMgmt users={users} onAddUser={addUser} onAssignRole={assignRole} onDeleteUser={deleteUser}/>;
+  }else{
+    var titles={inbox:"Naujos paraiskas",mine:"Mano paraiskas",assigned:"Priskirtos man",all:"Visos paraiskas"};
+    main=<div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
+        <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F}}>{titles[view]||""}</h2>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <select value={filter} onChange={function(e){setFilter(e.target.value)}} style={{padding:"6px 10px",borderRadius:8,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontFamily:F,fontSize:11,outline:"none",cursor:"pointer"}}>
+            <option value="">Visos busenos</option>
+            {Object.keys(STATUS_MAP).map(function(s){return <option key={s} value={s}>{SL[s]||s}</option>})}
+          </select>
+          {user.role==="orderer"&&<Btn sm onClick={function(){setView("new")}}>+ Nauja</Btn>}
+        </div>
+      </div>
+      {(view==="all"||view==="inbox")&&<div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap"}}>
+        {Object.keys(STATUS_MAP).map(function(s){var n=permits.filter(function(p){return p.status===s}).length;if(!n)return null;
+          return <div key={s} style={{padding:"8px 10px",borderRadius:8,background:C.s2,border:"1px solid "+C.b1,flex:"1 1 80px",minWidth:80}}>
+            <div style={{fontSize:16,fontWeight:800,color:C.tx,fontFamily:F}}>{n}</div>
+            <div style={{fontSize:9,color:C.t2,fontFamily:F,display:"flex",alignItems:"center",gap:3}}><span style={{width:4,height:4,borderRadius:"50%",background:STATUS_MAP[s].dot}}/>{SL[s]||s}</div>
+          </div>})}
+      </div>}
+      {visible.length===0?<Empty icon="&#128077;" title="Paraiskas nera."/>:visible.map(function(permit){return <PermitRow key={permit.id} permit={permit} users={users} onClick={function(){setDetail(permit)}}/>})}
+    </div>;
+  }
+
+  return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
+    <Sidebar user={user} view={view} onNav={setView} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
+    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
+    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
+      onUpdate={function(u){updatePermit(u);setDetail(u)}}
+      onDelete={function(id){deletePermit(id);setDetail(null)}}
+      onClose={function(){setDetail(null)}}/>}
+  </div>
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
+</body>
+</html>
