@@ -33,6 +33,20 @@ Increment the minor version (`1.X.x`) with every change. Update the version stri
 
 `admin`, `orderer` (užsakovas), `dokumentacija` (dokumentacijos specialistas), `pending`
 
+## Institutions (PERMIT_ORGS)
+
+A permit can target **multiple institutions** simultaneously. Supported:
+- `AB ESO` — electricity network operator
+- `Kauno miesto savivaldybe` — Kaunas city municipality
+- `Telia, Kaunas` — telecom operator (requires route: `teliaRouteFrom` / `teliaRouteTo`)
+- `Kauno energija` — district heating (also requires route fields)
+
+`TELIA_EMAIL = "ligita.rutkauskiene@telia.lt"` — used for Telia notifications.
+
+## ESO automation
+
+`EsoSubmitBtn` component in frontend generates a Cowork prompt for semi-automated ESO form filling at `https://www.eso.lt/aktualios-formos/kasimo-darbai/30`. On open, auto-sends email confirmation to the orderer. Constants: `ESO_EMAIL = "leidimai@energolt.eu"`, `ESO_COMPANY = "EnergoLT"`.
+
 ## Data store keys
 
 All SQLite store keys use `kl-` prefix:
@@ -40,8 +54,9 @@ All SQLite store keys use `kl-` prefix:
 | Key | Content |
 |-----|---------|
 | `kl-users` | User array (passwords stripped on GET) |
-| `kl-permits` | Excavation permit array |
+| `kl-permits` | Excavation permit array (includes `organizations[]`, `permitValidFrom`, `permitValidUntil`, `teliaRouteFrom`, `teliaRouteTo`) |
 | `kl-settings` | App settings (emailDomain, etc.) |
+| `kl-eso-task` | Temporary ESO automation task (localStorage only) |
 
 ## Language
 
@@ -87,3 +102,4 @@ Any change that modifies the **database schema or existing data** (new columns, 
 
 - `saveUsers` auto-save bug fixed (v1.0.2): removed `sSet("kl-users")` auto-save; user mutations now go through dedicated endpoints only.
 - `POST /api/users` and `DELETE /api/users/:id` endpoints added (v1.0.2): user creation and deletion now persisted server-side.
+- Frontend merged from Geopoint-Dokumentacija (v1.0.3): multi-institution support, Telia/Kauno energija route fields, ESO automation button, permit validity dates, `Pateikta`/`Nebegalioja` statuses, Geopoint user import logic.
