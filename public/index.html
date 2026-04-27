@@ -1134,8 +1134,6 @@ function UserMgmt(p){
 
     <Modal open={assignId!==null} onClose={closeUser} title="Pakeisti role" w={420}>
       {(function(){var u=p.users.find(function(x){return x.id===assignId});if(!u)return null;
-        var initiated=(p.permits||[]).filter(function(pm){return pm.createdBy===u.id&&pm.status!=="Uzdaryta"});
-        var assigned=(p.permits||[]).filter(function(pm){return pm.assignedTo===u.id&&pm.status!=="Uzdaryta"});
         return <div>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,padding:"10px 12px",background:C.s2,borderRadius:8,border:"1px solid "+C.b1}}>
             <Av name={u.name} size={40}/>
@@ -1144,25 +1142,6 @@ function UserMgmt(p){
               <div style={{fontSize:10,color:C.t3,fontFamily:F}}>Dabar: {ROLES[u.role]||u.role}</div>
             </div>
           </div>
-          {(initiated.length>0||assigned.length>0)&&<div style={{marginBottom:14}}>
-            <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>Neuzdaryta leidimai</div>
-            <div style={{display:"flex",flexDirection:"column",gap:3,maxHeight:180,overflowY:"auto"}}>
-              {initiated.length>0&&<div style={{fontSize:10,color:C.t3,fontFamily:FM,margin:"2px 2px 0"}}>Inicijavo ({initiated.length})</div>}
-              {initiated.map(function(pm){return <div key={"i"+pm.id} onClick={function(){if(p.onOpenPermit){closeUser();p.onOpenPermit(pm.id)}}} title="Spustelekite, kad atidarytumete leidima" style={{padding:"6px 10px",background:C.s2,borderRadius:6,border:"1px solid "+C.b1,display:"flex",alignItems:"center",gap:6,cursor:"pointer"}} onMouseEnter={function(e){e.currentTarget.style.borderColor=C.ac}} onMouseLeave={function(e){e.currentTarget.style.borderColor=C.b1}}>
-                <StatusBadge status={pm.status}/>
-                <div style={{flex:1,minWidth:0,fontSize:11,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pm.address||"(be adreso)"}</div>
-                <div style={{fontSize:10,color:C.t3,fontFamily:FM}}>{(pm.organizations||[]).join(", ")||"—"}</div>
-                <div style={{fontSize:11,color:C.ac,fontFamily:FM,flexShrink:0}}>→</div>
-              </div>})}
-              {assigned.length>0&&<div style={{fontSize:10,color:C.t3,fontFamily:FM,margin:"4px 2px 0"}}>Priskirta ({assigned.length})</div>}
-              {assigned.map(function(pm){return <div key={"a"+pm.id} onClick={function(){if(p.onOpenPermit){closeUser();p.onOpenPermit(pm.id)}}} title="Spustelekite, kad atidarytumete leidima" style={{padding:"6px 10px",background:C.s2,borderRadius:6,border:"1px solid "+C.b1,display:"flex",alignItems:"center",gap:6,cursor:"pointer"}} onMouseEnter={function(e){e.currentTarget.style.borderColor=C.ac}} onMouseLeave={function(e){e.currentTarget.style.borderColor=C.b1}}>
-                <StatusBadge status={pm.status}/>
-                <div style={{flex:1,minWidth:0,fontSize:11,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pm.address||"(be adreso)"}</div>
-                <div style={{fontSize:10,color:C.t3,fontFamily:FM}}>{(pm.organizations||[]).join(", ")||"—"}</div>
-                <div style={{fontSize:11,color:C.ac,fontFamily:FM,flexShrink:0}}>→</div>
-              </div>})}
-            </div>
-          </div>}
           <Sel label="Nauja role" value={aRole} onChange={sARole} req options={[{value:"orderer",label:"Uzsakovas"},{value:"dokumentacija",label:"Dokumentacija"},{value:"admin",label:"Administratorius"}]} ph="Pasirinkite role..."/>
           <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
             <Btn v="secondary" onClick={closeUser} sm>Atsaukti</Btn>
@@ -1493,7 +1472,6 @@ function App(){
       ?Object.assign({},permit,{status:"Pateikta",history:(permit.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Automatiskai pateikta sistemai"}])})
       :permit;
     savePermits(permits.concat([finalPermit]));
-    setView(user.role==="admin"?"inbox":"mine");
     if(orgs.indexOf("Telia, Kaunas")!==-1){
       var body=emailWrap("Telia kasimo leidimo paraiskas","#0066CC",
         "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
@@ -1518,6 +1496,7 @@ function App(){
       sendEmail("info@kaunoenergija.lt","Kasimo leidimas — "+(permit.teliaRouteFrom||"")+" - "+(permit.teliaRouteTo||""),keBody);
     }
     }
+    setView(user.role==="admin"?"inbox":"mine");
   }
 
   function updatePermit(updated){
@@ -1612,4 +1591,43 @@ function App(){
   }else if(view==="demo"){
     main=<DemoView user={user} permits={permits} onLoad={function(newPermits){savePermits(permits.concat(newPermits));setView("schedule");}} onClear={function(){savePermits([]);setView("inbox");}}/>;
   }else if(view==="pwd"){
-    main=<PasswordChangePage user={user} onChanged={onPasswordChanged} onCancel={function(){if(user.role==="orde
+    main=<PasswordChangePage user={user} onChanged={onPasswordChanged} onCancel={function(){if(user.role==="orderer")setView("mine");else if(user.role==="dokumentacija")setView("assigned");else setView("inbox");}}/>;
+  }else if(view==="users"){
+    main=<UserMgmt users={users} permits={permits} onAddUser={addUser} onAssignRole={assignRole} onDeleteUser={deleteUser} onOpenPermit={function(id){var pm=permits.find(function(x){return x.id===id});if(pm){setDetail(pm);setView("all")}}}/>;
+  }else{
+    var titles={inbox:"Naujos paraiskas",mine:"Mano paraiskas",assigned:"Priskirtos man",all:"Visos paraiskas"};
+    main=<div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
+        <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F}}>{titles[view]||""}</h2>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <select value={filter} onChange={function(e){setFilter(e.target.value)}} style={{padding:"6px 10px",borderRadius:8,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontFamily:F,fontSize:11,outline:"none",cursor:"pointer"}}>
+            <option value="">Visos busenos</option>
+            {Object.keys(STATUS_MAP).map(function(s){return <option key={s} value={s}>{SL[s]||s}</option>})}
+          </select>
+          {user.role==="orderer"&&<Btn sm onClick={function(){setView("new")}}>+ Nauja</Btn>}
+        </div>
+      </div>
+      {(view==="all"||view==="inbox")&&<div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap"}}>
+        {Object.keys(STATUS_MAP).map(function(s){var n=permits.filter(function(p){return p.status===s}).length;if(!n)return null;
+          return <div key={s} style={{padding:"8px 10px",borderRadius:8,background:C.s2,border:"1px solid "+C.b1,flex:"1 1 80px",minWidth:80}}>
+            <div style={{fontSize:16,fontWeight:800,color:C.tx,fontFamily:F}}>{n}</div>
+            <div style={{fontSize:9,color:C.t2,fontFamily:F,display:"flex",alignItems:"center",gap:3}}><span style={{width:4,height:4,borderRadius:"50%",background:STATUS_MAP[s].dot}}/>{SL[s]||s}</div>
+          </div>})}
+      </div>}
+      {visible.length===0?<Empty icon="&#128077;" title="Paraiskas nera."/>:visible.map(function(permit){return <PermitRow key={permit.id} permit={permit} users={users} onClick={function(){setDetail(permit)}}/>})}
+    </div>;
+  }
+
+  return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
+    <Sidebar user={user} view={view} onNav={setView} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
+    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
+    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
+      onUpdate={function(u){updatePermit(u);setDetail(u)}}
+      onDelete={function(id){deletePermit(id);setDetail(null)}}
+      onClose={function(){setDetail(null)}}/>}
+  </div>
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
+</body>
+</html>
