@@ -628,4 +628,8 @@ app.listen(PORT, () => {
 
   setTimeout(() => {
     const settings = dbGet('kl-settings') || {};
-    syncAdEmailsPromise(set
+    syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
+      console.log('[SYNC] El. pašto sinchronizacija:', r.log.join('\n       '));
+    });
+  }, 3000);
+});
