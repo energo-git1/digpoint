@@ -1620,4 +1620,14 @@ function App(){
 
   return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
     <Sidebar user={user} view={view} onNav={setView} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
-    <main style={{flex:1,overflowY:"auto",padding:"24px 
+    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
+    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
+      onUpdate={function(u){updatePermit(u);setDetail(u)}}
+      onDelete={function(id){deletePermit(id);setDetail(null)}}
+      onClose={function(){setDetail(null)}}/>}
+  </div>
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
+</body>
+</html>
