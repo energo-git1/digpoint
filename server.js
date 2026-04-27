@@ -156,7 +156,8 @@ app.post('/api/auth/local', (req, res) => {
     return res.status(400).json({ error: 'Trūksta prisijungimo duomenų.' });
 
   const users = dbGet('kl-users') || [];
-  const user  = users.find((u) => !u.adAuth && u.username === username);
+  const usernameLower = username.toLowerCase();
+  const user  = users.find((u) => !u.adAuth && u.username.toLowerCase() === usernameLower);
 
   if (!user)                       return res.status(401).json({ error: 'Vartotojas nerastas.' });
   if (user.password !== password)  return res.status(401).json({ error: 'Neteisingas slaptažodis.' });
@@ -265,7 +266,7 @@ app.delete('/api/users/:id', (req, res) => {
 // ── AD / LDAP authentication ──────────────────────────────────
 app.post('/api/auth/ldap', (req, res) => {
   const rawUsername = (req.body.username || '').trim();
-  const username = rawUsername.replace(/@[^@]*$/, '');
+  const username = rawUsername.replace(/@[^@]*$/, '').toLowerCase();
   const { password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Trūksta prisijungimo duomenų' });
@@ -341,7 +342,8 @@ app.post('/api/auth/ldap', (req, res) => {
 function finishLogin(res, username, email, displayName) {
   let users = dbGet('kl-users') || [];
 
-  const existingByUsername = users.find((u) => u.adAuth && u.username === username);
+  const usernameLower = username.toLowerCase();
+  const existingByUsername = users.find((u) => u.adAuth && u.username.toLowerCase() === usernameLower);
   const existingByEmail    = email ? users.find((u) => u.adAuth && u.email === email) : null;
   let user = existingByUsername || existingByEmail || null;
 
@@ -626,8 +628,4 @@ app.listen(PORT, () => {
 
   setTimeout(() => {
     const settings = dbGet('kl-settings') || {};
-    syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
-      console.log('[SYNC] El. pašto sinchronizacija:', r.log.join('\n       '));
-    });
-  }, 3000);
-});
+    syncAdEmailsPromise(set
