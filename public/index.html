@@ -69,9 +69,13 @@ var SL = {
 
 var ROLES = {orderer:"Užsakovas",dokumentacija:"Dokumentacija",admin:"Administratorius",pending:"Laukia patvirtinimo"};
 
-// ── LOCAL STORAGE helpers (vietoj serverio) ───────────────────
+// ── LOCAL STORAGE helpers (session, theme, eso-task) ──────────
 function lsGet(k){ try{var v=localStorage.getItem(k); return v?JSON.parse(v):null}catch(e){return null} }
 function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v))}catch(e){} }
+
+// ── SERVER STORE helpers (analogiškai kaip geopoint) ──────────
+async function sGet(k){try{var r=await fetch("/api/store/"+encodeURIComponent(k));var d=await r.json();return d.value}catch(e){return null}}
+async function sSet(k,v){try{await fetch("/api/store/"+encodeURIComponent(k),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:v})})}catch(e){}}
 
 // ── Vartotojai: importuojami iš Geopoint (gp-users) ──────────
 // Geopoint rolių atitikimas:
@@ -666,6 +670,7 @@ function PermitDetail(p){
       {/* Admin veiksmai */}
       {isA&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Administravimas</div>
+        {o.organization==="AB ESO"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
         <div style={{marginBottom:12}}>
           <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:6,fontFamily:F}}>Priskirti dokumentacijos darbuotojui:</div>
           {docsWorkers.length===0
@@ -1421,21 +1426,27 @@ function App(){
   var _detail=useState(null);var detail=_detail[0],setDetail=_detail[1];
   var _theme=useState(_t0);var theme=_theme[0],setTheme=_theme[1];
   var _filter=useState("");var filter=_filter[0],setFilter=_filter[1];
+  var _loaded=useState(false);var loaded=_loaded[0],sL=_loaded[1];
 
-  useEffect(function(){
-    try{var s=localStorage.getItem('kl-session');if(s)setUser(JSON.parse(s))}catch(e){}
-    var raw=lsGet('kl-permits')||[];
-    var today=fmtDate(new Date());
-    var checked=raw.map(function(permit){
-      if(permit.status==="Gautas"&&permit.permitValidUntil&&permit.permitValidUntil<today){
-        return Object.assign({},permit,{status:"Nebegalioja",history:(permit.history||[]).concat([{status:"Nebegalioja",date:today,note:"Leidimo terminas pasibaige"}])});
+  useEffect(function(){(async function(){
+    try{
+      var u=await sGet("kl-users");
+      var raw=await sGet("kl-permits");
+      if(u&&u.length>0)setUsers(u.map(function(x){var s=Object.assign({},x);delete s.password;return s}));
+      if(raw&&raw.length>0){
+        var today=fmtDate(new Date());
+        var checked=raw.map(function(permit){
+          if(permit.status==="Gautas"&&permit.permitValidUntil&&permit.permitValidUntil<today){
+            return Object.assign({},permit,{status:"Nebegalioja",history:(permit.history||[]).concat([{status:"Nebegalioja",date:today,note:"Leidimo terminas pasibaige"}])});
+          }
+          return permit;
+        });
+        setPermits(checked);
       }
-      return permit;
-    });
-    setPermits(checked);lsSet('kl-permits',checked);
-    var rawU=lsGet('kl-users')||[];
-    setUsers(rawU.map(function(u){var s=Object.assign({},u);delete s.password;return s}));
-  },[]);
+      try{var s=localStorage.getItem('kl-session');if(s){var sess=JSON.parse(s);var fu=(u||[]).find(function(x){return x.id===sess.id});if(fu){setUser(fu)}else{setUser(sess)}}}catch(e){}
+    }catch(e){}
+    sL(true);
+  })()},[]);
 
   useEffect(function(){
     if(!user)return;
@@ -1444,13 +1455,13 @@ function App(){
     else setView("inbox");
   },[user&&user.id]);
 
-  function savePermits(arr){var checked=checkExpired(arr);setPermits(checked);lsSet('kl-permits',checked);}
+  useEffect(function(){if(loaded)sSet("kl-permits",permits)},[permits,loaded]);
+
+  function savePermits(arr){var checked=checkExpired(arr);setPermits(checked);}
 
   function handleLogin(u){
     setUser(u);
     try{localStorage.setItem('kl-session',JSON.stringify(u))}catch(e){}
-    setPermits(lsGet('kl-permits')||[]);
-    setUsers(lsGet('kl-users')||[]);
     if(u.role==="pending")return;
     if(u.role==="orderer")setView("mine");
     else if(u.role==="dokumentacija")setView("assigned");
