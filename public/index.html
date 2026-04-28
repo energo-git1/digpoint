@@ -98,23 +98,30 @@ async function extractPdfText(dataUrl){
 }
 
 function parseLocation(text){
-  // Ieškome adreso iš kampinio stampo ar techninių sąlygų
-  // Tipiniai formatai: "Objektas:", "Objekto adresas:", "Statybos vieta:", "Adresas:"
-  var patterns=[
+  // Adreso atpažinimo šablonas: gatvė + namo nr. + miestas
+  // Pvz.: "Hipodromo g. 58, Kaunas" arba "Smolensko g. 10, Kaunas, Kauno m. sav."
+  var addrRe=/([A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž]+(?:\s+[a-ząčęėįšųūž]+)*\s+(?:g\.|pr\.|al\.|pl\.|sk\.|gt\.)\s*\d+[A-Za-z\-\/\d]*(?:\s*,\s*[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž\s]+)*)/g;
+
+  // Pirma bandome iš "Objekto adresas:", "Adresas:", "Statybos vieta:", "Darbų vieta:"
+  var labelPatterns=[
     /[Oo]bjekto\s+adresas[\s.:]+([^\n]{5,80})/,
-    /[Oo]bjektas[\s.:]+([^\n]{5,80})/,
-    /[Ss]tatybos\s+vieta[\s.:]+([^\n]{5,80})/,
+    /[Ss]tatybos\s+(?:vieta|adresas)[\s.:]+([^\n]{5,80})/,
     /[Aa]dresas[\s.:]+([^\n]{5,80})/,
     /[Dd]arbų\s+vieta[\s.:]+([^\n]{5,80})/,
   ];
-  for(var i=0;i<patterns.length;i++){
-    var m=text.match(patterns[i]);
+  for(var i=0;i<labelPatterns.length;i++){
+    var m=text.match(labelPatterns[i]);
     if(m&&m[1]){
-      var val=m[1].trim().replace(/\s+/g,' ');
-      // Filtruojame per trumpus arba akivaizdžiai ne adresus
-      if(val.length>5&&val.length<120)return val;
+      // Iš rastos eilutės ištraukiame tik adresą (gatvė + nr. + miestas)
+      var lineAddr=m[1].match(addrRe);
+      if(lineAddr&&lineAddr[0])return lineAddr[0].trim().replace(/\s+/g,' ');
     }
   }
+
+  // Jei nerado iš etikečių — ieškome pirmo adreso viso teksto pradžioje (kampinis spaudas)
+  var allAddrs=text.match(addrRe);
+  if(allAddrs&&allAddrs[0])return allAddrs[0].trim().replace(/\s+/g,' ');
+
   return null;
 }
 
