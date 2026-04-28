@@ -98,29 +98,21 @@ async function extractPdfText(dataUrl){
 }
 
 function parseLocation(text){
-  // Adreso atpažinimo šablonas: gatvė + namo nr. + miestas
-  // Pvz.: "Hipodromo g. 58, Kaunas" arba "Smolensko g. 10, Kaunas, Kauno m. sav."
-  var addrRe=/([A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž]+(?:\s+[a-ząčęėįšųūž]+)*\s+(?:g\.|pr\.|al\.|pl\.|sk\.|gt\.)\s*\d+[A-Za-z\-\/\d]*(?:\s*,\s*[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž\s]+)*)/g;
-
-  // Pirma bandome iš "Objekto adresas:", "Adresas:", "Statybos vieta:", "Darbų vieta:"
-  var labelPatterns=[
-    /[Oo]bjekto\s+adresas[\s.:]+([^\n]{5,80})/,
-    /[Ss]tatybos\s+(?:vieta|adresas)[\s.:]+([^\n]{5,80})/,
-    /[Aa]dresas[\s.:]+([^\n]{5,80})/,
-    /[Dd]arbų\s+vieta[\s.:]+([^\n]{5,80})/,
-  ];
-  for(var i=0;i<labelPatterns.length;i++){
-    var m=text.match(labelPatterns[i]);
-    if(m&&m[1]){
-      // Iš rastos eilutės ištraukiame tik adresą (gatvė + nr. + miestas)
-      var lineAddr=m[1].match(addrRe);
-      if(lineAddr&&lineAddr[0])return lineAddr[0].trim().replace(/\s+/g,' ');
-    }
+  // Pirmas prioritetas — "Objekto adresas:" laukas (tikslus atitikmuo ESO techniniuose dokumentuose)
+  var m=text.match(/[Oo]bjekto\s+adresas\s*:\s*([^\n]{5,120})/);
+  if(m&&m[1]){
+    var val=m[1].trim().replace(/\s+/g,' ');
+    // Nukirpame po kabliataškio ar po el. pašto / telefono jei pateko
+    val=val.split(/[;|]/)[0].trim();
+    if(val.length>5)return val;
   }
 
-  // Jei nerado iš etikečių — ieškome pirmo adreso viso teksto pradžioje (kampinis spaudas)
-  var allAddrs=text.match(addrRe);
-  if(allAddrs&&allAddrs[0])return allAddrs[0].trim().replace(/\s+/g,' ');
+  // Antras prioritetas — "Statybos vieta:", "Darbų vieta:"
+  var m2=text.match(/(?:[Ss]tatybos\s+(?:vieta|adresas)|[Dd]arbų\s+vieta)\s*:\s*([^\n]{5,120})/);
+  if(m2&&m2[1]){
+    var val2=m2[1].trim().replace(/\s+/g,' ').split(/[;|]/)[0].trim();
+    if(val2.length>5)return val2;
+  }
 
   return null;
 }
