@@ -1436,7 +1436,9 @@ function App(){
     else setView("inbox");
   },[user&&user.id]);
 
-  useEffect(function(){if(loaded)sSet("kl-permits",permits)},[permits,loaded]);
+  var _loadedRef=useRef(false);
+  useEffect(function(){if(loaded)_loadedRef.current=true;},[loaded]);
+  useEffect(function(){if(_loadedRef.current)sSet("kl-permits",permits)},[permits]);
 
   function savePermits(arr){var checked=checkExpired(arr);setPermits(checked);}
 
