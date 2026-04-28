@@ -7,6 +7,8 @@
   <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -76,6 +78,39 @@ function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v))}catch(e){} }
 // ── SERVER STORE helpers (analogiškai kaip geopoint) ──────────
 async function sGet(k){try{var r=await fetch("/api/store/"+encodeURIComponent(k));var d=await r.json();return d.value}catch(e){return null}}
 async function sSet(k,v){try{await fetch("/api/store/"+encodeURIComponent(k),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:v})})}catch(e){}}
+
+// ── PDF teksto nuskaitymas (investicinis nr.) ─────────────────
+async function extractPdfText(dataUrl){
+  try{
+    var base64=dataUrl.split(',')[1];
+    var binary=atob(base64);
+    var bytes=new Uint8Array(binary.length);
+    for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+    var pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+    var text='';
+    for(var p=1;p<=Math.min(pdf.numPages,5);p++){
+      var page=await pdf.getPage(p);
+      var tc=await page.getTextContent();
+      text+=tc.items.map(function(i){return i.str}).join(' ')+'\n';
+    }
+    return text;
+  }catch(e){return ''}
+}
+
+function parseInvestNo(text){
+  // Ieškome "Investicinis nr.", "Inv. nr.", "Proj. Nr.", "Investicinis numeris" ir pan.
+  var patterns=[
+    /[Ii]nvesticinis\s+(?:nr|numeris)[\s.:]+([A-Z0-9\-\/\.]{3,30})/,
+    /[Ii]nv\.?\s*[Nn]r\.?\s*[:.\s]+([A-Z0-9\-\/\.]{3,30})/,
+    /[Pp]roj(?:ekto)?\s*[Nn]r\.?\s*[:.\s]+([A-Z0-9\-\/\.]{3,30})/,
+    /[Pp]\.?\s*[Nn]r\.?\s*[:.\s]+([A-Z0-9\-\/\.]{3,30})/,
+  ];
+  for(var i=0;i<patterns.length;i++){
+    var m=text.match(patterns[i]);
+    if(m&&m[1])return m[1].trim();
+  }
+  return null;
+}
 
 // ── Vartotojai: importuojami iš Geopoint (gp-users) ──────────
 // Geopoint rolių atitikimas:
@@ -319,7 +354,17 @@ function PermitForm(p){
   var teliaOk=!(isTelia||isKE)||(trFrom&&trTo);
   var ok=mgr&&ph&&em&&orgs.length>0&&start&&end&&!(start&&end&&end<start)&&teliaOk;
   function toggleOrg(o){sOrgs(function(prev){var idx=prev.indexOf(o);return idx===-1?prev.concat([o]):prev.filter(function(x){return x!==o});});}
-  function addFile(f){sFiles(function(prev){return prev.concat([f])})}
+  function addFile(f){
+    sFiles(function(prev){return prev.concat([f])});
+    // Jei PDF ir investicinis nr. dar nenurodytas — bandome nuskaityti automatiškai
+    if(f.name&&f.name.match(/\.pdf$/i)&&f.data){
+      extractPdfText(f.data).then(function(text){
+        if(!text)return;
+        var found=parseInvestNo(text);
+        if(found){sInvNo(function(cur){return cur?cur:found});}
+      });
+    }
+  }
   function removeFile(i){sFiles(function(prev){return prev.filter(function(_,idx){return idx!==i})})}
   function submit(){
     if(!ok)return;
@@ -375,7 +420,7 @@ function PermitForm(p){
       </div>
       <FileDropZone files={files} onAdd={addFile} onRemove={removeFile}/>
     </div>
-    <Inp label="Investicinis nr. (is projekto PDF)" value={invNo} onChange={sInvNo} ph="pvz.: 2024-INV-00123"/>
+    <Inp label="Investicinis nr. (nuskaitomas automatiškai iš PDF)" value={invNo} onChange={sInvNo} ph="Įkelkite PDF — numeris bus nuskaitytas automatiškai"/>
     <Inp label="Papildomas aprasas (neprivaloma)" value={desc} onChange={sDesc} ml rows={3} ph="Papildoma informacija apie darbus..."/>
     <div style={{display:"flex",gap:6,marginTop:14,justifyContent:"flex-end"}}>
       {p.onCancel&&<Btn v="secondary" onClick={p.onCancel}>Atsaukti</Btn>}
