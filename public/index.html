@@ -312,6 +312,7 @@ function PermitForm(p){
   var _files=useState([]);var files=_files[0],sFiles=_files[1];
   var _trFrom=useState("");var trFrom=_trFrom[0],sTrFrom=_trFrom[1];
   var _trTo=useState("");var trTo=_trTo[0],sTrTo=_trTo[1];
+  var _invNo=useState("");var invNo=_invNo[0],sInvNo=_invNo[1];
   var isESO=orgs.indexOf("AB ESO")!==-1;
   var isTelia=orgs.indexOf("Telia, Kaunas")!==-1;
   var isKE=orgs.indexOf("Kauno energija")!==-1;
@@ -327,6 +328,7 @@ function PermitForm(p){
     p.onSubmit({id:uid(),manager:mgr,managerPhone:ph,email:em,location:loc,
       organization:orgLabel,organizations:orgs,
       startDate:start,endDate:end,description:desc,files:files,
+      investNo:invNo,
       teliaRouteFrom:trFrom,teliaRouteTo:trTo,
       createdBy:p.user.id,status:"Naujas",assignedTo:null,
       createdAt:fmtDate(new Date()),history:[{status:"Naujas",date:fmtDate(new Date())}]});
@@ -373,6 +375,7 @@ function PermitForm(p){
       </div>
       <FileDropZone files={files} onAdd={addFile} onRemove={removeFile}/>
     </div>
+    <Inp label="Investicinis nr. (is projekto PDF)" value={invNo} onChange={sInvNo} ph="pvz.: 2024-INV-00123"/>
     <Inp label="Papildomas aprasas (neprivaloma)" value={desc} onChange={sDesc} ml rows={3} ph="Papildoma informacija apie darbus..."/>
     <div style={{display:"flex",gap:6,marginTop:14,justifyContent:"flex-end"}}>
       {p.onCancel&&<Btn v="secondary" onClick={p.onCancel}>Atsaukti</Btn>}
@@ -397,16 +400,17 @@ function EsoSubmitBtn(p){
 
   var pdfFiles=(o.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i)});
   var hasPdf=pdfFiles.length>0;
-  var permitNo=o.id?o.id.slice(-5).toUpperCase():"?????";
+  var projectLabel=(o.location||"")+(o.investNo?" (inv. nr. "+o.investNo+")":"");
 
   function openModal(){
     sOpen(true);
     // Automatiškai siunčiame patvirtinimą užsakovui kai atidaromas modalas
     if(!emailSent&&o.email){
-      var subject="\uD83D\uDEA7 Kasimo leidimo paraiška #"+permitNo+" pateikta AB ESO";
-      var body='<p style="color:#374151;font-size:14px;margin-bottom:16px">Gerb. <strong>'+o.manager+'</strong>,<br><br>informuojame, kad Jūsų kasimo leidimo paraiška <strong>#'+permitNo+'</strong> buvo pateikta AB ESO ir šiuo metu laukia patvirtinimo. Sutikimas bus išsiųstas adresu <strong>'+ESO_EMAIL+'</strong>.</p>'
+      var subject="\uD83D\uDEA7 Kasimo leidimo paraiška pateikta AB ESO — "+(o.location||"");
+      var body='<p style="color:#374151;font-size:14px;margin-bottom:16px">Gerb. <strong>'+o.manager+'</strong>,<br><br>informuojame, kad Jūsų kasimo leidimo paraiška buvo pateikta AB ESO ir šiuo metu laukia patvirtinimo. Sutikimas bus išsiųstas adresu <strong>'+ESO_EMAIL+'</strong>.</p>'
         +'<table style="border-collapse:collapse;width:100%">'
-        +emailRow("Paraiškos Nr.:","#"+permitNo)
+        +emailRow("Objekto adresas:",o.location||"-")
+        +(o.investNo?emailRow("Investicinis nr.:",o.investNo):"")
         +emailRow("Institucija:","AB ESO")
         +emailRow("Darbų vadovas:",o.manager||"-")
         +emailRow("Tel. nr.:",o.managerPhone||"-")
@@ -420,8 +424,8 @@ function EsoSubmitBtn(p){
     }
   }
 
-  function prepareTask(){
-    // Sukuriame ESO užduoties objektą
+  async function prepareTask(){
+    sSt("saving");
     var task={
       permitId:o.id,
       manager:o.manager,
@@ -432,39 +436,15 @@ function EsoSubmitBtn(p){
       company:ESO_COMPANY,
       email:ESO_EMAIL,
       url:ESO_URL,
+      description:o.description||"",
+      investNo:o.investNo||"",
       files:pdfFiles.map(function(f){return {name:f.name,size:f.size}}),
       createdAt:new Date().toISOString(),
       status:"pending"
     };
-    lsSet('kl-eso-task', task);
+    await sSet('kl-eso-task', task);
     sSt("ready");
-    sMsg("Uzduotis issaugota. Dabar galite paleisti automatizavima.");
   }
-
-  var coworkPrompt = [
-    "=== ESO KASIMO DARBU PARAISKAS PATEIKIMAS ===",
-    "Paraiskas ID: #"+o.id.slice(-5).toUpperCase()+" | "+o.startDate+" - "+o.endDate,
-    "",
-    "1. Atidaryti: "+ESO_URL,
-    "2. Surasti bloka 'ESO rangovas' (tekstas: 'Prasyma pildo ESO (sub)rangovo organizacija...')",
-    "3. Paspausti mygtuka 'Toliau' ties ESO rangovas bloku.",
-    "4. Uzpildyti forma:",
-    "   Organizacijos/imones pavadinimas: "+ESO_COMPANY,
-    "   Darbu vadovo vardas, pavarde: "+o.manager,
-    "   Darbu vadovo telefono numeris: "+o.managerPhone+" (formatas: +370XXXXXXXX)",
-    "   El. pastas sutikimo gavimui: "+ESO_EMAIL,
-    "   Savivaldybe: NUSKAITYTI is ikeltų PDF failu kampinio stampo arba techniniu salygu skilties, pasirinkti atitinkama savivaldybe is saraso.",
-    "   Darbu vykdymo vieta: "+o.location,
-    "   Numatomy darbu paskirtis ir pobudis: "+(o.description||"Kasimo darbai pagal projekta"),
-    "   Kasimo darbu pradzia: "+o.startDate,
-    "   Kasimo darbu pabaiga: "+o.endDate,
-    "   Darbu vietos nuoroda: PALIKTI TUSCIA",
-    "   Briezinys: PRIDETI siu failu: "+(pdfFiles.length>0?pdfFiles.map(function(f){return f.name}).join(", "):"(nera PDF failu - ikelta paraiskai)"),
-    "   Investicini numeri: NUSKAITYTI is PDF projekto dokumento (ieskoti 'Investicinis nr.' arba 'Proj. Nr.' kampiniame stampe).",
-    "   Jusu zinute mums: PALIKTI TUSCIA",
-    "5. Pazymeti varnele: 'Patvirtinu, kad susipazinau su darbu atlikimo taisyklemis...'",
-    "6. NESPAUSK 'Siusti' - palaukti Tomo patvirtinimo.",
-  ].join("\n");
 
   return <div style={{marginBottom:12}}>
     <div style={{background:"#FF6B2B18",border:"1px solid #FF6B2B44",borderRadius:8,padding:"10px 12px"}}>
@@ -484,45 +464,39 @@ function EsoSubmitBtn(p){
       </div>
     </div>
 
-    <Modal open={open} onClose={function(){sOpen(false)}} title="ESO automatinis pateikimas" w={560}>
+    <Modal open={open} onClose={function(){sOpen(false)}} title="ESO automatinis pateikimas" w={500}>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+        {/* Duomenų suvestinė */}
         <div style={{background:C.s2,borderRadius:8,padding:"10px 14px",border:"1px solid "+C.b1}}>
-          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Duomenys kurie bus pateikti ESO</div>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Duomenys kurie bus pateikti ESO</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
             {[
-              ["Imone",ESO_COMPANY],
-              ["El. pastas",ESO_EMAIL],
-              ["Darbu vadovas",o.manager],
+              ["Įmonė",ESO_COMPANY],
+              ["El. paštas",ESO_EMAIL],
+              ["Darbų vadovas",o.manager],
               ["Telefonas",o.managerPhone],
-              ["Laikotarpis",o.startDate+" - "+o.endDate],
-              ["Vieta",o.location]
+              ["Laikotarpis",(o.startDate||"-")+" – "+(o.endDate||"-")],
+              ["Vieta",o.location||"-"]
             ].map(function(row){return <div key={row[0]}>
               <div style={{fontSize:9,color:C.t3,fontFamily:F}}>{row[0]}</div>
               <div style={{fontSize:11,fontWeight:600,color:C.tx,fontFamily:F}}>{row[1]}</div>
             </div>})}
           </div>
+          {o.investNo&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid "+C.b1}}>
+            <div style={{fontSize:9,color:C.t3,fontFamily:F}}>Investicinis nr.</div>
+            <div style={{fontSize:11,fontWeight:600,color:C.tx,fontFamily:F}}>{o.investNo}</div>
+          </div>}
           {hasPdf&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid "+C.b1}}>
             <div style={{fontSize:9,color:C.t3,fontFamily:F,marginBottom:4}}>PDF failai</div>
             {pdfFiles.map(function(f,i){return <div key={i} style={{fontSize:10,color:C.ac,fontFamily:FM}}>📄 {f.name}</div>})}
           </div>}
           {!hasPdf&&<div style={{marginTop:8,padding:"6px 8px",background:C.ylD,borderRadius:6,fontSize:10,color:C.yl,fontFamily:F,border:"1px solid "+C.yl+"33"}}>
-            ⚠️ Neikelta PDF. Brieziniai nebus prideti automatiskai.
+            ⚠️ Neįkelti PDF failai. Brėžiniai nebus pridėti automatiškai.
           </div>}
         </div>
 
-        <div style={{background:C.bg,borderRadius:8,padding:"10px 14px",border:"1px solid "+C.b1}}>
-          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Cowork komanda (nukopijuokite ir vykdykite)</div>
-          <div style={{position:"relative"}}>
-            <pre style={{fontSize:9,color:C.t2,fontFamily:FM,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word",margin:0,padding:"8px 10px",background:C.s2,borderRadius:6,border:"1px solid "+C.b1}}>{coworkPrompt}</pre>
-            <button onClick={function(){
-              try{navigator.clipboard.writeText(coworkPrompt);sMsg("Nukopijuota!");setTimeout(function(){sMsg("")},2000)}catch(e){}
-            }} style={{position:"absolute",top:4,right:4,padding:"3px 8px",borderRadius:5,border:"1px solid "+C.b1,background:C.s3,color:C.t2,fontSize:9,fontFamily:F,cursor:"pointer"}}>
-              {msg||"Kopijuoti"}
-            </button>
-          </div>
-        </div>
-
-        {/* El. pašto patvirtinimo indikatorius */}
+        {/* El. pašto statusas */}
         {o.email&&<div style={{background:emailSent?C.gnD:C.ylD,border:"1px solid "+(emailSent?C.gn:C.yl)+"44",borderRadius:8,padding:"8px 12px",fontSize:10,color:emailSent?C.gn:C.yl,fontFamily:F,lineHeight:1.6}}>
           {emailSent
             ?<span>✅ <strong>Patvirtinimas išsiųstas</strong> užsakovui: <span style={{fontFamily:FM}}>{o.email}</span></span>
@@ -532,15 +506,22 @@ function EsoSubmitBtn(p){
           ⚠️ Užsakovo el. paštas nenurodytas — patvirtinimas neišsiųstas.
         </div>}
 
-        <div style={{background:C.acD,border:"1px solid "+C.ac+"44",borderRadius:8,padding:"8px 12px",fontSize:10,color:C.ac,fontFamily:F,lineHeight:1.6}}>
-          <strong>Kaip naudoti:</strong> Nukopijuokite komanda ir iiklijuokite i Cowork pokalbio langa. Claude automatiskai atliks visus veiksmus ESO svetainese iki paskutinio patvirtinimo — siuntimas vykdomas tik Jusu rankiniu patvirtinimu.
-        </div>
-        <div style={{background:C.ylD,border:"1px solid "+C.yl+"44",borderRadius:8,padding:"8px 12px",fontSize:10,color:C.yl,fontFamily:F,lineHeight:1.6}}>
-          ⚠️ <strong>Pastaba:</strong> Automatinis PDF failu priedejimas ir el. laistu siuntimas veiks tik kai sistema paleista per HTTP serveri (ne file://). Paleidimui: <span style={{fontFamily:FM}}>npm start</span> kasimo-leidimai aplanke.
-        </div>
+        {/* Agento paleidimo blokas */}
+        {st==="idle"&&<div style={{background:C.acD,border:"1px solid "+C.ac+"44",borderRadius:8,padding:"12px 14px",fontSize:11,color:C.ac,fontFamily:F,lineHeight:1.7}}>
+          <div style={{fontWeight:700,marginBottom:6}}>🤖 Cowork agentas užpildys formą automatiškai</div>
+          <div style={{fontSize:10,color:C.t2}}>Spausk mygtuką žemiau — duomenys bus išsaugoti serveryje. Tuomet Cowork lange pasakyk: <span style={{fontFamily:FM,fontWeight:700,color:C.ac}}>"pateik ESO"</span></div>
+        </div>}
+        {st==="saving"&&<div style={{background:C.s2,borderRadius:8,padding:"12px 14px",fontSize:11,color:C.t2,fontFamily:F,textAlign:"center"}}>
+          ⏳ Saugoma užduotis serveryje...
+        </div>}
+        {st==="ready"&&<div style={{background:C.gnD,border:"1px solid "+C.gn+"44",borderRadius:8,padding:"12px 14px",fontSize:11,color:C.gn,fontFamily:F,lineHeight:1.7}}>
+          <div style={{fontWeight:700,marginBottom:4}}>✅ Užduotis paruošta</div>
+          <div style={{fontSize:10}}>Dabar Cowork lange pasakyk: <span style={{fontFamily:FM,fontWeight:700}}>"pateik ESO"</span> — agentas automatiškai užpildys formą ir sustabdys prieš siuntimą.</div>
+        </div>}
 
         <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
-          <Btn v="secondary" onClick={function(){sOpen(false)}} sm>Uzdaryti</Btn>
+          <Btn v="secondary" onClick={function(){sOpen(false)}} sm>Uždaryti</Btn>
+          {st==="idle"&&<Btn onClick={prepareTask} sm style={{background:"#FF6B2B",color:"#fff",border:"none"}}>🚀 Paruošti agentą</Btn>}
         </div>
       </div>
     </Modal>
