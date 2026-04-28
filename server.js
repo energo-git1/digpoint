@@ -126,18 +126,9 @@ app.get('/api/store/kl-users', (req, res) => {
 });
 
 // kl-users PUT: merge passwords back
+// kl-users PUT užblokuotas — vartotojai keičiami tik per /api/users/*
 app.put('/api/store/kl-users', (req, res) => {
-  const incoming = Array.isArray(req.body.value) ? req.body.value : [];
-  const existing = dbGet('kl-users') || [];
-  const pwMap = {};
-  existing.forEach((u) => { if (u.password) pwMap[u.id] = u.password; });
-
-  const merged = incoming.map((u) => {
-    if (!u.password && pwMap[u.id]) return Object.assign({}, u, { password: pwMap[u.id] });
-    return u;
-  });
-  dbSet('kl-users', merged);
-  res.json({ ok: true });
+  res.status(403).json({ error: 'Vartotojų sąrašas keičiamas tik per /api/users/* endpointus.' });
 });
 
 app.get('/api/store/:key', (req, res) => {
@@ -145,6 +136,9 @@ app.get('/api/store/:key', (req, res) => {
 });
 
 app.put('/api/store/:key', (req, res) => {
+  if (req.params.key === 'kl-users') {
+    return res.status(403).json({ error: 'Vartotojų sąrašas keičiamas tik per /api/users/* endpointus.' });
+  }
   dbSet(req.params.key, req.body.value);
   res.json({ ok: true });
 });
