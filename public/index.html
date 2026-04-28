@@ -377,7 +377,16 @@ function PermitForm(p){
       </div>
       <FileDropZone files={files} onAdd={addFile} onRemove={removeFile}/>
     </div>
-    <Inp label="Investicinis nr. (nuskaitomas automatiškai iš PDF)" value={invNo} onChange={sInvNo} ph="Įkelkite PDF — numeris bus nuskaitytas automatiškai"/>
+    {isESO&&<div style={{background:invNo?C.gnD:C.s2,borderRadius:10,border:"1px solid "+(invNo?C.gn:C.b1),padding:"10px 14px",marginBottom:14}}>
+      <div style={{fontSize:10,fontWeight:700,color:invNo?C.gn:C.t3,fontFamily:F,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Investicinis nr. (AB ESO)</div>
+      {invNo
+        ?<div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:13,fontWeight:700,color:C.gn,fontFamily:FM}}>{invNo}</span>
+            <span style={{fontSize:10,color:C.gn,fontFamily:F}}>✅ nuskaitytas iš PDF</span>
+            <button onClick={function(){sInvNo("")}} style={{marginLeft:"auto",fontSize:10,color:C.t3,background:"none",border:"none",cursor:"pointer",fontFamily:F}}>✕ išvalyti</button>
+          </div>
+        :<div style={{fontSize:11,color:C.t3,fontFamily:F}}>⏳ Bus nuskaitytas automatiškai iš projekto PDF</div>}
+    </div>}
     <Inp label="Papildomas aprasas (neprivaloma)" value={desc} onChange={sDesc} ml rows={3} ph="Papildoma informacija apie darbus..."/>
     <div style={{display:"flex",gap:6,marginTop:14,justifyContent:"flex-end"}}>
       {p.onCancel&&<Btn v="secondary" onClick={p.onCancel}>Atsaukti</Btn>}
