@@ -29,11 +29,11 @@ Iš `value` objekto ištrauk šiuos laukus:
 - `files` — PDF failų sąrašas (masyvas su `name` laukais)
 - `investNo` — investicinis numeris (gali būti tuščias)
 
-## 2. Atidaryti ESO formą naršyklėje
+## 2. Rasti ESO formą naršyklėje
 
-Naviguok į: `https://www.eso.lt/aktualios-formos/kasimo-darbai/30`
+Digpoint sistema jau atidarė `https://www.eso.lt/aktualios-formos/kasimo-darbai/30` naujame skirtuke.
 
-Palaukyk kol puslapis pilnai užsikraus.
+Naudok `tabs_context_mcp` kad rastum tą skirtuką. Jei jo nėra — atidaryк patį su `navigate`.
 
 ## 3. Užpildyti formą žingsnis po žingsnio
 

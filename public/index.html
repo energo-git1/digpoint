@@ -305,6 +305,7 @@ function PermitForm(p){
   var _trFrom=useState("");var trFrom=_trFrom[0],sTrFrom=_trFrom[1];
   var _trTo=useState("");var trTo=_trTo[0],sTrTo=_trTo[1];
   var _invNo=useState("");var invNo=_invNo[0],sInvNo=_invNo[1];
+  var _esoLoc=useState("");var esoLoc=_esoLoc[0],sEsoLoc=_esoLoc[1];
   var isESO=orgs.indexOf("AB ESO")!==-1;
   var isTelia=orgs.indexOf("Telia, Kaunas")!==-1;
   var isKE=orgs.indexOf("Kauno energija")!==-1;
@@ -326,7 +327,7 @@ function PermitForm(p){
   function submit(){
     if(!ok)return;
     var orgLabel=orgs.join(", ");
-    var loc=isTelia?(trFrom&&trTo?trFrom+" - "+trTo:""):"";
+    var loc=isTelia?(trFrom&&trTo?trFrom+" - "+trTo:""):isESO?esoLoc:"";
     p.onSubmit({id:uid(),manager:mgr,managerPhone:ph,email:em,location:loc,
       organization:orgLabel,organizations:orgs,
       startDate:start,endDate:end,description:desc,files:files,
@@ -370,6 +371,7 @@ function PermitForm(p){
       </div>
       {start&&end&&end<start&&<div style={{color:C.rd,fontSize:11,marginTop:-8,marginBottom:8,fontFamily:F}}>Pabaigos data negali buti ankstesne uz pradzios.</div>}
     </div>
+    {isESO&&<Inp label="Objekto adresas" value={esoLoc} onChange={sEsoLoc} ph="pvz.: Smolensko g. 10, Kaunas" req/>}
     <div style={{background:C.s2,borderRadius:12,border:"1px solid "+(orgs.length>0&&files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i)}).length===0?C.rd:C.b1),padding:16,marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Projekto dokumentai</div>
@@ -407,7 +409,7 @@ function EsoSubmitBtn(p){
     sOpen(true);
     // Automatiškai siunčiame patvirtinimą užsakovui kai atidaromas modalas
     if(!emailSent&&o.email){
-      var subject="\uD83D\uDEA7 Kasimo leidimo paraiška pateikta AB ESO — "+(o.location||"");
+      var subject="\uD83D\uDEA7 Kasimo leidimas"+(o.investNo?" "+o.investNo:"")+(o.location?" — "+o.location:"")+" | AB ESO";
       var body='<p style="color:#374151;font-size:14px;margin-bottom:16px">Gerb. <strong>'+o.manager+'</strong>,<br><br>informuojame, kad Jūsų kasimo leidimo paraiška buvo pateikta AB ESO ir šiuo metu laukia patvirtinimo. Sutikimas bus išsiųstas adresu <strong>'+ESO_EMAIL+'</strong>.</p>'
         +'<table style="border-collapse:collapse;width:100%">'
         +emailRow("Objekto adresas:",o.location||"-")
@@ -444,6 +446,8 @@ function EsoSubmitBtn(p){
       status:"pending"
     };
     await sSet('kl-eso-task', task);
+    // Atidaryti ESO svetainę naujame skirtuke — Cowork agentas ją valdys
+    window.open(ESO_URL, '_blank');
     sSt("ready");
   }
 
