@@ -574,6 +574,24 @@ function PermitDetail(p){
   var asgnUser=at?p.users.find(function(u){return u.id===at}):null;
   var docsWorkers=p.users.filter(function(u){return u.role==="dokumentacija"});
 
+  // Jei ESO paraiška neturi adreso/inv.nr. — nuskaitome iš PDF automatiškai
+  useEffect(function(){
+    if(o.organization!=="AB ESO")return;
+    var needLoc=!o.location;
+    var needInv=!o.investNo;
+    if(!needLoc&&!needInv)return;
+    var pdfs=(o.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i)&&f.data});
+    if(!pdfs.length)return;
+    extractPdfText(pdfs[0].data).then(function(text){
+      if(!text)return;
+      var updated=Object.assign({},o);
+      var changed=false;
+      if(needLoc){var loc=parseLocation(text);if(loc){updated.location=loc;changed=true;}}
+      if(needInv){var inv=parseInvestNo(text);if(inv){updated.investNo=inv;changed=true;}}
+      if(changed)p.onUpdate(updated);
+    });
+  },[]);
+
   function save(){
     var u=Object.assign({},o);
     if(isA){
