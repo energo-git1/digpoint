@@ -128,7 +128,7 @@ function fmtSize(b){ if(b<1024)return b+"B"; if(b<1048576)return Math.round(b/10
 
 // ── El. pašto helperiai (identiškai Geopoint) ─────────────────
 function emailRow(label,value){return'<tr><td style="padding:4px 12px 4px 0;color:#6B7280;font-size:13px;white-space:nowrap">'+label+'</td><td style="padding:4px 0;color:#111827;font-size:13px;font-weight:600">'+value+'</td></tr>'}
-function emailWrap(title,color,body){return'<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,sans-serif"><div style="max-width:540px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)"><div style="background:'+color+';padding:20px 28px"><h2 style="margin:0;color:#fff;font-size:18px">\uD83D\uDEA7 Kasimo leidimai &nbsp;&middot;&nbsp; '+title+'</h2></div><div style="padding:24px 28px">'+body+'</div><div style="padding:12px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF">EnergoLT &middot; Kasimo leid\u0173 valdymo sistema &middot; <a href="mailto:leidimai@energolt.eu" style="color:#6B7280">leidimai@energolt.eu</a></div></div></body></html>'}
+function emailWrap(title,color,body){return'<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,sans-serif"><div style="max-width:540px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)"><div style="background:'+color+';padding:20px 28px"><h2 style="margin:0;color:#fff;font-size:18px">\uD83D\uDEA7 Kasimo leidimai &nbsp;&middot;&nbsp; '+title+'</h2></div><div style="padding:24px 28px">'+body+'</div><div style="padding:12px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF">EnergoLT &middot; Kasimo leid\u0173 valdymo sistema &middot; <a href="mailto:uzklausos@enrgolt.eu" style="color:#6B7280">uzklausos@enrgolt.eu</a></div></div></body></html>'}
 async function sendEmail(toEmail,subject,html){
   if(!toEmail)return;
   try{
@@ -380,7 +380,7 @@ function PermitForm(p){
 // ESO AUTOMATIZAVIMO MYGTUKAS
 // Saugo užduotį į localStorage ir rodo instrukciją Cowork naudotojui
 // ═════════════════════════════════════════════════════════════
-var ESO_EMAIL = "leidimai@energolt.eu";
+var ESO_EMAIL = "uzklausos@enrgolt.eu";
 var ESO_COMPANY = "EnergoLT";
 var ESO_URL = "https://www.eso.lt/aktualios-formos/kasimo-darbai/30";
 
@@ -1408,7 +1408,7 @@ function checkExpired(arr){
     var rows=emailRow("Organizacija:",permit.organization)+emailRow("Paraiskas:",permit.id.slice(-5).toUpperCase())+emailRow("Galioja iki:",permit.permitValidUntil);
     var body=emailWrap("Leidimo terminas baigiasi","#EAB308","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Leidimas baigia galioti "+permit.permitValidUntil+" &mdash; liko 5 darbo dienos.</p><table style=\"border-collapse:collapse;width:100%\">"+rows+"</table>");
     if(permit.email)sendEmail(permit.email,subj,body);
-    sendEmail("leidimai@energolt.eu",subj,body);
+    sendEmail("uzklausos@enrgolt.eu",subj,body);
   });
   return changed?result:arr;
 }
@@ -1508,7 +1508,7 @@ function App(){
         var clRows=emailRow("Paraiskas:",updated.id.slice(-5).toUpperCase())+emailRow("Organizacija:",updated.organization);
         var clBody=emailWrap("Leidimo uzdarymas","#10B981","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Uzsakovas pateike dokumentus leidimo uzdarymui.</p><table style=\"border-collapse:collapse;width:100%\">"+clRows+"</table>");
         if(asgn&&asgn.email)sendEmail(asgn.email,clSubj,clBody);
-        sendEmail("leidimai@energolt.eu",clSubj,clBody);
+        sendEmail("uzklausos@enrgolt.eu",clSubj,clBody);
       }
     }
     // Kauno m. sav. notifikacija kai gauti ESO ir Telia leidimai
@@ -1522,7 +1522,7 @@ function App(){
           lsSet(notifKey,true);
           var kRows2=emailRow("Paraiskas:",updated.id.slice(-5).toUpperCase())+emailRow("Darbu vadovas:",updated.manager)+emailRow("Laikotarpis:",updated.startDate+" – "+updated.endDate);
           var kBody2=emailWrap("Galima pateikti Kauno m. sav.","#10B981","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Gauti visi reikalingi leidimai. Galima pateikti Kauno m. sav. leidimo paraiskas.</p><table style=\"border-collapse:collapse;width:100%\">"+kRows2+"</table>");
-          sendEmail("leidimai@energolt.eu","Galima pateikti Kauno m. sav. - "+updated.organization,kBody2);
+          sendEmail("uzklausos@enrgolt.eu","Galima pateikti Kauno m. sav. - "+updated.organization,kBody2);
         }
       }
     }
