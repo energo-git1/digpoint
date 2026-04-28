@@ -97,6 +97,27 @@ async function extractPdfText(dataUrl){
   }catch(e){return ''}
 }
 
+function parseLocation(text){
+  // Ieškome adreso iš kampinio stampo ar techninių sąlygų
+  // Tipiniai formatai: "Objektas:", "Objekto adresas:", "Statybos vieta:", "Adresas:"
+  var patterns=[
+    /[Oo]bjekto\s+adresas[\s.:]+([^\n]{5,80})/,
+    /[Oo]bjektas[\s.:]+([^\n]{5,80})/,
+    /[Ss]tatybos\s+vieta[\s.:]+([^\n]{5,80})/,
+    /[Aa]dresas[\s.:]+([^\n]{5,80})/,
+    /[Dd]arbų\s+vieta[\s.:]+([^\n]{5,80})/,
+  ];
+  for(var i=0;i<patterns.length;i++){
+    var m=text.match(patterns[i]);
+    if(m&&m[1]){
+      var val=m[1].trim().replace(/\s+/g,' ');
+      // Filtruojame per trumpus arba akivaizdžiai ne adresus
+      if(val.length>5&&val.length<120)return val;
+    }
+  }
+  return null;
+}
+
 function parseInvestNo(text){
   // Ieškome "Investicinis nr.", "Inv. nr.", "Proj. Nr.", "Investicinis numeris" ir pan.
   var patterns=[
@@ -318,8 +339,10 @@ function PermitForm(p){
     if(f.name&&f.name.match(/\.pdf$/i)&&f.data){
       extractPdfText(f.data).then(function(text){
         if(!text)return;
-        var found=parseInvestNo(text);
-        if(found){sInvNo(function(cur){return cur?cur:found});}
+        var foundInv=parseInvestNo(text);
+        if(foundInv)sInvNo(function(cur){return cur?cur:foundInv;});
+        var foundLoc=parseLocation(text);
+        if(foundLoc)sEsoLoc(function(cur){return cur?cur:foundLoc;});
       });
     }
   }
@@ -371,7 +394,6 @@ function PermitForm(p){
       </div>
       {start&&end&&end<start&&<div style={{color:C.rd,fontSize:11,marginTop:-8,marginBottom:8,fontFamily:F}}>Pabaigos data negali buti ankstesne uz pradzios.</div>}
     </div>
-    {isESO&&<Inp label="Objekto adresas" value={esoLoc} onChange={sEsoLoc} ph="pvz.: Smolensko g. 10, Kaunas" req/>}
     <div style={{background:C.s2,borderRadius:12,border:"1px solid "+(orgs.length>0&&files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i)}).length===0?C.rd:C.b1),padding:16,marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Projekto dokumentai</div>
