@@ -112,53 +112,10 @@ function parseInvestNo(text){
   return null;
 }
 
-// ── Vartotojai: importuojami iš Geopoint (gp-users) ──────────
-// Geopoint rolių atitikimas:
-//   admin    → admin
-//   orderer  → orderer
-//   surveyor → orderer (geodezininkai čia gali pateikti paraiškas)
-//   pending  → pending
-// Papildomai visada užtikrinamas kladmin admin vartotojas.
-(function initUsers(){
-  var gpUsers = lsGet('gp-users');
-  var klUsers = lsGet('kl-users') || [];
-
-  // Surenkame jau esančių kl vartotojų id sąrašą
-  var existingIds = klUsers.map(function(u){ return u.id });
-
-  if(gpUsers && gpUsers.length){
-    var toAdd = gpUsers
-      .filter(function(u){ return !existingIds.includes(u.id) })
-      .map(function(u){
-        var role = u.role === 'admin' ? 'admin'
-                 : u.role === 'pending' ? 'pending'
-                 : 'orderer'; // orderer ir surveyor → orderer
-        // slaptažodis perkeliamas tik vietiniams vartotojams
-        return {
-          id: u.id,
-          name: u.name,
-          username: u.username || '',
-          email: u.email || '',
-          password: u.adAuth ? null : (u.password || null),
-          role: role,
-          adAuth: u.adAuth || false,
-          mustChangePassword: u.mustChangePassword || false,
-          createdAt: u.createdAt || new Date().toISOString(),
-          importedFromGeopoint: true,
-        };
-      });
-    klUsers = klUsers.concat(toAdd);
-    if(toAdd.length) console.log('[KL] Importuota iš Geopoint: ' + toAdd.length + ' vartotojai');
-  }
-
-  // Užtikriname, kad kladmin visada egzistuoja
-  var hasAdmin = klUsers.find(function(u){ return !u.adAuth && u.username === 'kladmin' });
-  if(!hasAdmin){
-    klUsers = klUsers.concat([{id:'admin1',name:'Administratorius',username:'kladmin',password:'Admin99',email:'',role:'admin',adAuth:false,mustChangePassword:false,createdAt:new Date().toISOString()}]);
-  }
-
-  lsSet('kl-users', klUsers);
-})();
+// ── Vartotojai saugomi serveryje per /api/store/kl-users ──────
+// initUsers() pašalinta — ji perrašinėjo serverio duomenis iš localStorage.
+// Vartotojų mutacijos vyksta tik per dedikuotus API endpointus:
+//   POST /api/users, DELETE /api/users/:id, PATCH /api/users/:id/role
 
 // ── Utilities ─────────────────────────────────────────────────
 var uid = function(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7) };
@@ -1218,14 +1175,14 @@ function PasswordChangePage(p){
     if(nw!==conf){sErr("Slaptazodziai nesutampa.");return}
     if(nw.length<4){sErr("Slaptazodis per trumpas.");return}
     sErr("");
-    var users=lsGet('kl-users')||[];
-    var u=users.find(function(x){return x.id===p.user.id});
-    if(!u){sErr("Vartotojas nerastas.");return}
-    if(!forced&&u.password!==old){sErr("Neteisingas dabartinis slaptazodis.");return}
-    var updated=Object.assign({},u,{password:nw,mustChangePassword:false});
-    lsSet('kl-users',users.map(function(x){return x.id===updated.id?updated:x}));
-    sOk(true);
-    if(p.onChanged)p.onChanged(Object.assign({},p.user,{mustChangePassword:false}));
+    fetch('/api/auth/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:p.user.id,oldPassword:old,newPassword:nw,forceChange:forced})})
+      .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d}})})
+      .then(function(res){
+        if(!res.ok){sErr(res.d.error||"Klaida keičiant slaptažodį.");return}
+        sOk(true);
+        if(p.onChanged)p.onChanged(Object.assign({},p.user,{mustChangePassword:false}));
+      })
+      .catch(function(){sErr("Serverio klaida.");});
   }
   return <div style={{maxWidth:400,margin:"0 auto"}}>
     <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:4}}>Slaptazodzio keitimas</h2>
@@ -1319,13 +1276,7 @@ function AuthScreen(p){
       .then(function(res){
         sLd(false);
         if(!res.ok){sErr(res.d.error||"Prisijungimo klaida.");return}
-        var u=res.d.user;
-        // Atnaujiname vartotoją localStorage
-        var users=lsGet('kl-users')||[];
-        var idx=users.findIndex(function(x){return x.id===u.id});
-        if(idx===-1){lsSet('kl-users',users.concat([u]))}
-        else{var upd=users.slice();upd[idx]=Object.assign({},users[idx],u);lsSet('kl-users',upd)}
-        p.onLogin(u);
+        p.onLogin(res.d.user);
       })
       .catch(function(){sLd(false);sErr("Serverio klaida. Bandykite dar kartą.");});
   }
@@ -1333,11 +1284,14 @@ function AuthScreen(p){
     sErr("");
     if(!lu||!lp){sErr("Iveskite prisijungimo duomenis.");return}
     sLd(true);
-    var users=lsGet('kl-users')||[];
-    var user=users.find(function(u){return !u.adAuth&&u.username===lu&&u.password===lp});
-    if(!user){sLd(false);sErr("Neteisingas vartotojo vardas arba slaptazodis.");return}
-    var safeUser=Object.assign({},user);delete safeUser.password;
-    sLd(false);p.onLogin(safeUser);
+    fetch("/api/auth/local",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:lu,password:lp})})
+      .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d}})})
+      .then(function(res){
+        sLd(false);
+        if(!res.ok){sErr(res.d.error||"Neteisingas vartotojo vardas arba slaptazodis.");return}
+        p.onLogin(res.d.user);
+      })
+      .catch(function(){sLd(false);sErr("Serverio klaida. Bandykite dar kartą.");});
   }
   function tabSt(t){return{padding:"8px 20px",border:"none",borderBottom:tab===t?"2px solid "+C.ac:"2px solid transparent",background:"transparent",color:tab===t?C.ac:C.t2,fontFamily:F,fontSize:12,fontWeight:tab===t?700:500,cursor:"pointer",transition:"color .15s"}}
   return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
@@ -1570,21 +1524,29 @@ function App(){
 
   function deletePermit(id){savePermits(permits.filter(function(x){return x.id!==id}))}
 
-  function addUser(u){
-    var full=lsGet('kl-users')||[];var updated=full.concat([u]);
-    lsSet('kl-users',updated);
-    setUsers(updated.map(function(x){var s=Object.assign({},x);delete s.password;return s}));
+  async function addUser(u){
+    try{
+      var r=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(u)});
+      var d=await r.json();
+      if(!r.ok){alert(d.error||'Nepavyko sukurti vartotojo.');return;}
+      setUsers(function(p){return p.concat([d.user])});
+    }catch(e){alert('Serverio klaida kuriant vartotoją.');}
   }
-  function assignRole(userId,role){
-    var full=lsGet('kl-users')||[];
-    var updated=full.map(function(u){return u.id===userId?Object.assign({},u,{role:role}):u});
-    lsSet('kl-users',updated);
-    setUsers(updated.map(function(x){var s=Object.assign({},x);delete s.password;return s}));
+  async function assignRole(userId,role){
+    try{
+      var r=await fetch('/api/users/'+userId+'/role',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:role})});
+      if(!r.ok){var err=await r.json().catch(function(){return{}});alert(err.error||'Nepavyko pakeisti rolės.');return;}
+      var d=await r.json();
+      setUsers(function(p){return p.map(function(u){return u.id===userId?Object.assign({},u,{role:d.user.role}):u})});
+    }catch(e){alert('Serverio klaida keičiant rolę.');}
   }
-  function deleteUser(id){
-    var full=lsGet('kl-users')||[];var updated=full.filter(function(u){return u.id!==id});
-    lsSet('kl-users',updated);
-    setUsers(updated.map(function(x){var s=Object.assign({},x);delete s.password;return s}));
+  async function deleteUser(id){
+    try{
+      var r=await fetch('/api/users/'+id,{method:'DELETE'});
+      var d=await r.json();
+      if(!r.ok){alert(d.error||'Nepavyko ištrinti vartotojo.');return;}
+      setUsers(function(p){return p.filter(function(u){return u.id!==id})});
+    }catch(e){alert('Serverio klaida trinant vartotoją.');}
   }
   function onPasswordChanged(u){
     setUser(u);try{localStorage.setItem('kl-session',JSON.stringify(u))}catch(e){}
