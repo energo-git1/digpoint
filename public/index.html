@@ -53,16 +53,21 @@ var C = Object.assign({}, _t0==='light'?LIGHT_C:DARK_C);
 document.body.setAttribute('data-theme',_t0);
 
 // ── STATUS ────────────────────────────────────────────────────
-var STATUS_MAP = {
-  Naujas:      {bg:C.acD,  c:C.ac, dot:C.ac},
-  Priskirtas:  {bg:C.ylD,  c:C.yl, dot:C.yl},
-  Pateikta:    {bg:"rgba(139,92,246,.12)",c:"#8B5CF6",dot:"#8B5CF6"},
-  Vykdomas:    {bg:C.orD,  c:C.or, dot:C.or},
-  Baigtas:     {bg:"rgba(59,130,246,.15)",c:"#60A5FA",dot:"#60A5FA"},
-  Gautas:      {bg:C.gnD,  c:C.gn, dot:C.gn},
-  Nebegalioja: {bg:"rgba(107,114,128,.12)",c:"#6B7280",dot:"#6B7280"},
-  Atmestas:    {bg:C.rdD,  c:C.rd, dot:C.rd},
-};
+// STATUS_MAP rebuilds whenever the theme switches so badge colors
+// follow the active palette (called from toggleTheme below).
+function buildStatusMap(){
+  return {
+    Naujas:      {bg:C.acD,  c:C.ac, dot:C.ac},
+    Priskirtas:  {bg:C.ylD,  c:C.yl, dot:C.yl},
+    Pateikta:    {bg:"rgba(139,92,246,.12)",c:"#8B5CF6",dot:"#8B5CF6"},
+    Vykdomas:    {bg:C.orD,  c:C.or, dot:C.or},
+    Baigtas:     {bg:"rgba(59,130,246,.15)",c:"#60A5FA",dot:"#60A5FA"},
+    Gautas:      {bg:C.gnD,  c:C.gn, dot:C.gn},
+    Nebegalioja: {bg:"rgba(107,114,128,.12)",c:"#6B7280",dot:"#6B7280"},
+    Atmestas:    {bg:C.rdD,  c:C.rd, dot:C.rd},
+  };
+}
+var STATUS_MAP = buildStatusMap();
 var SL = {
   Naujas:"Naujas", Priskirtas:"Priskirtas", Pateikta:"Pateikta",
   Vykdamos:"Vykdamos", Baigtas:"Baigtas (laukia leidimo)",
@@ -1336,12 +1341,13 @@ function AuthScreen(p){
       .catch(function(){sLd(false);sErr("Serverio klaida. Bandykite dar kartą.");});
   }
   function tabSt(t){return{padding:"8px 20px",border:"none",borderBottom:tab===t?"2px solid "+C.ac:"2px solid transparent",background:"transparent",color:tab===t?C.ac:C.t2,fontFamily:F,fontSize:12,fontWeight:tab===t?700:500,cursor:"pointer",transition:"color .15s"}}
-  return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+  return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:16,position:"relative"}}>
+    {p.onTheme&&<button onClick={p.onTheme} title={p.theme==="dark"?"Sviesi tema":"Tamsi tema"} style={{position:"absolute",top:16,right:16,width:32,height:32,borderRadius:8,border:"1px solid "+C.b1,background:C.s1,color:C.t2,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{p.theme==="dark"?"☀️":"🌙"}</button>}
     <div style={{width:"100%",maxWidth:380,textAlign:"center"}}>
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.11</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.12</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -1383,7 +1389,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.11</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.12</div>
         </div>
       </div>
     </div>
@@ -1495,7 +1501,9 @@ function App(){
   function handleLogout(){setUser(null);try{localStorage.removeItem('kl-session')}catch(e){}}
   function toggleTheme(){
     var t=theme==="dark"?"light":"dark";
-    setTheme(t);Object.assign(C,t==="dark"?DARK_C:LIGHT_C);
+    setTheme(t);
+    Object.assign(C,t==="dark"?DARK_C:LIGHT_C);
+    STATUS_MAP=buildStatusMap();
     document.body.setAttribute('data-theme',t);
     try{localStorage.setItem('kl-theme',t)}catch(e){}
   }
@@ -1598,7 +1606,7 @@ function App(){
     else setView("inbox");
   }
 
-  if(!user)return <AuthScreen onLogin={handleLogin}/>;
+  if(!user)return <AuthScreen onLogin={handleLogin} onTheme={toggleTheme} theme={theme}/>;
   if(user.mustChangePassword)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:16}}><PasswordChangePage user={user} onChanged={onPasswordChanged}/></div>;
   if(user.role==="pending")return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F,padding:16}}>
     <div style={{width:"100%",maxWidth:400,textAlign:"center"}}>
