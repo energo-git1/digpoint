@@ -420,11 +420,24 @@ const mailer = nodemailer.createTransport({
 const MAIL_FROM = 'geopoint@energolt.eu';
 
 app.post('/api/notify/email', async (req, res) => {
-  const { to, subject, html } = req.body || {};
+  const { to, subject, html, attachments } = req.body || {};
   if (!to || !subject || !html) return res.status(400).json({ error: 'Trūksta duomenų.' });
   try {
-    const info = await mailer.sendMail({ from: MAIL_FROM, to, subject, html });
-    console.log(`  📨 El. laiškas išsiųstas → ${to} | ${subject} | ${info.messageId}`);
+    const mailOptions = { from: MAIL_FROM, to, subject, html };
+    // Optional attachments: [{ filename: 'x.pdf', content: 'base64string' }]
+    if (Array.isArray(attachments) && attachments.length > 0) {
+      mailOptions.attachments = attachments
+        .filter(a => a && a.filename && a.content)
+        .map(a => ({
+          filename: a.filename,
+          content: a.content,
+          encoding: a.encoding || 'base64',
+          contentType: a.contentType || 'application/pdf',
+        }));
+    }
+    const info = await mailer.sendMail(mailOptions);
+    const attachInfo = mailOptions.attachments ? ` | ${mailOptions.attachments.length} priedas(-ai)` : '';
+    console.log(`  📨 El. laiškas išsiųstas → ${to} | ${subject} | ${info.messageId}${attachInfo}`);
     res.json({ ok: true });
   } catch (e) {
     console.error(`  ❌ El. laiško klaida → ${to}: ${e.message}`);
