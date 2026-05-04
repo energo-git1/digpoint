@@ -211,6 +211,33 @@ function parseLocation(text){
   return null;
 }
 
+// Telia/KE trasos auto-aptikimas iš projekto PDF.
+// Per A pasirinkimą: jei nepavyksta tiksliai išskirti pradžios ir pabaigos —
+// abu laukai užpildomi tuo pačiu objekto adresu, adminas patikslins per review.
+// Grąžina {from, to} arba null.
+function parseTeliaRoute(text){
+  var patterns=[
+    // "OBJEKTO VIETA: Fabriko g. 3G, Jonava, Jonavos r. sav." (didžiosios — projekto titulinis)
+    /OBJEKTO\s+VIETA\s*:\s*([^\n]{5,150})/,
+    // "Objekto adresas: ..." (LT standartas)
+    /[Oo]bjekto\s+adresas\s*:\s*([^\n]{5,150})/,
+    // "Objekto vieta: ..." (mažosiomis)
+    /[Oo]bjekto\s+vieta\s*:\s*([^\n]{5,150})/,
+    // "Statybos vieta: ...", "Darbų vieta: ..."
+    /(?:[Ss]tatybos\s+(?:vieta|adresas)|[Dd]arbų\s+vieta)\s*:\s*([^\n]{5,150})/,
+  ];
+  for(var i=0;i<patterns.length;i++){
+    var m=text.match(patterns[i]);
+    if(m&&m[1]){
+      var val=m[1].trim().replace(/\s+/g,' ').split(/[;|]/)[0].trim();
+      // Atskiriame nuo greta esančių laukų ("DALIS:", "STADIJA:" ir t.t.) suspaustam tekste
+      val=val.split(/\s+(?:DALIS|STADIJA|TOMAS|METAI|Investicinio|Investicinis|UŽSAKOVAS|U[Žz]SAKOVAS|Klientas|PAREIGOS|STATYBOS\s+R[ŪU][ŠS]IS|STATINIO\s+KATEGORIJA)\s*:/)[0].trim();
+      if(val.length>5)return {from:val,to:val};
+    }
+  }
+  return null;
+}
+
 function parseInvestNo(text){
   // Ieškome "Investicinis nr.", "Inv. nr.", "Proj. Nr.", "Investicinis numeris" ir pan.
   var patterns=[
@@ -434,7 +461,7 @@ function PermitForm(p){
   function toggleOrg(o){sOrgs(function(prev){var idx=prev.indexOf(o);return idx===-1?prev.concat([o]):prev.filter(function(x){return x!==o});});}
   function addFile(f){
     sFiles(function(prev){return prev.concat([f])});
-    // Jei PDF ir investicinis nr. dar nenurodytas — bandome nuskaityti automatiškai
+    // Jei PDF — bandome iš jo automatiškai išgauti reikiamus duomenis (auto-pildymas)
     if(f.name&&f.name.match(/\.pdf$/i)&&f.data){
       extractPdfText(f.data).then(function(text){
         if(!text)return;
@@ -442,6 +469,13 @@ function PermitForm(p){
         if(foundInv)sInvNo(function(cur){return cur?cur:foundInv;});
         var foundLoc=parseLocation(text);
         if(foundLoc)sEsoLoc(function(cur){return cur?cur:foundLoc;});
+        // Telia / Kauno energija trasos pradžia ir pabaiga — abu užpildomi
+        // tuo pačiu objekto adresu, adminas patikslins per review.
+        var foundRoute=parseTeliaRoute(text);
+        if(foundRoute){
+          sTrFrom(function(cur){return cur?cur:foundRoute.from;});
+          sTrTo(function(cur){return cur?cur:foundRoute.to;});
+        }
       });
     }
   }
@@ -1442,7 +1476,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.16</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.17</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -1484,7 +1518,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.16</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.17</div>
         </div>
       </div>
     </div>
