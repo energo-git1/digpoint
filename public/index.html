@@ -864,17 +864,30 @@ function EsoSubmitBtn(p){
 // TELIA REVIEW WORKFLOW HELPERS (modulio lygis — naudojami ir App, ir PermitDetail)
 // ═════════════════════════════════════════════════════════════
 
-// Telia laiško HTML šablonas — Tomo originalas, naudojamas tiek pre-build'inant peržiūrai
-// (review notifikacija), tiek galutinio siuntimo metu (po patvirtinimo).
+// Švarus išorinių laiškų wrapper'is — naudojamas Telia, Kauno energija ir kt. išoriniams gavėjams.
+// Be Digpoint sistemos branding'o, tik EnergoLT įmonės kontaktai pėdoje.
+function buildExternalEmailWrapper(body){
+  return '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#1F2937;font-size:14px;line-height:1.6">'
+    +'<div style="max-width:620px;margin:24px auto;padding:8px 24px">'
+    +body
+    +'<div style="margin-top:28px;padding-top:14px;border-top:1px solid #E5E7EB;font-size:11px;color:#6B7280;line-height:1.5">'
+    +'UAB „EnergoLT" &middot; Stumbro g. 3, Šakių k., LT-47413 Kauno r.<br>'
+    +'Tel.: +370 620 64619 &middot; El. p.: <a href="mailto:info@energolt.eu" style="color:#6B7280">info@energolt.eu</a>'
+    +'</div>'
+    +'</div></body></html>';
+}
+
+// Telia laiško HTML šablonas — Tomo originalus turinys + švarus išorinis wrapper'is (be Digpoint branding'o).
 function buildTeliaEmailHtml(permit){
-  return emailWrap("Telia kasimo leidimo paraiskas","#0066CC",
-    "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
-    +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Reikalingas Telia kasimo leidimas, Kauno m. sav., trasai einanciai:</p>"
-    +"<table style=\"border-collapse:collapse;width:100%\"><tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Trasa:</td><td style=\"padding:4px 0;color:#111827;font-size:13px;font-weight:600\">"+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+"</td></tr>"
+  return buildExternalEmailWrapper(
+    "<p style=\"margin:0 0 14px\">Laba diena,</p>"
+    +"<p style=\"margin:0 0 14px\">Reikalingas Telia kasimo leidimas, Kauno m. sav., trasai einanciai:</p>"
+    +"<table style=\"border-collapse:collapse;width:100%;margin:0 0 14px\"><tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Trasa:</td><td style=\"padding:4px 0;color:#111827;font-size:13px;font-weight:600\">"+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+"</td></tr>"
     +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Darbus atliks:</td><td style=\"padding:4px 0;color:#111827;font-size:13px;font-weight:600\">UAB „EnergoLT“</td></tr>"
     +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Darbu vadovas:</td><td style=\"padding:4px 0;color:#111827;font-size:13px\">"+(permit.manager||"")+" , tel.: "+(permit.managerPhone||"")+"</td></tr>"
     +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Laikotarpis:</td><td style=\"padding:4px 0;color:#111827;font-size:13px\">"+(permit.startDate||"")+" – "+(permit.endDate||"")+"</td></tr>"
-    +"</table><p style=\"color:#374151;font-size:13px;margin:0\">Pridedu suderinima.</p>");
+    +"</table><p style=\"margin:0\">Pridedu suderinima.</p>"
+  );
 }
 
 // Telia paraiškos paruošimas review'ui — aptinka PDF puslapius ir įspėja apie trūkumus.
@@ -945,12 +958,16 @@ async function preparePendingTeliaEmail(permit){
   }});
 }
 
-// Iš Telia laiško HTML (`emailWrap` rezultato) ištraukia tik vidinį turinį
-// — tai, kas yra tarp antraštės ir pėdos (be `<html>`, `<body>` ir kt.).
+// Iš Telia laiško HTML (`buildExternalEmailWrapper` rezultato) ištraukia tik vidinį turinį
+// — tai, kas yra tarp wrapper'io pradžios ir pėdos.
 function extractTeliaEmailBodyContent(htmlDoc){
   if(!htmlDoc)return "";
-  var m=htmlDoc.match(/<div style="padding:24px 28px">([\s\S]*?)<\/div>\s*<div style="padding:12px 28px;background:#F9FAFB/);
-  return m?m[1]:"";
+  // Naujasis wrapper'is: <div style="max-width:620px...">[BODY]<div style="margin-top:28px...border-top...">
+  var m=htmlDoc.match(/<div style="max-width:620px[^"]*">\s*([\s\S]*?)\s*<div style="margin-top:28px/);
+  if(m)return m[1];
+  // Atsarginis variantas — senesni wrapper'iai (jei dar liko paraiškų su senu HTML)
+  var m2=htmlDoc.match(/<div style="padding:24px 28px">([\s\S]*?)<\/div>\s*<div style="padding:12px 28px;background:#F9FAFB/);
+  return m2?m2[1]:"";
 }
 
 // Adminui — review notifikacija su faktiniu Telia laiško turiniu, įspėjimais
@@ -1066,6 +1083,12 @@ function PermitDetail(p){
   var _pvu=useState(o.permitValidUntil||"");var pvu=_pvu[0],sPvu=_pvu[1];
   var _aprvSt=useState("");var aprvSt=_aprvSt[0],sAprvSt=_aprvSt[1];
   var _aprvBusy=useState(false);var aprvBusy=_aprvBusy[0],sAprvBusy=_aprvBusy[1];
+  // Rankinio puslapių parinkimo įvestys — inicijuojamos pagal aptiktas reikšmes (jei yra)
+  var _initSrcs=((o.pendingEmail||{}).attachmentSources||[]);
+  var _initDrawPg=(_initSrcs.find(function(s){return s.filename==="projekto_brezinys.pdf"})||{}).pageNumber||"";
+  var _initTeliaPg=(_initSrcs.find(function(s){return s.filename==="telia_derinimas.pdf"})||{}).pageNumber||"";
+  var _drawPg=useState(String(_initDrawPg));var drawPgIn=_drawPg[0],sDrawPgIn=_drawPg[1];
+  var _teliaPg=useState(String(_initTeliaPg));var teliaPgIn=_teliaPg[0],sTeliaPgIn=_teliaPg[1];
   var isA=p.user.role==="admin";
   var isD=p.user.role==="dokumentacija";
   var cr=p.users.find(function(u){return u.id===o.createdBy});
