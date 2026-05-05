@@ -123,16 +123,85 @@ async function extractPdfTextByPage(dataUrl){
   }catch(e){return []}
 }
 
-// Telia derinimo aptikimas — puslapis privalo atitikti dvi sąlygas vienu metu:
-// (a) tai yra elektros / inžinerinių tinklų brėžinys, IR
-// (b) jame yra Telia parašo raktažodžių.
-// Tai išskiria Telia derinimą nuo kitų puslapių (pvz., pritarimų lentelės p. 3,
-// kur taip pat minima „AB Telia Lietuva", bet tai nėra brėžinys).
+// Telia derinimo aptikimas — naujas algoritmas pagal pritarimų lentelės derintojo vardą:
+//   1) Rasti PROJEKTO PRITARIMŲ LENTELĖ puslapį
+//   2) Iš jo ištraukti Telia derintojo vardą (pvz., "Vytautas Stravinskas")
+//   3) Sukurti lankstų regex (pagauna ir "V. Stravinskas" formą)
+//   4) Telia derinimas = brėžinio puslapis + tas vardas
+//
+// Fallback (jei pritarimų lentelės nėra arba vardo neištraukėm):
+//   Brėžinys + bendrieji Telia raktažodžiai (kaip ir ankstesnė versija).
 function findTeliaApprovalPage(pageTexts){
-  for(var i=0;i<pageTexts.length;i++){
-    if(isDrawingPageText(pageTexts[i])&&hasTeliaMarkers(pageTexts[i]))return i+1;
+  var tablePage=findProjectApprovalsTablePage(pageTexts);
+  if(tablePage){
+    var name=extractTeliaApproverName(pageTexts[tablePage-1]);
+    if(name){
+      var nameRe=buildApproverNameRegex(name);
+      if(nameRe){
+        for(var i=0;i<pageTexts.length;i++){
+          if(i+1===tablePage)continue; // praleidžiame pačią lentelę
+          if(isDrawingPageText(pageTexts[i])&&nameRe.test(pageTexts[i]))return i+1;
+        }
+      }
+    }
+  }
+  // Fallback — brėžinys + bendrieji Telia raktažodžiai
+  for(var j=0;j<pageTexts.length;j++){
+    if(j+1===tablePage)continue;
+    if(isDrawingPageText(pageTexts[j])&&hasTeliaMarkers(pageTexts[j]))return j+1;
   }
   return null;
+}
+
+// PROJEKTO PRITARIMŲ LENTELĖS puslapio aptikimas — typikai p. 2 ar p. 3.
+function findProjectApprovalsTablePage(pageTexts){
+  for(var i=0;i<pageTexts.length;i++){
+    if(/PROJEKTO\s+PRITARIM[UŲ]\s+LENTEL[ĖE]/i.test(pageTexts[i]))return i+1;
+  }
+  return null;
+}
+
+// Iš pritarimų lentelės teksto ištraukia Telia derintojo vardą.
+// Tikisi, kad PDF tekste eilutė atrodo: "...Telia Lietuva  Vytautas Stravinskas  2025-11-03..."
+// Palaiko tiek pilną vardą, tiek inicialinį formatą.
+function extractTeliaApproverName(tableText){
+  if(!tableText)return null;
+  // Lokali paieška ~250 simbolių aplink "Telia"
+  var ctx=tableText.match(/(?:AB\s+)?Telia\s+Lietuva[\s\S]{0,250}/i);
+  if(!ctx)return null;
+  var seg=ctx[0];
+  // "Vytautas Stravinskas" arba "V. Stravinskas" arba "V Stravinskas"
+  var m=seg.match(/([A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž]+\s+[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž]+)/);
+  if(m&&m[1]){
+    var candidate=m[1].trim();
+    // Atmetame, jei vardas pateko į institucijos pavadinimą („Telia Lietuva")
+    if(/^Telia\s+Lietuva$/i.test(candidate)){
+      // Pereiname į pratęsimą po šio matčo
+      var rest=seg.slice(seg.indexOf(candidate)+candidate.length);
+      var m2=rest.match(/([A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž]+\s+[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž]+)/);
+      if(m2&&m2[1])return m2[1].trim();
+      return null;
+    }
+    return candidate;
+  }
+  // Inicialinis formatas: V. Stravinskas
+  var mi=seg.match(/([A-ZĄČĘĖĮŠŲŪŽ]\.\s*[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž]+)/);
+  return mi&&mi[1]?mi[1].trim():null;
+}
+
+// Sudaro lankstų regex iš vardo, kuris pagauna variacijas:
+//   "Vytautas Stravinskas" → pagaus ir "V. Stravinskas" / "V Stravinskas" / "VYTAUTAS STRAVINSKAS"
+function buildApproverNameRegex(name){
+  if(!name)return null;
+  var parts=name.split(/\s+/).filter(function(p){return p.length>0});
+  if(parts.length<2)return null;
+  var firstRaw=parts[0].replace(/\.+$/,"");
+  var lastName=parts[parts.length-1];
+  var firstInitial=firstRaw.charAt(0);
+  // Escape special regex chars in names (just in case)
+  function esc(s){return s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}
+  var pat="("+esc(firstRaw)+"\\s+"+esc(lastName)+"|"+esc(firstInitial)+"\\.?\\s+"+esc(lastName)+")";
+  return new RegExp(pat,"i");
 }
 
 // Projekto brėžinio raktažodžiai — bendras šablonas, naudojamas tiek projekto brėžinio,
@@ -149,19 +218,7 @@ function isDrawingPageText(text){
   return titlePatterns.some(function(re){return re.test(text)});
 }
 
-// Projekto brėžinio aptikimas — pirmas puslapis su brėžinio antraštės šablonu BE Telia parašo.
-function findProjectDrawingPage(pageTexts){
-  for(var i=0;i<pageTexts.length;i++){
-    if(isDrawingPageText(pageTexts[i])&&!hasTeliaMarkers(pageTexts[i]))return i+1;
-  }
-  // Fallback — bet kuris brėžinio puslapis (gali būti tas pats kaip Telia derinimo)
-  for(var j=0;j<pageTexts.length;j++){
-    if(isDrawingPageText(pageTexts[j]))return j+1;
-  }
-  return null;
-}
-
-// Telia parašo raktažodžiai
+// Telia parašo raktažodžiai — bendrieji (fallback'as, jei nepavyksta išgauti vardo iš lentelės)
 function hasTeliaMarkers(text){
   var markers=[
     /Telia\s+Lietuva/i,
@@ -172,6 +229,29 @@ function hasTeliaMarkers(text){
     /Po[zž]emini[uų]\s+ry[sš]i[uų]/i,
   ];
   return markers.some(function(re){return re.test(text)});
+}
+
+// Projekto brėžinio aptikimas — su pritarimų lentelės metodu (jei galima):
+//   Pirmiau ieškom brėžinio be Telia derintojo vardo. Jei lentelės nėra — fallback į keyword logiką.
+function findProjectDrawingPage(pageTexts){
+  var tablePage=findProjectApprovalsTablePage(pageTexts);
+  var teliaName=tablePage?extractTeliaApproverName(pageTexts[tablePage-1]):null;
+  var teliaRe=teliaName?buildApproverNameRegex(teliaName):null;
+  // 1-as pasirinkimas — brėžinio puslapis, kuriame NĖRA Telia derintojo vardo
+  if(teliaRe){
+    for(var i=0;i<pageTexts.length;i++){
+      if(isDrawingPageText(pageTexts[i])&&!teliaRe.test(pageTexts[i]))return i+1;
+    }
+  }
+  // 2-as — esamas keyword-based pasirinkimas (brėžinys be bendrųjų Telia raktažodžių)
+  for(var j=0;j<pageTexts.length;j++){
+    if(isDrawingPageText(pageTexts[j])&&!hasTeliaMarkers(pageTexts[j]))return j+1;
+  }
+  // 3-as fallback — bet kuris brėžinio puslapis
+  for(var k=0;k<pageTexts.length;k++){
+    if(isDrawingPageText(pageTexts[k]))return k+1;
+  }
+  return null;
 }
 
 // Iš originalaus PDF ištraukia nurodytus puslapius (1-indexed) į naują PDF.
@@ -232,19 +312,21 @@ function parseLocation(text){
 //   to   = gatvė, namo nr., miestas (be savivaldybės)
 function parseTeliaRoute(text){
   var patterns=[
-    /OBJEKTO\s+VIETA\s*:\s*([^\n]{5,150})/,
-    /[Oo]bjekto\s+adresas\s*:\s*([^\n]{5,150})/,
-    /[Oo]bjekto\s+vieta\s*:\s*([^\n]{5,150})/,
-    /(?:[Ss]tatybos\s+(?:vieta|adresas)|[Dd]arbų\s+vieta)\s*:\s*([^\n]{5,150})/,
+    /OBJEKTO\s+VIETA\s*:\s*([^\n]{5,200})/,
+    /[Oo]bjekto\s+adresas\s*:\s*([^\n]{5,200})/,
+    /[Oo]bjekto\s+vieta\s*:\s*([^\n]{5,200})/,
+    /(?:[Ss]tatybos\s+(?:vieta|adresas)|[Dd]arbų\s+vieta)\s*:\s*([^\n]{5,200})/,
   ];
+  // Greta esančių laukų pavadinimai — užtikrina, kad tarpiniai/po jų esantys tekstai būtų atkirsti
+  var boundaryRe=/\s+(?:DALIS|STADIJA|TOMAS|METAI|ETAPAS|Investicinio|Investicinis|INVESTICINIS|TECHNINI[UŲ]\s+S[AĄ]LYG[UŲ]|UŽSAKOVAS|U[Žz]SAKOVAS|Klientas|PAREIGOS|STATYBOS\s+R[ŪU][ŠS]IS|STATINIO\s+KATEGORIJA|TECHNINIS\s+PROJEKTAS|DARBO\s+PROJEKTAS|PROJEKTO\s+(?:NUMERIS|RU[SŠ]IS))\s*[:.\-—]/i;
   for(var i=0;i<patterns.length;i++){
     var m=text.match(patterns[i]);
     if(m&&m[1]){
       var val=m[1].trim().replace(/\s+/g,' ').split(/[;|]/)[0].trim();
-      val=val.split(/\s+(?:DALIS|STADIJA|TOMAS|METAI|Investicinio|Investicinis|UŽSAKOVAS|U[Žz]SAKOVAS|Klientas|PAREIGOS|STATYBOS\s+R[ŪU][ŠS]IS|STATINIO\s+KATEGORIJA)\s*:/)[0].trim();
+      val=val.split(boundaryRe)[0].trim();
       if(val.length>5){
-        // Pašaliname savivaldybės dalį (", Xxx r. sav." arba ", Xxx m. sav.")
-        var noSav=val.replace(/,\s*[A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž\.]+\s+(?:r|m)\.?\s*sav\.?\s*$/i,"").trim();
+        // Pašaliname savivaldybę bet kurioje vietoje (ne tik gale): ", Xxx r./m. sav."
+        var noSav=val.replace(/,?\s*[A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž\.]+\s+(?:r|m)\.?\s*sav\.?(?=$|[\s,])/gi,"").replace(/\s+,/g,",").replace(/,\s*$/,"").trim();
         // Atskiriame į dalis pagal kablelius
         var parts=noSav.split(",").map(function(s){return s.trim()}).filter(function(s){return s.length>0});
         // pradžia = gatvė + namo nr. (pirma dalis)
@@ -738,10 +820,19 @@ function buildTeliaEmailHtml(permit){
 async function preparePendingTeliaEmail(permit){
   var attachmentSources=[];
   var warnings=[];
+  var detectionInfo=null;
   var pdfFile=(permit.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
   if(pdfFile&&pdfFile.data){
     try{
       var pageTexts=await extractPdfTextByPage(pdfFile.data);
+      // Bandome ištraukti Telia derintojo vardą iš pritarimų lentelės — informacijai
+      var tablePage=findProjectApprovalsTablePage(pageTexts);
+      var teliaName=tablePage?extractTeliaApproverName(pageTexts[tablePage-1]):null;
+      detectionInfo={
+        approvalsTablePage:tablePage,
+        teliaApproverName:teliaName,
+        usedMethod:teliaName?"vardo-pagrįstas":"raktažodžių"
+      };
       var teliaPage=findTeliaApprovalPage(pageTexts);
       var drawingPage=findProjectDrawingPage(pageTexts);
       if(drawingPage){
@@ -752,7 +843,11 @@ async function preparePendingTeliaEmail(permit){
       if(teliaPage){
         attachmentSources.push({filename:"telia_derinimas.pdf",sourceFileName:pdfFile.name,pageNumber:teliaPage});
       }else{
-        warnings.push("Telia derinimo puslapis PDF'e nerastas — adminas turi nurodyti rankiniu budu");
+        if(teliaName){
+          warnings.push("Telia derinimo puslapis PDF'e nerastas — pritarimų lentelėje rastas derintojas: "+teliaName);
+        }else{
+          warnings.push("Telia derinimo puslapis PDF'e nerastas (pritarimų lentelė taip pat neaptikta)");
+        }
       }
     }catch(e){
       warnings.push("PDF skaitymo klaida: "+e.message);
@@ -771,6 +866,7 @@ async function preparePendingTeliaEmail(permit){
     html:buildTeliaEmailHtml(permit),
     attachmentSources:attachmentSources,
     warnings:warnings,
+    detectionInfo:detectionInfo,
     preparedAt:new Date().toISOString()
   }});
 }
@@ -801,6 +897,13 @@ function sendTeliaReviewNotification(permit){
       +pe.attachmentSources.map(function(a){return '<li>'+a.filename+' <span style="color:#6B7280">(p. '+a.pageNumber+' iš '+a.sourceFileName+')</span></li>'}).join('')
       +'</ul>'
     :'<p style="margin:0;font-size:13px;color:#EF4444"><strong>⚠️ Priedų nera!</strong></p>';
+  var di=pe.detectionInfo||{};
+  var diHtml=di.usedMethod
+    ?'<p style="margin:8px 0 0;font-size:11px;color:#6B7280">Aptikimo metodas: <strong>'+di.usedMethod+'</strong>'
+      +(di.approvalsTablePage?' &middot; Pritarimų lentelė: p. '+di.approvalsTablePage:'')
+      +(di.teliaApproverName?' &middot; Derintojas: '+di.teliaApproverName:'')
+      +'</p>'
+    :'';
   // Faktinis Telia laiško turinys (be antraštės/pėdos), kad adminas matytų be Digpoint atidarymo
   var teliaContent=extractTeliaEmailBodyContent(pe.html||"");
   var body=emailWrap("Telia paraiska laukia patikros","#CA8A04",
@@ -818,6 +921,7 @@ function sendTeliaReviewNotification(permit){
     +"<p style=\"margin:0 0 4px;font-size:13px;color:#374151\"><strong>Kam:</strong> "+(pe.to||"-")+"</p>"
     +"<p style=\"margin:0 0 8px;font-size:13px;color:#374151\"><strong>Tema:</strong> "+(pe.subject||"-")+"</p>"
     +attHtml
+    +diHtml
     +"</div>"
     +"<div style=\"background:#fff;border:2px solid #0066CC;border-radius:6px;padding:14px;margin:14px 0\">"
     +"<p style=\"margin:0 0 10px;color:#0066CC;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600\">📧 Telia laiško turinys</p>"
@@ -1060,6 +1164,11 @@ function PermitDetail(p){
                   {pe.attachmentSources.map(function(a,i){return <li key={i}>{a.filename} <span style={{color:C.t3}}>(p. {a.pageNumber} iš {a.sourceFileName})</span></li>})}
                 </ul>
                 :<div style={{fontSize:11,color:C.rd,fontFamily:F,marginTop:4,fontWeight:600}}>⚠️ Priedų nėra!</div>}
+              {pe.detectionInfo&&pe.detectionInfo.usedMethod&&<div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:8,paddingTop:8,borderTop:"1px solid "+C.b1}}>
+                Aptikimo metodas: <span style={{color:C.t2,fontWeight:600}}>{pe.detectionInfo.usedMethod}</span>
+                {pe.detectionInfo.approvalsTablePage&&<span> · Pritarimų lentelė: <span style={{fontFamily:FM}}>p. {pe.detectionInfo.approvalsTablePage}</span></span>}
+                {pe.detectionInfo.teliaApproverName&&<span> · Derintojas: <span style={{color:C.t2,fontWeight:600}}>{pe.detectionInfo.teliaApproverName}</span></span>}
+              </div>}
               <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:12,marginBottom:6}}>Laisko turinys:</div>
               {pe.html
                 ?<iframe srcDoc={pe.html} sandbox="" style={{width:"100%",height:380,border:"1px solid "+C.b1,borderRadius:6,background:"#fff"}}/>
@@ -1752,7 +1861,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.24</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.25</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -1794,7 +1903,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.24</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.25</div>
         </div>
       </div>
     </div>
