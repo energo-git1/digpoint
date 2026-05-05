@@ -153,10 +153,15 @@ function findTeliaApprovalPage(pageTexts){
   return null;
 }
 
-// PROJEKTO PRITARIMŲ LENTELĖS puslapio aptikimas — typikai p. 2 ar p. 3.
+// PROJEKTO PRITARIMŲ LENTELĖS puslapio aptikimas — labiau lanksti paieška.
+// Ieškome "PRITARIM" + "LENTEL" žodžių dalių tame pačiame puslapyje (PDF teksto
+// ekstrakcija gali iškraipyti tarpus ar specialius simbolius, todėl negalima reikalauti
+// griežto fraziavimo). Tikrinama tik per pirmuosius 20 puslapių (lentelė visada projekto pradžioje).
 function findProjectApprovalsTablePage(pageTexts){
-  for(var i=0;i<pageTexts.length;i++){
-    if(/PROJEKTO\s+PRITARIM[UŲ]\s+LENTEL[ĖE]/i.test(pageTexts[i]))return i+1;
+  var max=Math.min(pageTexts.length,20);
+  for(var i=0;i<max;i++){
+    var t=pageTexts[i];
+    if(t&&/PRITARIM/i.test(t)&&/LENTEL/i.test(t))return i+1;
   }
   return null;
 }
@@ -250,27 +255,38 @@ function hasTeliaMarkers(text){
   return markers.some(function(re){return re.test(text)});
 }
 
-// Projekto brėžinio aptikimas:
-// Renkamės PASKUTINĮ švarų brėžinio puslapį (ne pirmąjį) — tai išsprendžia atvejį,
-// kai projekte yra kelios drafto versijos su skirtingais institucijų antspaudais
-// + galutinė švari versija BRĖŽINIAI skyriuje (kuri eina po visų derinimų).
+// Projekto brėžinio aptikimas — daugiapakopis algoritmas:
+//   1) Surenkam VISUS „švarius" brėžinio puslapius (be jokio derintojo vardo)
+//   2) PIRMENYBĖ — puslapiai su „1 dalis" (trasos planas, jį Telia kasimo paraiškai reikia)
+//   3) ATMETAM puslapius su „2 dalis", „3 dalis" ir t.t. (montavimo schemos, ne trasos)
+//   4) Jei yra keli kandidatai — paimam paskutinį (galutinė BRĖŽINIAI skyriaus versija)
 function findProjectDrawingPage(pageTexts){
   var tablePage=findProjectApprovalsTablePage(pageTexts);
   var allNames=tablePage?extractAllApproverNames(pageTexts[tablePage-1]):[];
   var allRes=allNames.map(buildApproverNameRegex).filter(function(re){return re!==null});
-  // 1-as: PASKUTINIS brėžinio puslapis, kuriame NĖRA NĖ VIENO derintojo vardo
-  if(allRes.length>0){
-    for(var i=pageTexts.length-1;i>=0;i--){
-      if(i+1===tablePage)continue;
-      if(isDrawingPageText(pageTexts[i])&&!allRes.some(function(re){return re.test(pageTexts[i])}))return i+1;
+  // 1) Surenkam visus švarius brėžinio puslapius
+  var cleanPages=[];
+  for(var i=0;i<pageTexts.length;i++){
+    if(i+1===tablePage)continue;
+    if(isDrawingPageText(pageTexts[i])&&!allRes.some(function(re){return re.test(pageTexts[i])})){
+      cleanPages.push({idx:i,text:pageTexts[i]});
     }
   }
-  // 2-as fallback — paskutinis brėžinys be bendrųjų Telia raktažodžių
+  if(cleanPages.length>0){
+    // 2) Prioritetas — „1 dalis" (Telia reikia trasos plano, ne montavimo)
+    var firstPart=cleanPages.filter(function(p){return /\b1\s*-?\s*[oa]?ji?\s*dalis|\b1\s*dalis\b|\b1dalis\b/i.test(p.text)});
+    if(firstPart.length>0)return firstPart[firstPart.length-1].idx+1;
+    // 3) Atmetam vėlesnes dalis (2, 3, 4...)
+    var notLaterPart=cleanPages.filter(function(p){return !/\b[2-9]\s*-?\s*[oa]?ji?\s*dalis|\b[2-9]\s*dalis\b|\b[2-9]dalis\b/i.test(p.text)});
+    if(notLaterPart.length>0)return notLaterPart[notLaterPart.length-1].idx+1;
+    // 4) Visi „švarūs" turi „2 dalis" ar pan. — paimam paskutinį (mažai tikėtina situacija)
+    return cleanPages[cleanPages.length-1].idx+1;
+  }
+  // Fallback'ai — kai nėra pritarimų lentelės arba derintojo vardų
   for(var j=pageTexts.length-1;j>=0;j--){
     if(j+1===tablePage)continue;
     if(isDrawingPageText(pageTexts[j])&&!hasTeliaMarkers(pageTexts[j]))return j+1;
   }
-  // 3-as fallback — paskutinis bet kuris brėžinio puslapis
   for(var k=pageTexts.length-1;k>=0;k--){
     if(k+1===tablePage)continue;
     if(isDrawingPageText(pageTexts[k]))return k+1;
@@ -916,8 +932,10 @@ function extractTeliaEmailBodyContent(htmlDoc){
   return m?m[1]:"";
 }
 
-// Adminui — review notifikacija su faktiniu Telia laiško turiniu ir įspėjimais (Task #5).
-function sendTeliaReviewNotification(permit){
+// Adminui — review notifikacija su faktiniu Telia laiško turiniu, įspėjimais
+// ir TOMIS PAČIOMIS PDF priedais (kad admin galėtų tiesiog email'e atidaryti
+// ir vizualiai patikrinti puslapius prieš patvirtinant).
+async function sendTeliaReviewNotification(permit){
   if(!REVIEW_EMAIL)return;
   var permitNo=permit.id?permit.id.slice(-5).toUpperCase():"?????";
   var pe=permit.pendingEmail||{};
@@ -965,7 +983,21 @@ function sendTeliaReviewNotification(permit){
     +(teliaContent||"<p style=\"color:#EF4444\">⚠️ Turinys nepasiektas</p>")
     +"</div>"
     +"<p style=\"color:#374151;font-size:13px;margin:14px 0 0\">Patvirtinkite arba pataisykite paraišką Digpoint sistemoje.</p>");
-  sendEmail(REVIEW_EMAIL,"[REVIEW] Telia paraiska #"+permitNo+" laukia patvirtinimo",body);
+  // Sugeneruojame tuos pačius PDF priedus, kuriuos gaus Telia — kad admin galėtų
+  // peržiūrėti ne tik laiško turinį, bet ir konkrečius puslapius dar prieš patvirtinant.
+  var attachments=[];
+  var srcs=(pe.attachmentSources)||[];
+  for(var ai=0;ai<srcs.length;ai++){
+    var src=srcs[ai];
+    var srcFile=(permit.files||[]).find(function(f){return f.name===src.sourceFileName});
+    if(srcFile&&srcFile.data){
+      try{
+        var bytes=await extractPagesToNewPdf(srcFile.data,[src.pageNumber]);
+        if(bytes)attachments.push({filename:src.filename,content:bytes,encoding:"base64"});
+      }catch(e){/* tylus klystkelis — review email'as vis tiek išsiųstas */}
+    }
+  }
+  sendEmail(REVIEW_EMAIL,"[REVIEW] Telia paraiska #"+permitNo+" laukia patvirtinimo",body,attachments);
 }
 
 // Iškviečiama PermitDetail — patvirtina paraišką: regeneruoja PDF priedus iš metaduomenų,
@@ -1898,7 +1930,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.27</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.29</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -1940,7 +1972,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.27</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.29</div>
         </div>
       </div>
     </div>
@@ -2079,7 +2111,7 @@ function App(){
     // Telia: paruošiame pendingEmail + įspėjimus, siunčiame review notifikaciją
     if(hasTelia){
       finalPermit=await preparePendingTeliaEmail(finalPermit);
-      sendTeliaReviewNotification(finalPermit);
+      await sendTeliaReviewNotification(finalPermit);
     }
     savePermits(permits.concat([finalPermit]));
     // Kauno energija — paliekam dabartine elgsena (siunciama tik kai pasirinkta kartu su Telia)
