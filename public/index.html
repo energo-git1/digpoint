@@ -230,7 +230,13 @@ function buildApproverNameRegex(name){
 
 // Projekto brėžinio raktažodžiai — bendras šablonas, naudojamas tiek projekto brėžinio,
 // tiek Telia derinimo (kuris yra brėžinys + Telia parašas) aptikime.
+//
+// SVARBU: tikras brėžinio puslapis turi turėti ne tik antraštės pavadinimą,
+// bet ir bent vieną iš brėžinio specifinių požymių (mastelis, koordinatės, žymėjimai).
+// Tai būtina, kad nesukluptume ant informacinių sąrašų (pvz., "8. BRĖŽINIAI" turinio puslapio,
+// kuriame brėžiniai tik išvardyti tekstu, bet pati grafinė schema nėra).
 function isDrawingPageText(text){
+  if(!text)return false;
   var titlePatterns=[
     /ELEKTROS\s+TINK[LŲU]+\s+(PLANAS|SCHEMA|BR[ĖE][ŽZ]INYS)/i,
     /IN[ŽZ]INERINI[UŲ]\s+TINK[LŲU]+\s+(PLANAS|SCHEMA|BR[ĖE][ŽZ]INYS)/i,
@@ -239,7 +245,22 @@ function isDrawingPageText(text){
     /kabel[iuų]\s+linij[oų]\s+plan/i,
     /(0[,.]?\d+|10|20)\s*kV\s+KL\s+plan/i,
   ];
-  return titlePatterns.some(function(re){return re.test(text)});
+  var hasTitle=titlePatterns.some(function(re){return re.test(text)});
+  // Brėžinio specifiniai požymiai (PDF teksto sluoksnyje):
+  var hasMastelis=/M\s*1\s*:\s*\d{2,}/i.test(text);                              // M 1:500, M 1:1000
+  var coordCount=(text.match(/[XY]\s*=\s*\d/g)||[]).length;                      // X=...  Y=...
+  var hasDrawingMarkers=/(SUTARTINIAI\s+ŽYM|kabelis\s+vamzdyje|kabelis\s+klojamas|kryptiniu\s+gręžimu|Žemės\s+sklypo\s+riba|Apsaugos\s+zon[oų])/i.test(text);
+  // Brėžinys = bent du požymiai — apsauga nuo informacinių sąrašų:
+  //   1) Antraštė + mastelis
+  //   2) Antraštė + bent 3 koordinatės
+  //   3) Antraštė + brėžinio žymėjimai (SUTARTINIAI ŽYMĖJIMAI ir t.t.)
+  //   4) Mastelis + koordinatės (atvejis, kai antraštė rastered į image, bet kiti tekstai liko)
+  if(hasTitle&&hasMastelis)return true;
+  if(hasTitle&&coordCount>=3)return true;
+  if(hasTitle&&hasDrawingMarkers)return true;
+  if(hasMastelis&&coordCount>=3)return true;
+  if(hasMastelis&&hasDrawingMarkers)return true;
+  return false;
 }
 
 // Telia parašo raktažodžiai — bendrieji (fallback'as, jei nepavyksta išgauti vardo iš lentelės)
@@ -1930,7 +1951,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.29</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.30</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -1972,7 +1993,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.29</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.30</div>
         </div>
       </div>
     </div>
