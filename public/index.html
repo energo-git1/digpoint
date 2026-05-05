@@ -58,20 +58,21 @@ document.body.setAttribute('data-theme',_t0);
 // follow the active palette (called from toggleTheme below).
 function buildStatusMap(){
   return {
-    Naujas:      {bg:C.acD,  c:C.ac, dot:C.ac},
-    Priskirtas:  {bg:C.ylD,  c:C.yl, dot:C.yl},
-    Pateikta:    {bg:"rgba(139,92,246,.12)",c:"#8B5CF6",dot:"#8B5CF6"},
-    Vykdomas:    {bg:C.orD,  c:C.or, dot:C.or},
-    Baigtas:     {bg:"rgba(59,130,246,.15)",c:"#60A5FA",dot:"#60A5FA"},
-    Gautas:      {bg:C.gnD,  c:C.gn, dot:C.gn},
-    Nebegalioja: {bg:"rgba(107,114,128,.12)",c:"#6B7280",dot:"#6B7280"},
-    Atmestas:    {bg:C.rdD,  c:C.rd, dot:C.rd},
+    Naujas:             {bg:C.acD,  c:C.ac, dot:C.ac},
+    Priskirtas:         {bg:C.ylD,  c:C.yl, dot:C.yl},
+    LaukiaPatvirtinimo: {bg:"rgba(202,138,4,.18)",c:"#CA8A04",dot:"#CA8A04"},
+    Pateikta:           {bg:"rgba(139,92,246,.12)",c:"#8B5CF6",dot:"#8B5CF6"},
+    Vykdomas:           {bg:C.orD,  c:C.or, dot:C.or},
+    Baigtas:            {bg:"rgba(59,130,246,.15)",c:"#60A5FA",dot:"#60A5FA"},
+    Gautas:             {bg:C.gnD,  c:C.gn, dot:C.gn},
+    Nebegalioja:        {bg:"rgba(107,114,128,.12)",c:"#6B7280",dot:"#6B7280"},
+    Atmestas:           {bg:C.rdD,  c:C.rd, dot:C.rd},
   };
 }
 var STATUS_MAP = buildStatusMap();
 var SL = {
-  Naujas:"Naujas", Priskirtas:"Priskirtas", Pateikta:"Pateikta",
-  Vykdamos:"Vykdamos", Baigtas:"Baigtas (laukia leidimo)",
+  Naujas:"Naujas", Priskirtas:"Priskirtas", LaukiaPatvirtinimo:"Laukia patvirtinimo",
+  Pateikta:"Pateikta", Vykdamos:"Vykdamos", Baigtas:"Baigtas (laukia leidimo)",
   Gautas:"Leidimas gautas", Nebegalioja:"Nebegalioja", Atmestas:"Atmestas",
 };
 
@@ -689,6 +690,133 @@ function EsoSubmitBtn(p){
 }
 
 // ═════════════════════════════════════════════════════════════
+// TELIA REVIEW WORKFLOW HELPERS (modulio lygis — naudojami ir App, ir PermitDetail)
+// ═════════════════════════════════════════════════════════════
+
+// Telia laiško HTML šablonas — Tomo originalas, naudojamas tiek pre-build'inant peržiūrai
+// (review notifikacija), tiek galutinio siuntimo metu (po patvirtinimo).
+function buildTeliaEmailHtml(permit){
+  return emailWrap("Telia kasimo leidimo paraiskas","#0066CC",
+    "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
+    +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Reikalingas Telia kasimo leidimas, Kauno m. sav., trasai einanciai:</p>"
+    +"<table style=\"border-collapse:collapse;width:100%\"><tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Trasa:</td><td style=\"padding:4px 0;color:#111827;font-size:13px;font-weight:600\">"+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+"</td></tr>"
+    +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Darbus atliks:</td><td style=\"padding:4px 0;color:#111827;font-size:13px;font-weight:600\">UAB „EnergoLT“</td></tr>"
+    +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Darbu vadovas:</td><td style=\"padding:4px 0;color:#111827;font-size:13px\">"+(permit.manager||"")+" , tel.: "+(permit.managerPhone||"")+"</td></tr>"
+    +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Laikotarpis:</td><td style=\"padding:4px 0;color:#111827;font-size:13px\">"+(permit.startDate||"")+" – "+(permit.endDate||"")+"</td></tr>"
+    +"</table><p style=\"color:#374151;font-size:13px;margin:0\">Pridedu suderinima.</p>");
+}
+
+// Telia paraiškos paruošimas review'ui — aptinka PDF puslapius ir įspėja apie trūkumus.
+// Grąžina permit objektą su pendingEmail (laiško peržiūra + priedų metaduomenys + įspėjimai).
+// Faktiniai PDF priedų baitai NEsaugomi DB — generuojami iš naujo siuntimo metu (saugant DB dydį).
+async function preparePendingTeliaEmail(permit){
+  var attachmentSources=[];
+  var warnings=[];
+  var pdfFile=(permit.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+  if(pdfFile&&pdfFile.data){
+    try{
+      var pageTexts=await extractPdfTextByPage(pdfFile.data);
+      var teliaPage=findTeliaApprovalPage(pageTexts);
+      var drawingPage=findProjectDrawingPage(pageTexts);
+      if(drawingPage){
+        attachmentSources.push({filename:"projekto_brezinys.pdf",sourceFileName:pdfFile.name,pageNumber:drawingPage});
+      }else{
+        warnings.push("Projekto brezinio puslapis PDF'e nerastas — adminas turi nurodyti rankiniu budu");
+      }
+      if(teliaPage){
+        attachmentSources.push({filename:"telia_derinimas.pdf",sourceFileName:pdfFile.name,pageNumber:teliaPage});
+      }else{
+        warnings.push("Telia derinimo puslapis PDF'e nerastas — adminas turi nurodyti rankiniu budu");
+      }
+    }catch(e){
+      warnings.push("PDF skaitymo klaida: "+e.message);
+    }
+  }else{
+    warnings.push("Paraiškoje nepridetas projekto PDF failas");
+  }
+  if(!permit.teliaRouteFrom||!permit.teliaRouteTo){
+    warnings.push("Trasa nenurodyta");
+  }else if(permit.teliaRouteFrom===permit.teliaRouteTo){
+    warnings.push("Trasos pradzia ir pabaiga sutampa — adminas turi patikslinti");
+  }
+  return Object.assign({},permit,{pendingEmail:{
+    to:TELIA_EMAIL,
+    subject:"Telia zemes kasimo leidimas — "+(permit.teliaRouteFrom||""),
+    html:buildTeliaEmailHtml(permit),
+    attachmentSources:attachmentSources,
+    warnings:warnings,
+    preparedAt:new Date().toISOString()
+  }});
+}
+
+// Adminui — review notifikacija su laiško peržiūra ir įspėjimais (Task #5).
+function sendTeliaReviewNotification(permit){
+  if(!REVIEW_EMAIL)return;
+  var permitNo=permit.id?permit.id.slice(-5).toUpperCase():"?????";
+  var pe=permit.pendingEmail||{};
+  var warnHtml="";
+  if(Array.isArray(pe.warnings)&&pe.warnings.length>0){
+    warnHtml='<div style="background:#FEF3C7;border:1px solid #F59E0B;padding:12px 14px;border-radius:6px;margin:14px 0">'
+      +'<p style="margin:0 0 8px;color:#92400E;font-size:13px;font-weight:600">⚠️ Įspejimai pries tvirtinant:</p>'
+      +'<ul style="margin:0;padding-left:20px;color:#78350F;font-size:13px;line-height:1.6">';
+    pe.warnings.forEach(function(w){warnHtml+='<li>'+w+'</li>';});
+    warnHtml+='</ul></div>';
+  }
+  var attHtml=Array.isArray(pe.attachmentSources)&&pe.attachmentSources.length>0
+    ?'<p style="margin:0 0 6px;font-size:13px;color:#374151"><strong>Priedai:</strong></p><ul style="margin:0;padding-left:20px;font-size:13px;color:#374151">'
+      +pe.attachmentSources.map(function(a){return '<li>'+a.filename+' <span style="color:#6B7280">(p. '+a.pageNumber+' iš '+a.sourceFileName+')</span></li>'}).join('')
+      +'</ul>'
+    :'<p style="margin:0;font-size:13px;color:#EF4444"><strong>⚠️ Priedų nera!</strong></p>';
+  var body=emailWrap("Telia paraiska laukia patikros","#CA8A04",
+    "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
+    +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Sistema paruose Telia kasimo leidimo paraiska <strong>#"+permitNo+"</strong>. Praso peržiureti ir patvirtinti pries siunciant Telia.</p>"
+    +warnHtml
+    +"<table style=\"border-collapse:collapse;width:100%;margin:14px 0\">"
+    +emailRow("Pareiskejas:",permit.manager||"-")
+    +emailRow("Trasa:",(permit.teliaRouteFrom||"-")+" – "+(permit.teliaRouteTo||"-"))
+    +emailRow("Investicinis Nr.:",permit.investNo||"-")
+    +emailRow("Laikotarpis:",(permit.startDate||"-")+" – "+(permit.endDate||"-"))
+    +"</table>"
+    +"<div style=\"background:#F9FAFB;border:1px solid #E5E7EB;padding:14px;border-radius:6px;margin:14px 0\">"
+    +"<p style=\"margin:0 0 8px;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600\">Paruosto Telia laisko perziura</p>"
+    +"<p style=\"margin:0 0 4px;font-size:13px;color:#374151\"><strong>Kam:</strong> "+(pe.to||"-")+"</p>"
+    +"<p style=\"margin:0 0 8px;font-size:13px;color:#374151\"><strong>Tema:</strong> "+(pe.subject||"-")+"</p>"
+    +attHtml
+    +"</div>"
+    +"<p style=\"color:#374151;font-size:13px;margin:14px 0 0\">Patvirtinkite arba pataisykite paraiska Digpoint sistemoje.</p>");
+  sendEmail(REVIEW_EMAIL,"[REVIEW] Telia paraiska #"+permitNo+" laukia patvirtinimo",body);
+}
+
+// Iškviečiama PermitDetail — patvirtina paraišką: regeneruoja PDF priedus iš metaduomenų,
+// siunčia tikrąjį Telia laišką, atnaujina paraiškos statusą į „Pateikta".
+async function approveAndSendTelia(permit){
+  var pe=permit.pendingEmail;
+  if(!pe||!pe.to)throw new Error("Laiskas neparuosztas");
+  // Regeneruojame PDF priedus iš metaduomenų (sourceFileName + pageNumber)
+  var attachments=[];
+  var srcs=pe.attachmentSources||[];
+  for(var i=0;i<srcs.length;i++){
+    var src=srcs[i];
+    var srcFile=(permit.files||[]).find(function(f){return f.name===src.sourceFileName});
+    if(srcFile&&srcFile.data){
+      var bytes=await extractPagesToNewPdf(srcFile.data,[src.pageNumber]);
+      if(bytes)attachments.push({filename:src.filename,content:bytes,encoding:"base64"});
+    }
+  }
+  // Siunčiame faktinį laišką į Telia
+  var res=await fetch("/api/notify/email",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({to:pe.to,subject:pe.subject,html:pe.html,attachments:attachments})
+  });
+  if(!res.ok){
+    var data=await res.json().catch(function(){return{}});
+    throw new Error(data.error||("HTTP "+res.status));
+  }
+  return attachments.length;
+}
+
+// ═════════════════════════════════════════════════════════════
 // PERMIT DETAIL
 // ═════════════════════════════════════════════════════════════
 function PermitDetail(p){
@@ -702,6 +830,8 @@ function PermitDetail(p){
   var _cFiles=useState(o.closeFiles||[]);var cFiles=_cFiles[0],sCFiles=_cFiles[1];
   var _lbcFiles=useState(o.lbcFiles||[]);var lbcFiles=_lbcFiles[0],sLbcFiles=_lbcFiles[1];
   var _pvu=useState(o.permitValidUntil||"");var pvu=_pvu[0],sPvu=_pvu[1];
+  var _aprvSt=useState("");var aprvSt=_aprvSt[0],sAprvSt=_aprvSt[1];
+  var _aprvBusy=useState(false);var aprvBusy=_aprvBusy[0],sAprvBusy=_aprvBusy[1];
   var isA=p.user.role==="admin";
   var isD=p.user.role==="dokumentacija";
   var cr=p.users.find(function(u){return u.id===o.createdBy});
@@ -825,6 +955,108 @@ function PermitDetail(p){
           <HistoryTimeline history={o.history}/>
         </div>
       </div>
+
+      {/* Telia review/patvirtinimo blokas — kai paraiška laukia patvirtinimo */}
+      {(isA||isD)&&o.status==="LaukiaPatvirtinimo"&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&(function(){
+        var pe=o.pendingEmail||{};
+        var hasWarn=Array.isArray(pe.warnings)&&pe.warnings.length>0;
+        var hasAtt=Array.isArray(pe.attachmentSources)&&pe.attachmentSources.length>0;
+        async function regenerate(){
+          if(aprvBusy)return;
+          sAprvBusy(true);sAprvSt("Iš naujo aptinkami puslapiai...");
+          try{
+            var updated=await preparePendingTeliaEmail(o);
+            p.onUpdate(updated);
+            sAprvSt("✓ Atnaujinta");
+            setTimeout(function(){sAprvSt("")},2000);
+          }catch(e){
+            sAprvSt("✗ Klaida: "+e.message);
+          }
+          sAprvBusy(false);
+        }
+        async function approve(){
+          if(aprvBusy)return;
+          if(!window.confirm("Patvirtinti ir siusti laiska i Telia ("+(pe.to||"-")+")?"))return;
+          sAprvBusy(true);sAprvSt("Generuojami priedai ir siunčiama...");
+          try{
+            var attCount=await approveAndSendTelia(o);
+            var updated=Object.assign({},o,{
+              status:"Pateikta",
+              pendingEmail:null,
+              history:(o.history||[]).concat([{
+                status:"Pateikta",
+                date:fmtDate(new Date()),
+                note:"Patvirtinta ir issiusta Telia ("+(p.user.name||"-")+", "+attCount+" priedas(-ai))"
+              }])
+            });
+            p.onUpdate(updated);
+            sAprvSt("✓ Issiusta. Statusas atnaujintas.");
+            setTimeout(function(){p.onClose()},1500);
+          }catch(e){
+            sAprvSt("✗ Klaida siuncziant: "+e.message);
+            sAprvBusy(false);
+          }
+        }
+        return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+          <div style={{background:C.s2,border:"1.5px solid #CA8A0466",borderRadius:10,padding:14}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#CA8A04",marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>
+              🔍 Telia paraiska — patikra pries siunciant
+            </div>
+            {hasWarn&&<div style={{background:C.ylD,border:"1px solid "+C.yl+"66",borderRadius:6,padding:"10px 12px",marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.yl,marginBottom:6,fontFamily:F}}>⚠️ Įspejimai:</div>
+              <ul style={{margin:0,paddingLeft:18,fontSize:11,color:C.yl,fontFamily:F,lineHeight:1.6}}>
+                {pe.warnings.map(function(w,i){return <li key={i}>{w}</li>})}
+              </ul>
+            </div>}
+            <div style={{background:C.bg,border:"1px solid "+C.b1,borderRadius:6,padding:12,marginBottom:12}}>
+              <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Paruosto laisko perziura</div>
+              <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:6}}>Gavejas:</div>
+              <div style={{fontSize:12,color:C.tx,fontFamily:FM,fontWeight:600}}>{pe.to||"-"}</div>
+              <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:8}}>Tema:</div>
+              <div style={{fontSize:12,color:C.tx,fontFamily:F,fontWeight:600}}>{pe.subject||"-"}</div>
+              <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:8}}>Priedai:</div>
+              {hasAtt
+                ?<ul style={{margin:"4px 0 0 0",paddingLeft:18,fontSize:11,color:C.tx,fontFamily:FM}}>
+                  {pe.attachmentSources.map(function(a,i){return <li key={i}>{a.filename} <span style={{color:C.t3}}>(p. {a.pageNumber} iš {a.sourceFileName})</span></li>})}
+                </ul>
+                :<div style={{fontSize:11,color:C.rd,fontFamily:F,marginTop:4,fontWeight:600}}>⚠️ Priedų nėra!</div>}
+            </div>
+            {aprvSt&&<div style={{fontSize:11,color:aprvSt.indexOf("✗")===0?C.rd:aprvSt.indexOf("✓")===0?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:aprvSt.indexOf("✗")===0?C.rdD:aprvSt.indexOf("✓")===0?C.gnD:C.acD,borderRadius:6}}>{aprvSt}</div>}
+            <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+              <Btn v="secondary" sm onClick={regenerate} disabled={aprvBusy}>🔄 Atnaujinti perziura</Btn>
+              <Btn sm onClick={approve} disabled={aprvBusy} style={{background:"#CA8A04",color:"#fff",border:"none"}}>✓ Patvirtinti ir siusti Telia</Btn>
+            </div>
+          </div>
+        </div>;
+      })()}
+
+      {/* Užsakovo atšaukimo mygtukas — tik savo paraišką, tik kol laukia patvirtinimo */}
+      {o.status==="LaukiaPatvirtinimo"&&o.createdBy===p.user.id&&!isA&&!isD&&(function(){
+        function cancelPermit(){
+          if(!window.confirm("Ar tikrai atšaukti savo paraišką? Po atšaukimo paraiška bus pažymėta kaip atmesta ir nebus siunčiama institucijai."))return;
+          var updated=Object.assign({},o,{
+            status:"Atmestas",
+            pendingEmail:null,
+            history:(o.history||[]).concat([{
+              status:"Atmestas",
+              date:fmtDate(new Date()),
+              note:"Atšaukė užsakovas: "+(p.user.name||"-")
+            }])
+          });
+          p.onUpdate(updated);
+          p.onClose();
+        }
+        return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+          <div style={{background:C.s2,border:"1px solid "+C.b1,borderRadius:8,padding:"12px 14px"}}>
+            <div style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:8,lineHeight:1.5}}>
+              Ši paraiška laukia administratoriaus patvirtinimo. Jei radote klaidą ar nebenorite teikti — galite paraišką atšaukti. Po atšaukimo institucijai laiškas nebus siunčiamas.
+            </div>
+            <div style={{display:"flex",justifyContent:"flex-end"}}>
+              <Btn v="danger" sm onClick={cancelPermit}>✗ Atšaukti paraišką</Btn>
+            </div>
+          </div>
+        </div>;
+      })()}
 
       {/* Admin veiksmai */}
       {isA&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
@@ -1476,7 +1708,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.17</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.19</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -1518,7 +1750,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.17</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.19</div>
         </div>
       </div>
     </div>
@@ -1637,28 +1869,34 @@ function App(){
     try{localStorage.setItem('kl-theme',t)}catch(e){}
   }
 
-  function addPermit(permit){
+  async function addPermit(permit){
     var orgs=permit.organizations||[];
-    var autoSubmit=orgs.indexOf("AB ESO")!==-1||orgs.indexOf("Telia, Kaunas")!==-1;
+    var hasTelia=orgs.indexOf("Telia, Kaunas")!==-1;
+    var hasESO=orgs.indexOf("AB ESO")!==-1;
     var orgLabel=permit.organization||orgs.join(", ");
-    var finalPermit=autoSubmit
-      ?Object.assign({},permit,{status:"Pateikta",history:(permit.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Automatiskai pateikta sistemai"}])})
+    // Statusas: Telia → review (Laukia patvirtinimo); ESO → tiesiogiai Pateikta (esamas elgsenos modelis)
+    var newStatus, statusNote;
+    if(hasTelia){
+      newStatus="LaukiaPatvirtinimo";
+      statusNote="Paraiska laukia patikros pries siunciant Telia";
+    }else if(hasESO){
+      newStatus="Pateikta";
+      statusNote="Automatiskai pateikta sistemai";
+    }
+    var finalPermit=newStatus
+      ?Object.assign({},permit,{status:newStatus,history:(permit.history||[]).concat([{status:newStatus,date:fmtDate(new Date()),note:statusNote}])})
       :permit;
+    // Telia: paruošiame pendingEmail + įspėjimus, siunčiame review notifikaciją
+    if(hasTelia){
+      finalPermit=await preparePendingTeliaEmail(finalPermit);
+      sendTeliaReviewNotification(finalPermit);
+    }
     savePermits(permits.concat([finalPermit]));
-    if(orgs.indexOf("Telia, Kaunas")!==-1){
-      var body=emailWrap("Telia kasimo leidimo paraiskas","#0066CC",
-        "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
-        +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Reikalingas Telia kasimo leidimas trasai einanciai:</p>"
-        +"<table style=\"border-collapse:collapse;width:100%\"><tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Trasa:</td><td style=\"padding:4px 0;color:#111827;font-size:13px;font-weight:600\">"+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+"</td></tr>"
-        +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Darbus atliks:</td><td style=\"padding:4px 0;color:#111827;font-size:13px;font-weight:600\">UAB „EnergoLT“</td></tr>"
-        +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Darbu vadovas:</td><td style=\"padding:4px 0;color:#111827;font-size:13px\">"+(permit.manager||"")+" , tel.: "+(permit.managerPhone||"")+"</td></tr>"
-        +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Laikotarpis:</td><td style=\"padding:4px 0;color:#111827;font-size:13px\">"+(permit.startDate||"")+" – "+(permit.endDate||"")+"</td></tr>"
-        +"</table><p style=\"color:#374151;font-size:13px;margin:0\">Pridedu suderinima.</p>");
-      sendEmail(TELIA_EMAIL,"Telia zemes kasimo leidimas — "+(permit.teliaRouteFrom||""),body);
-    if(orgs.indexOf("Kauno energija")!==-1){
+    // Kauno energija — paliekam dabartine elgsena (siunciama tik kai pasirinkta kartu su Telia)
+    if(orgs.indexOf("Kauno energija")!==-1&&hasTelia){
       var keBody=emailWrap("Kauno energija kasimo leidimas","#DC2626",
         "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
-        +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Planuojame atlikti elektros kabelio klojimo darbus, [būdas nustatomas iš projekto PDF], pagal proj. Nr.: [proj. nr. iš PDF], objekto adresas: "+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+".</p>"
+        +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Planuojame atlikti elektros kabelio klojimo darbus, [būdas nustatomas iš projekto PDF], pagal proj. Nr.: [proj. nr. iš PDF], objekto adresas: "+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+", Kauno m. sav.</p>"
         +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Reikia kasimo leidimo bei kontaktų inžinieriaus su kuriuo būtų galima prieš darbų pradžią nustatyti ŠT gyšius.</p>"
         +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Prisegam failus: projekto brėžiniai; suderinimas su UAB &quot;Kauno Energija&quot;.</p>"
         +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Darbus atliks įmonė UAB &quot;EnergoLT&quot;, &quot;Energijos skirstymo operatorius&quot; rangovas.</p>"
@@ -1667,7 +1905,6 @@ function App(){
         +emailRow("Laikotarpis:",(permit.startDate||"")+" – "+(permit.endDate||""))
         +"</table>");
       sendEmail("info@kaunoenergija.lt","Kasimo leidimas — "+(permit.teliaRouteFrom||"")+" - "+(permit.teliaRouteTo||""),keBody);
-    }
     }
     setView(user.role==="admin"?"inbox":"mine");
   }
