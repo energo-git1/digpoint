@@ -123,9 +123,46 @@ async function extractPdfTextByPage(dataUrl){
   }catch(e){return []}
 }
 
-// Telia parašo aptikimas — randa pirmąjį puslapį (1-indexed) su Telia derinimo žymomis.
-// Reikalauja bent 2 raktažodžių sutapimo patikimumui; jei nerasta — bandys pavienį.
+// Telia derinimo aptikimas — puslapis privalo atitikti dvi sąlygas vienu metu:
+// (a) tai yra elektros / inžinerinių tinklų brėžinys, IR
+// (b) jame yra Telia parašo raktažodžių.
+// Tai išskiria Telia derinimą nuo kitų puslapių (pvz., pritarimų lentelės p. 3,
+// kur taip pat minima „AB Telia Lietuva", bet tai nėra brėžinys).
 function findTeliaApprovalPage(pageTexts){
+  for(var i=0;i<pageTexts.length;i++){
+    if(isDrawingPageText(pageTexts[i])&&hasTeliaMarkers(pageTexts[i]))return i+1;
+  }
+  return null;
+}
+
+// Projekto brėžinio raktažodžiai — bendras šablonas, naudojamas tiek projekto brėžinio,
+// tiek Telia derinimo (kuris yra brėžinys + Telia parašas) aptikime.
+function isDrawingPageText(text){
+  var titlePatterns=[
+    /ELEKTROS\s+TINK[LŲU]+\s+(PLANAS|SCHEMA|BR[ĖE][ŽZ]INYS)/i,
+    /IN[ŽZ]INERINI[UŲ]\s+TINK[LŲU]+\s+(PLANAS|SCHEMA|BR[ĖE][ŽZ]INYS)/i,
+    /\b\d+[,.]?\d*\s*kV\s+(KL|kabel)\s.{0,40}plan/i,
+    /Proj\.?\s*\d+[,.]?\d*\s*kV\s+(KL|kabel).{0,40}plan/i,
+    /kabel[iuų]\s+linij[oų]\s+plan/i,
+    /(0[,.]?\d+|10|20)\s*kV\s+KL\s+plan/i,
+  ];
+  return titlePatterns.some(function(re){return re.test(text)});
+}
+
+// Projekto brėžinio aptikimas — pirmas puslapis su brėžinio antraštės šablonu BE Telia parašo.
+function findProjectDrawingPage(pageTexts){
+  for(var i=0;i<pageTexts.length;i++){
+    if(isDrawingPageText(pageTexts[i])&&!hasTeliaMarkers(pageTexts[i]))return i+1;
+  }
+  // Fallback — bet kuris brėžinio puslapis (gali būti tas pats kaip Telia derinimo)
+  for(var j=0;j<pageTexts.length;j++){
+    if(isDrawingPageText(pageTexts[j]))return j+1;
+  }
+  return null;
+}
+
+// Telia parašo raktažodžiai
+function hasTeliaMarkers(text){
   var markers=[
     /Telia\s+Lietuva/i,
     /Vytautas\s+Stravinskas/i,
@@ -134,32 +171,7 @@ function findTeliaApprovalPage(pageTexts){
     /tinklo\s+resurs/i,
     /Po[zž]emini[uų]\s+ry[sš]i[uų]/i,
   ];
-  // Pirmas pasirinkimas — bent 2 raktažodžių sutapimas
-  for(var i=0;i<pageTexts.length;i++){
-    var hits=markers.filter(function(re){return re.test(pageTexts[i])}).length;
-    if(hits>=2)return i+1;
-  }
-  // Atsarginis — pavienis sutapimas
-  for(var j=0;j<pageTexts.length;j++){
-    if(markers.some(function(re){return re.test(pageTexts[j])}))return j+1;
-  }
-  return null;
-}
-
-// Projekto brėžinio aptikimas — pirmas puslapis su brėžinio antraštės šablonu.
-// Pagaunama plataus diapazono LT projektų pavadinimai.
-function findProjectDrawingPage(pageTexts){
-  var titlePatterns=[
-    /ELEKTROS\s+TINK[LŲU]+\s+(PLANAS|SCHEMA|BR[ĖE][ŽZ]INYS)/i,
-    /\b\d+[,.]?\d*\s*kV\s+(KL|kabel)\s.{0,40}plan/i,
-    /Proj\.?\s*\d+[,.]?\d*\s*kV\s+(KL|kabel).{0,40}plan/i,
-    /kabel[iuų]\s+linij[oų]\s+plan/i,
-    /(0[,.]?\d+|10|20)\s*kV\s+KL\s+plan/i,
-  ];
-  for(var i=0;i<pageTexts.length;i++){
-    if(titlePatterns.some(function(re){return re.test(pageTexts[i])}))return i+1;
-  }
-  return null;
+  return markers.some(function(re){return re.test(text)});
 }
 
 // Iš originalaus PDF ištraukia nurodytus puslapius (1-indexed) į naują PDF.
@@ -215,25 +227,32 @@ function parseLocation(text){
 // Telia/KE trasos auto-aptikimas iš projekto PDF.
 // Per A pasirinkimą: jei nepavyksta tiksliai išskirti pradžios ir pabaigos —
 // abu laukai užpildomi tuo pačiu objekto adresu, adminas patikslins per review.
-// Grąžina {from, to} arba null.
+// Grąžinamos sutrumpintos formos:
+//   from = gatvė, namo nr. (be miesto ir savivaldybės)
+//   to   = gatvė, namo nr., miestas (be savivaldybės)
 function parseTeliaRoute(text){
   var patterns=[
-    // "OBJEKTO VIETA: Fabriko g. 3G, Jonava, Jonavos r. sav." (didžiosios — projekto titulinis)
     /OBJEKTO\s+VIETA\s*:\s*([^\n]{5,150})/,
-    // "Objekto adresas: ..." (LT standartas)
     /[Oo]bjekto\s+adresas\s*:\s*([^\n]{5,150})/,
-    // "Objekto vieta: ..." (mažosiomis)
     /[Oo]bjekto\s+vieta\s*:\s*([^\n]{5,150})/,
-    // "Statybos vieta: ...", "Darbų vieta: ..."
     /(?:[Ss]tatybos\s+(?:vieta|adresas)|[Dd]arbų\s+vieta)\s*:\s*([^\n]{5,150})/,
   ];
   for(var i=0;i<patterns.length;i++){
     var m=text.match(patterns[i]);
     if(m&&m[1]){
       var val=m[1].trim().replace(/\s+/g,' ').split(/[;|]/)[0].trim();
-      // Atskiriame nuo greta esančių laukų ("DALIS:", "STADIJA:" ir t.t.) suspaustam tekste
       val=val.split(/\s+(?:DALIS|STADIJA|TOMAS|METAI|Investicinio|Investicinis|UŽSAKOVAS|U[Žz]SAKOVAS|Klientas|PAREIGOS|STATYBOS\s+R[ŪU][ŠS]IS|STATINIO\s+KATEGORIJA)\s*:/)[0].trim();
-      if(val.length>5)return {from:val,to:val};
+      if(val.length>5){
+        // Pašaliname savivaldybės dalį (", Xxx r. sav." arba ", Xxx m. sav.")
+        var noSav=val.replace(/,\s*[A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž\.]+\s+(?:r|m)\.?\s*sav\.?\s*$/i,"").trim();
+        // Atskiriame į dalis pagal kablelius
+        var parts=noSav.split(",").map(function(s){return s.trim()}).filter(function(s){return s.length>0});
+        // pradžia = gatvė + namo nr. (pirma dalis)
+        // pabaiga = gatvė + namo nr. + miestas (visos dalys be savivaldybės)
+        var from=parts[0]||noSav;
+        var to=noSav;
+        return {from:from,to:to};
+      }
     }
   }
   return null;
@@ -756,7 +775,15 @@ async function preparePendingTeliaEmail(permit){
   }});
 }
 
-// Adminui — review notifikacija su laiško peržiūra ir įspėjimais (Task #5).
+// Iš Telia laiško HTML (`emailWrap` rezultato) ištraukia tik vidinį turinį
+// — tai, kas yra tarp antraštės ir pėdos (be `<html>`, `<body>` ir kt.).
+function extractTeliaEmailBodyContent(htmlDoc){
+  if(!htmlDoc)return "";
+  var m=htmlDoc.match(/<div style="padding:24px 28px">([\s\S]*?)<\/div>\s*<div style="padding:12px 28px;background:#F9FAFB/);
+  return m?m[1]:"";
+}
+
+// Adminui — review notifikacija su faktiniu Telia laiško turiniu ir įspėjimais (Task #5).
 function sendTeliaReviewNotification(permit){
   if(!REVIEW_EMAIL)return;
   var permitNo=permit.id?permit.id.slice(-5).toUpperCase():"?????";
@@ -774,23 +801,29 @@ function sendTeliaReviewNotification(permit){
       +pe.attachmentSources.map(function(a){return '<li>'+a.filename+' <span style="color:#6B7280">(p. '+a.pageNumber+' iš '+a.sourceFileName+')</span></li>'}).join('')
       +'</ul>'
     :'<p style="margin:0;font-size:13px;color:#EF4444"><strong>⚠️ Priedų nera!</strong></p>';
+  // Faktinis Telia laiško turinys (be antraštės/pėdos), kad adminas matytų be Digpoint atidarymo
+  var teliaContent=extractTeliaEmailBodyContent(pe.html||"");
   var body=emailWrap("Telia paraiska laukia patikros","#CA8A04",
     "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
-    +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Sistema paruose Telia kasimo leidimo paraiska <strong>#"+permitNo+"</strong>. Praso peržiureti ir patvirtinti pries siunciant Telia.</p>"
+    +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Sistema paruoše Telia kasimo leidimo paraišką <strong>#"+permitNo+"</strong>. Prašome peržiūrėti ir patvirtinti prieš siunčiant Telia.</p>"
     +warnHtml
     +"<table style=\"border-collapse:collapse;width:100%;margin:14px 0\">"
-    +emailRow("Pareiskejas:",permit.manager||"-")
+    +emailRow("Pareiškėjas:",permit.manager||"-")
     +emailRow("Trasa:",(permit.teliaRouteFrom||"-")+" – "+(permit.teliaRouteTo||"-"))
     +emailRow("Investicinis Nr.:",permit.investNo||"-")
     +emailRow("Laikotarpis:",(permit.startDate||"-")+" – "+(permit.endDate||"-"))
     +"</table>"
     +"<div style=\"background:#F9FAFB;border:1px solid #E5E7EB;padding:14px;border-radius:6px;margin:14px 0\">"
-    +"<p style=\"margin:0 0 8px;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600\">Paruosto Telia laisko perziura</p>"
+    +"<p style=\"margin:0 0 8px;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600\">Paruošto Telia laiško metaduomenys</p>"
     +"<p style=\"margin:0 0 4px;font-size:13px;color:#374151\"><strong>Kam:</strong> "+(pe.to||"-")+"</p>"
     +"<p style=\"margin:0 0 8px;font-size:13px;color:#374151\"><strong>Tema:</strong> "+(pe.subject||"-")+"</p>"
     +attHtml
     +"</div>"
-    +"<p style=\"color:#374151;font-size:13px;margin:14px 0 0\">Patvirtinkite arba pataisykite paraiska Digpoint sistemoje.</p>");
+    +"<div style=\"background:#fff;border:2px solid #0066CC;border-radius:6px;padding:14px;margin:14px 0\">"
+    +"<p style=\"margin:0 0 10px;color:#0066CC;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600\">📧 Telia laiško turinys</p>"
+    +(teliaContent||"<p style=\"color:#EF4444\">⚠️ Turinys nepasiektas</p>")
+    +"</div>"
+    +"<p style=\"color:#374151;font-size:13px;margin:14px 0 0\">Patvirtinkite arba pataisykite paraišką Digpoint sistemoje.</p>");
   sendEmail(REVIEW_EMAIL,"[REVIEW] Telia paraiska #"+permitNo+" laukia patvirtinimo",body);
 }
 
@@ -1027,6 +1060,10 @@ function PermitDetail(p){
                   {pe.attachmentSources.map(function(a,i){return <li key={i}>{a.filename} <span style={{color:C.t3}}>(p. {a.pageNumber} iš {a.sourceFileName})</span></li>})}
                 </ul>
                 :<div style={{fontSize:11,color:C.rd,fontFamily:F,marginTop:4,fontWeight:600}}>⚠️ Priedų nėra!</div>}
+              <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:12,marginBottom:6}}>Laisko turinys:</div>
+              {pe.html
+                ?<iframe srcDoc={pe.html} sandbox="" style={{width:"100%",height:380,border:"1px solid "+C.b1,borderRadius:6,background:"#fff"}}/>
+                :<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Laiško turinys neparuoštas</div>}
             </div>
             {aprvSt&&<div style={{fontSize:11,color:aprvSt.indexOf("✗")===0?C.rd:aprvSt.indexOf("✓")===0?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:aprvSt.indexOf("✗")===0?C.rdD:aprvSt.indexOf("✓")===0?C.gnD:C.acD,borderRadius:6}}>{aprvSt}</div>}
             <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
@@ -1715,7 +1752,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.22</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.24</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -1757,7 +1794,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.22</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.24</div>
         </div>
       </div>
     </div>
