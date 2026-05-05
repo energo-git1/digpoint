@@ -459,7 +459,18 @@ function PermitForm(p){
   var isKE=orgs.indexOf("Kauno energija")!==-1;
   var teliaOk=!(isTelia||isKE)||(trFrom&&trTo);
   var ok=mgr&&ph&&em&&orgs.length>0&&start&&end&&!(start&&end&&end<start)&&teliaOk;
-  function toggleOrg(o){sOrgs(function(prev){var idx=prev.indexOf(o);return idx===-1?prev.concat([o]):prev.filter(function(x){return x!==o});});}
+  function toggleOrg(o){
+    var wasSelected=orgs.indexOf(o)!==-1;
+    sOrgs(function(prev){var idx=prev.indexOf(o);return idx===-1?prev.concat([o]):prev.filter(function(x){return x!==o});});
+    // Telia, Kaunas — auto-pildomas laikotarpis: pradžia=šiandien, pabaiga=+6 mėn (jei laukai tušti)
+    if(o==="Telia, Kaunas"&&!wasSelected){
+      var today=new Date();
+      var sixMonthsLater=new Date(today);
+      sixMonthsLater.setMonth(sixMonthsLater.getMonth()+6);
+      sStart(function(cur){return cur?cur:fmtDate(today);});
+      sEnd(function(cur){return cur?cur:fmtDate(sixMonthsLater);});
+    }
+  }
   function addFile(f){
     sFiles(function(prev){return prev.concat([f])});
     // Jei PDF — bandome iš jo automatiškai išgauti reikiamus duomenis (auto-pildymas)
@@ -1708,7 +1719,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.20</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.21</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -1750,7 +1761,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.20</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.21</div>
         </div>
       </div>
     </div>
