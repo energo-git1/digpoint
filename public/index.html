@@ -1089,6 +1089,9 @@ function PermitDetail(p){
   var _initTeliaPg=(_initSrcs.find(function(s){return s.filename==="telia_derinimas.pdf"})||{}).pageNumber||"";
   var _drawPg=useState(String(_initDrawPg));var drawPgIn=_drawPg[0],sDrawPgIn=_drawPg[1];
   var _teliaPg=useState(String(_initTeliaPg));var teliaPgIn=_teliaPg[0],sTeliaPgIn=_teliaPg[1];
+  // Rankinio trasos redagavimo įvestys
+  var _trFromIn=useState(o.teliaRouteFrom||"");var trFromIn=_trFromIn[0],sTrFromIn=_trFromIn[1];
+  var _trToIn=useState(o.teliaRouteTo||"");var trToIn=_trToIn[0],sTrToIn=_trToIn[1];
   var isA=p.user.role==="admin";
   var isD=p.user.role==="dokumentacija";
   var cr=p.users.find(function(u){return u.id===o.createdBy});
@@ -1231,8 +1234,12 @@ function PermitDetail(p){
           }
           sAprvBusy(false);
         }
-        function saveManualPages(){
+        function saveManualEdits(){
           if(aprvBusy)return;
+          // 1) Trasa
+          var newFrom=(trFromIn||"").trim();
+          var newTo=(trToIn||"").trim();
+          // 2) Puslapiai
           var dPg=parseInt(drawPgIn,10);
           var tPg=parseInt(teliaPgIn,10);
           var existing=(o.pendingEmail||{}).attachmentSources||[];
@@ -1241,21 +1248,30 @@ function PermitDetail(p){
           var newSources=[];
           if(dPg>0)newSources.push({filename:"projekto_brezinys.pdf",sourceFileName:srcFileName,pageNumber:dPg});
           if(tPg>0)newSources.push({filename:"telia_derinimas.pdf",sourceFileName:srcFileName,pageNumber:tPg});
-          // Pašaliname tas warning'us, kurie buvo dėl nerasto puslapio (rankiniu būdu jau padengta)
+          // 3) Pašaliname warning'us, kurie jau išspręsti rankiniu būdu
           var origWarn=(o.pendingEmail||{}).warnings||[];
           var newWarn=origWarn.filter(function(w){
             if(dPg>0&&/Projekto\s+brezinio\s+puslapis/i.test(w))return false;
             if(tPg>0&&/Telia\s+derinimo\s+puslapis/i.test(w))return false;
+            if(newFrom&&newTo&&/Trasa\s+nenurodyta/i.test(w))return false;
+            if(newFrom&&newTo&&newFrom!==newTo&&/Trasos\s+pradzia\s+ir\s+pabaiga\s+sutampa/i.test(w))return false;
             return true;
           });
-          var updated=Object.assign({},o,{
-            pendingEmail:Object.assign({},o.pendingEmail||{},{
-              attachmentSources:newSources,
-              warnings:newWarn
-            })
+          // 4) Sukuriame atnaujintą permit (su nauja trasa)
+          var updatedPermit=Object.assign({},o,{
+            teliaRouteFrom:newFrom,
+            teliaRouteTo:newTo
           });
+          // 5) Regeneruojame Telia laiško HTML su nauja trasa + atnaujinta tema
+          var updatedPendingEmail=Object.assign({},o.pendingEmail||{},{
+            attachmentSources:newSources,
+            warnings:newWarn,
+            subject:"Telia zemes kasimo leidimas — "+newFrom,
+            html:buildTeliaEmailHtml(updatedPermit)
+          });
+          var updated=Object.assign({},updatedPermit,{pendingEmail:updatedPendingEmail});
           p.onUpdate(updated);
-          sAprvSt("✓ Puslapiai atnaujinti");
+          sAprvSt("✓ Pakeitimai išsaugoti");
           setTimeout(function(){sAprvSt("")},2000);
         }
         async function approve(){
@@ -1309,11 +1325,23 @@ function PermitDetail(p){
                 {pe.detectionInfo.approvalsTablePage&&<span> · Pritarimų lentelė: <span style={{fontFamily:FM}}>p. {pe.detectionInfo.approvalsTablePage}</span></span>}
                 {pe.detectionInfo.teliaApproverName&&<span> · Derintojas: <span style={{color:C.t2,fontWeight:600}}>{pe.detectionInfo.teliaApproverName}</span></span>}
               </div>}
-              {/* Rankinis puslapių parinkimas — kai automatika suklysta arba neaptiko */}
+              {/* Rankinis duomenų koregavimas — kai automatika suklysta arba neaptiko */}
               <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid "+C.b1}}>
-                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Rankinis puslapių parinkimas</div>
-                <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:8,lineHeight:1.5}}>
-                  Jei automatika suklydo, įveskite teisingus puslapių numerius iš originalaus PDF ir spauskite „Įrašyti puslapius".
+                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Rankinis koregavimas</div>
+                <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:10,lineHeight:1.5}}>
+                  Jei automatika suklydo, čia galite patikslinti trasos pradžią/pabaigą bei priedų puslapius. Pakeitimai bus matomi laiško peržiūroje.
+                </div>
+                <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+                  <div style={{flex:"1 1 240px",minWidth:200}}>
+                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Trasos pradžia</div>
+                    <input type="text" value={trFromIn} onChange={function(e){sTrFromIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88"
+                      style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
+                  </div>
+                  <div style={{flex:"1 1 240px",minWidth:200}}>
+                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Trasos pabaiga</div>
+                    <input type="text" value={trToIn} onChange={function(e){sTrToIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88, Kaunas"
+                      style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
+                  </div>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
                   <div style={{flex:"1 1 140px",minWidth:120}}>
@@ -1326,7 +1354,7 @@ function PermitDetail(p){
                     <input type="number" min="1" value={teliaPgIn} onChange={function(e){sTeliaPgIn(e.target.value)}}
                       style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
-                  <Btn v="secondary" sm onClick={saveManualPages} disabled={aprvBusy}>💾 Įrašyti puslapius</Btn>
+                  <Btn v="secondary" sm onClick={saveManualEdits} disabled={aprvBusy}>💾 Įrašyti pakeitimus</Btn>
                 </div>
               </div>
               <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:12,marginBottom:6}}>Laisko turinys:</div>
@@ -2021,7 +2049,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.31</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.32</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2063,7 +2091,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.31</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.32</div>
         </div>
       </div>
     </div>
