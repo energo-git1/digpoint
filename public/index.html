@@ -401,6 +401,55 @@ async function extractPagesToNewPdf(dataUrl,pageNumbers){
   }catch(e){console.warn("PDF puslapių išskyrimo klaida:",e);return null;}
 }
 
+// Parsina input'ą "27, 28, 29" arba "27-29" arba "27, 30-32" į puslapių masyvą
+function parsePageNumbers(str){
+  if(!str)return [];
+  var pages=[];
+  String(str).split(/[,;]/).forEach(function(part){
+    part=part.trim();
+    if(!part)return;
+    var rangeMatch=part.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+    if(rangeMatch){
+      var a=parseInt(rangeMatch[1],10),b=parseInt(rangeMatch[2],10);
+      if(a>0&&b>0&&a<=b)for(var i=a;i<=b;i++)pages.push(i);
+    }else if(/^\d+$/.test(part)){
+      pages.push(parseInt(part,10));
+    }
+  });
+  // Pašaliname dublikatus, surūšiuojame didėjančia tvarka
+  var seen={};
+  return pages.filter(function(p){if(seen[p])return false;seen[p]=true;return true}).sort(function(a,b){return a-b});
+}
+
+// Formatuoja puslapių masyvą į "27, 28, 29" string'ą
+function formatPageNumbers(pages){
+  if(!Array.isArray(pages))return "";
+  return pages.join(", ");
+}
+
+// Atgalinis suderinamumas — palaikom tiek pageNumbers (naujas), tiek pageNumber (senas)
+function getAttachmentPages(src){
+  if(src&&Array.isArray(src.pageNumbers))return src.pageNumbers;
+  if(src&&typeof src.pageNumber==="number")return [src.pageNumber];
+  return [];
+}
+
+// Atidaro paraiškos PDF (iš files[].data) naujame naršyklės skirtuke — admin gali peržiūrėti.
+function openPermitPdfInNewTab(permit){
+  var pdf=(permit.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+  if(!pdf||!pdf.data){alert("Paraiškoje nerastas PDF failas.");return}
+  try{
+    var arr=pdf.data.split(',');
+    var bin=atob(arr[1]);
+    var len=bin.length;
+    var u8=new Uint8Array(len);
+    for(var i=0;i<len;i++)u8[i]=bin.charCodeAt(i);
+    var blob=new Blob([u8],{type:'application/pdf'});
+    var url=URL.createObjectURL(blob);
+    window.open(url,'_blank');
+  }catch(e){alert("Nepavyko atidaryti PDF: "+e.message);}
+}
+
 function parseLocation(text){
   // Pirmas prioritetas — "Objekto adresas:" laukas (tikslus atitikmuo ESO techniniuose dokumentuose)
   var m=text.match(/[Oo]bjekto\s+adresas\s*:\s*([^\n]{5,120})/);
@@ -1006,12 +1055,12 @@ async function preparePendingTeliaEmail(permit){
       var teliaPage=findTeliaApprovalPage(pageTexts);
       var drawingPage=findProjectDrawingPage(pageTexts);
       if(drawingPage){
-        attachmentSources.push({filename:"projekto_brezinys.pdf",sourceFileName:pdfFile.name,pageNumber:drawingPage});
+        attachmentSources.push({filename:"projekto_brezinys.pdf",sourceFileName:pdfFile.name,pageNumbers:[drawingPage]});
       }else{
         warnings.push("Projekto brezinio puslapis PDF'e nerastas — adminas turi nurodyti rankiniu budu");
       }
       if(teliaPage){
-        attachmentSources.push({filename:"telia_derinimas.pdf",sourceFileName:pdfFile.name,pageNumber:teliaPage});
+        attachmentSources.push({filename:"telia_derinimas.pdf",sourceFileName:pdfFile.name,pageNumbers:[teliaPage]});
       }else{
         if(teliaName){
           warnings.push("Telia derinimo puslapis PDF'e nerastas — pritarimų lentelėje rastas derintojas: "+teliaName);
@@ -1039,6 +1088,93 @@ async function preparePendingTeliaEmail(permit){
     detectionInfo:detectionInfo,
     preparedAt:new Date().toISOString()
   }});
+}
+
+// Bendras review email administratoriui — vienas laiškas su VISŲ pasirinktų institucijų
+// (Telia, Kauno energija) preview'ais ir VISAIS PDF priedais. Pakeičia atskiras
+// sendTeliaReviewNotification + sendKauoenergijaReviewNotification funkcijas tame pačiame paraiškos kontekste.
+async function sendCombinedReviewNotification(permit){
+  if(!REVIEW_EMAIL)return;
+  var pe=permit.pendingEmail;
+  var ke=permit.pendingKauoenergijaEmail;
+  if(!pe&&!ke)return;
+  var permitNo=permit.id?permit.id.slice(-5).toUpperCase():"?????";
+  function buildSection(label,color,em){
+    if(!em)return "";
+    var warnHtml="";
+    if(Array.isArray(em.warnings)&&em.warnings.length>0){
+      warnHtml='<div style="background:#FEF3C7;border:1px solid #F59E0B;padding:10px 12px;border-radius:6px;margin:10px 0">'
+        +'<p style="margin:0 0 6px;color:#92400E;font-size:12px;font-weight:600">⚠️ Įspejimai:</p>'
+        +'<ul style="margin:0;padding-left:18px;color:#78350F;font-size:12px;line-height:1.5">'
+        +em.warnings.map(function(w){return '<li>'+w+'</li>'}).join('')
+        +'</ul></div>';
+    }
+    var attHtml=Array.isArray(em.attachmentSources)&&em.attachmentSources.length>0
+      ?'<p style="margin:6px 0 4px;font-size:12px;color:#374151"><strong>Priedai:</strong></p><ul style="margin:0;padding-left:18px;font-size:12px;color:#374151">'
+        +em.attachmentSources.map(function(a){
+          var pages=getAttachmentPages(a);
+          return '<li>'+a.filename+' <span style="color:#6B7280">(psl. '+pages.join(", ")+' iš '+a.sourceFileName+')</span></li>';
+        }).join('')
+        +'</ul>'
+      :'<p style="margin:6px 0 0;font-size:12px;color:#EF4444"><strong>⚠️ Priedų nera!</strong></p>';
+    var di=em.detectionInfo||{};
+    var diHtml=di.usedMethod
+      ?'<p style="margin:6px 0 0;font-size:11px;color:#6B7280">Aptikimo metodas: <strong>'+di.usedMethod+'</strong>'
+        +(di.approvalsTablePage?' &middot; Pritarimų lentelė: p. '+di.approvalsTablePage:'')
+        +(di.teliaApproverName?' &middot; Derintojas: '+di.teliaApproverName:'')
+        +(di.keApproverName?' &middot; Derintojas: '+di.keApproverName:'')
+        +'</p>'
+      :'';
+    var content=extractTeliaEmailBodyContent(em.html||"");
+    return '<div style="background:#fff;border:2px solid '+color+';border-radius:6px;padding:14px;margin:14px 0">'
+      +'<p style="margin:0 0 10px;color:'+color+';font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600">📧 '+label+' laiškas</p>'
+      +'<p style="margin:0 0 4px;font-size:12px;color:#374151"><strong>Kam:</strong> '+(em.to||"-")+'</p>'
+      +'<p style="margin:0 0 4px;font-size:12px;color:#374151"><strong>Tema:</strong> '+(em.subject||"-")+'</p>'
+      +attHtml
+      +diHtml
+      +warnHtml
+      +'<div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:4px;padding:12px;margin-top:10px">'
+      +(content||"<p style=\"color:#EF4444\">⚠️ Turinys nepasiektas</p>")
+      +'</div></div>';
+  }
+  var sections=[];
+  if(pe)sections.push(buildSection("Telia","#0066CC",pe));
+  if(ke)sections.push(buildSection("Kauno energija","#DC2626",ke));
+  var instCount=(pe?1:0)+(ke?1:0);
+  var body=emailWrap("Paraiska laukia patikros","#CA8A04",
+    "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
+    +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Sistema paruošė paraišką <strong>#"+permitNo+"</strong> "
+    +(instCount===1?"vienai institucijai":"dviem institucijoms")
+    +". Prašome peržiūrėti ir patvirtinti prieš siunčiant.</p>"
+    +"<table style=\"border-collapse:collapse;width:100%;margin:14px 0\">"
+    +emailRow("Pareiškėjas:",permit.manager||"-")
+    +emailRow("Trasa:",(permit.teliaRouteFrom||"-")+" – "+(permit.teliaRouteTo||"-"))
+    +emailRow("Investicinis Nr.:",permit.investNo||"-")
+    +emailRow("Laikotarpis:",(permit.startDate||"-")+" – "+(permit.endDate||"-"))
+    +"</table>"
+    +sections.join('')
+    +"<p style=\"color:#374151;font-size:13px;margin:14px 0 0\">Patvirtinkite arba pataisykite paraišką Digpoint sistemoje. Iš ten taip pat galite atidaryti originalų projekto PDF.</p>");
+  // Sukuriame VISUS priedus iš abiejų institucijų (su prefix'u, kad nesusidvejintų)
+  var attachments=[];
+  async function pushAttachments(em,prefix){
+    if(!em)return;
+    var srcs=em.attachmentSources||[];
+    for(var i=0;i<srcs.length;i++){
+      var src=srcs[i];
+      var pages=getAttachmentPages(src);
+      if(pages.length===0)continue;
+      var srcFile=(permit.files||[]).find(function(f){return f.name===src.sourceFileName});
+      if(srcFile&&srcFile.data){
+        try{
+          var bytes=await extractPagesToNewPdf(srcFile.data,pages);
+          if(bytes)attachments.push({filename:prefix+"_"+src.filename,content:bytes,encoding:"base64"});
+        }catch(e){}
+      }
+    }
+  }
+  await pushAttachments(pe,"telia");
+  await pushAttachments(ke,"ke");
+  sendEmail(REVIEW_EMAIL,"[REVIEW] Paraiska #"+permitNo+" laukia patvirtinimo",body,attachments);
 }
 
 // Iš Telia laiško HTML (`buildExternalEmailWrapper` rezultato) ištraukia tik vidinį turinį
@@ -1147,12 +1283,12 @@ async function preparePendingKauoenergijaEmail(permit, pageTexts){
     var kePage=findKauoenergijaApprovalPage(pageTexts);
     var drawingPage=findProjectDrawingPage(pageTexts);
     if(drawingPage){
-      attachmentSources.push({filename:"projekto_brezinys.pdf",sourceFileName:pdfFile.name,pageNumber:drawingPage});
+      attachmentSources.push({filename:"projekto_brezinys.pdf",sourceFileName:pdfFile.name,pageNumbers:[drawingPage]});
     }else{
       warnings.push("Projekto brezinio puslapis PDF'e nerastas — adminas turi nurodyti rankiniu budu");
     }
     if(kePage){
-      attachmentSources.push({filename:"ke_derinimas.pdf",sourceFileName:pdfFile.name,pageNumber:kePage});
+      attachmentSources.push({filename:"ke_derinimas.pdf",sourceFileName:pdfFile.name,pageNumbers:[kePage]});
     }else{
       if(keName){
         warnings.push("Kauno energija derinimo puslapis PDF'e nerastas — pritarimų lentelėje rastas derintojas: "+keName);
@@ -1246,9 +1382,11 @@ async function approveAndSendKauoenergija(permit){
   var srcs=pe.attachmentSources||[];
   for(var i=0;i<srcs.length;i++){
     var src=srcs[i];
+    var pages=getAttachmentPages(src);
+    if(pages.length===0)continue;
     var srcFile=(permit.files||[]).find(function(f){return f.name===src.sourceFileName});
     if(srcFile&&srcFile.data){
-      var bytes=await extractPagesToNewPdf(srcFile.data,[src.pageNumber]);
+      var bytes=await extractPagesToNewPdf(srcFile.data,pages);
       if(bytes)attachments.push({filename:src.filename,content:bytes,encoding:"base64"});
     }
   }
@@ -1269,14 +1407,16 @@ async function approveAndSendKauoenergija(permit){
 async function approveAndSendTelia(permit){
   var pe=permit.pendingEmail;
   if(!pe||!pe.to)throw new Error("Laiskas neparuosztas");
-  // Regeneruojame PDF priedus iš metaduomenų (sourceFileName + pageNumber)
+  // Regeneruojame PDF priedus iš metaduomenų (sourceFileName + pageNumbers masyvas)
   var attachments=[];
   var srcs=pe.attachmentSources||[];
   for(var i=0;i<srcs.length;i++){
     var src=srcs[i];
+    var pages=getAttachmentPages(src);
+    if(pages.length===0)continue;
     var srcFile=(permit.files||[]).find(function(f){return f.name===src.sourceFileName});
     if(srcFile&&srcFile.data){
-      var bytes=await extractPagesToNewPdf(srcFile.data,[src.pageNumber]);
+      var bytes=await extractPagesToNewPdf(srcFile.data,pages);
       if(bytes)attachments.push({filename:src.filename,content:bytes,encoding:"base64"});
     }
   }
@@ -1310,20 +1450,21 @@ function PermitDetail(p){
   var _aprvSt=useState("");var aprvSt=_aprvSt[0],sAprvSt=_aprvSt[1];
   var _aprvBusy=useState(false);var aprvBusy=_aprvBusy[0],sAprvBusy=_aprvBusy[1];
   // Rankinio puslapių parinkimo įvestys — inicijuojamos pagal aptiktas reikšmes (jei yra)
+  // Palaiko KELIS puslapius: "27, 28, 29" arba "27-29"
   var _initSrcs=((o.pendingEmail||{}).attachmentSources||[]);
-  var _initDrawPg=(_initSrcs.find(function(s){return s.filename==="projekto_brezinys.pdf"})||{}).pageNumber||"";
-  var _initTeliaPg=(_initSrcs.find(function(s){return s.filename==="telia_derinimas.pdf"})||{}).pageNumber||"";
-  var _drawPg=useState(String(_initDrawPg));var drawPgIn=_drawPg[0],sDrawPgIn=_drawPg[1];
-  var _teliaPg=useState(String(_initTeliaPg));var teliaPgIn=_teliaPg[0],sTeliaPgIn=_teliaPg[1];
+  var _initDrawPgs=getAttachmentPages(_initSrcs.find(function(s){return s.filename==="projekto_brezinys.pdf"})||{});
+  var _initTeliaPgs=getAttachmentPages(_initSrcs.find(function(s){return s.filename==="telia_derinimas.pdf"})||{});
+  var _drawPg=useState(formatPageNumbers(_initDrawPgs));var drawPgIn=_drawPg[0],sDrawPgIn=_drawPg[1];
+  var _teliaPg=useState(formatPageNumbers(_initTeliaPgs));var teliaPgIn=_teliaPg[0],sTeliaPgIn=_teliaPg[1];
   // Rankinio trasos redagavimo įvestys
   var _trFromIn=useState(o.teliaRouteFrom||"");var trFromIn=_trFromIn[0],sTrFromIn=_trFromIn[1];
   var _trToIn=useState(o.teliaRouteTo||"");var trToIn=_trToIn[0],sTrToIn=_trToIn[1];
   // Kauno energija review state
   var _initKESrcs=((o.pendingKauoenergijaEmail||{}).attachmentSources||[]);
-  var _initKEDrawPg=(_initKESrcs.find(function(s){return s.filename==="projekto_brezinys.pdf"})||{}).pageNumber||"";
-  var _initKEPg=(_initKESrcs.find(function(s){return s.filename==="ke_derinimas.pdf"})||{}).pageNumber||"";
-  var _keDrawPg=useState(String(_initKEDrawPg));var keDrawPgIn=_keDrawPg[0],sKEDrawPgIn=_keDrawPg[1];
-  var _kePg=useState(String(_initKEPg));var kePgIn=_kePg[0],sKEPgIn=_kePg[1];
+  var _initKEDrawPgs=getAttachmentPages(_initKESrcs.find(function(s){return s.filename==="projekto_brezinys.pdf"})||{});
+  var _initKEPgs=getAttachmentPages(_initKESrcs.find(function(s){return s.filename==="ke_derinimas.pdf"})||{});
+  var _keDrawPg=useState(formatPageNumbers(_initKEDrawPgs));var keDrawPgIn=_keDrawPg[0],sKEDrawPgIn=_keDrawPg[1];
+  var _kePg=useState(formatPageNumbers(_initKEPgs));var kePgIn=_kePg[0],sKEPgIn=_kePg[1];
   var _keAprvSt=useState("");var keAprvSt=_keAprvSt[0],sKEAprvSt=_keAprvSt[1];
   var _keAprvBusy=useState(false);var keAprvBusy=_keAprvBusy[0],sKEAprvBusy=_keAprvBusy[1];
   var isA=p.user.role==="admin";
@@ -1473,20 +1614,20 @@ function PermitDetail(p){
           // 1) Trasa
           var newFrom=(trFromIn||"").trim();
           var newTo=(trToIn||"").trim();
-          // 2) Puslapiai
-          var dPg=parseInt(drawPgIn,10);
-          var tPg=parseInt(teliaPgIn,10);
+          // 2) Puslapiai (galimi keli — "27, 28" ar "27-29")
+          var dPgs=parsePageNumbers(drawPgIn);
+          var tPgs=parsePageNumbers(teliaPgIn);
           var existing=(o.pendingEmail||{}).attachmentSources||[];
           var srcFileName=(existing[0]||{}).sourceFileName
             ||(((o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)})||{}).name||"");
           var newSources=[];
-          if(dPg>0)newSources.push({filename:"projekto_brezinys.pdf",sourceFileName:srcFileName,pageNumber:dPg});
-          if(tPg>0)newSources.push({filename:"telia_derinimas.pdf",sourceFileName:srcFileName,pageNumber:tPg});
+          if(dPgs.length>0)newSources.push({filename:"projekto_brezinys.pdf",sourceFileName:srcFileName,pageNumbers:dPgs});
+          if(tPgs.length>0)newSources.push({filename:"telia_derinimas.pdf",sourceFileName:srcFileName,pageNumbers:tPgs});
           // 3) Pašaliname warning'us, kurie jau išspręsti rankiniu būdu
           var origWarn=(o.pendingEmail||{}).warnings||[];
           var newWarn=origWarn.filter(function(w){
-            if(dPg>0&&/Projekto\s+brezinio\s+puslapis/i.test(w))return false;
-            if(tPg>0&&/Telia\s+derinimo\s+puslapis/i.test(w))return false;
+            if(dPgs.length>0&&/Projekto\s+brezinio\s+puslapis/i.test(w))return false;
+            if(tPgs.length>0&&/Telia\s+derinimo\s+puslapis/i.test(w))return false;
             if(newFrom&&newTo&&/Trasa\s+nenurodyta/i.test(w))return false;
             if(newFrom&&newTo&&newFrom!==newTo&&/Trasos\s+pradzia\s+ir\s+pabaiga\s+sutampa/i.test(w))return false;
             return true;
@@ -1581,15 +1722,19 @@ function PermitDetail(p){
                       style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
                 </div>
+                <div style={{fontSize:10,color:C.t3,fontFamily:F,marginBottom:6,fontStyle:"italic"}}>Galima įvesti kelis puslapius: „27, 28" arba „27-29". Reikalui — atidarykite originalą:</div>
+                <div style={{marginBottom:8}}>
+                  <Btn v="secondary" sm onClick={function(){openPermitPdfInNewTab(o)}}>📄 Atidaryti projektą PDF</Btn>
+                </div>
                 <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
-                  <div style={{flex:"1 1 140px",minWidth:120}}>
-                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Projekto brėžinys (psl. nr.)</div>
-                    <input type="number" min="1" value={drawPgIn} onChange={function(e){sDrawPgIn(e.target.value)}}
+                  <div style={{flex:"1 1 160px",minWidth:140}}>
+                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Projekto brėžinio puslapiai</div>
+                    <input type="text" value={drawPgIn} onChange={function(e){sDrawPgIn(e.target.value)}} placeholder="pvz.: 27, 28"
                       style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
-                  <div style={{flex:"1 1 140px",minWidth:120}}>
-                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Telia derinimas (psl. nr.)</div>
-                    <input type="number" min="1" value={teliaPgIn} onChange={function(e){sTeliaPgIn(e.target.value)}}
+                  <div style={{flex:"1 1 160px",minWidth:140}}>
+                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Telia derinimo puslapiai</div>
+                    <input type="text" value={teliaPgIn} onChange={function(e){sTeliaPgIn(e.target.value)}} placeholder="pvz.: 22"
                       style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
                   <Btn v="secondary" sm onClick={saveManualEdits} disabled={aprvBusy}>💾 Įrašyti pakeitimus</Btn>
@@ -1628,18 +1773,18 @@ function PermitDetail(p){
         }
         function saveKEManualEdits(){
           if(keAprvBusy)return;
-          var dPg=parseInt(keDrawPgIn,10);
-          var kPg=parseInt(kePgIn,10);
+          var dPgs=parsePageNumbers(keDrawPgIn);
+          var kPgs=parsePageNumbers(kePgIn);
           var existing=ke.attachmentSources||[];
           var srcFileName=(existing[0]||{}).sourceFileName
             ||(((o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)})||{}).name||"");
           var newSources=[];
-          if(dPg>0)newSources.push({filename:"projekto_brezinys.pdf",sourceFileName:srcFileName,pageNumber:dPg});
-          if(kPg>0)newSources.push({filename:"ke_derinimas.pdf",sourceFileName:srcFileName,pageNumber:kPg});
+          if(dPgs.length>0)newSources.push({filename:"projekto_brezinys.pdf",sourceFileName:srcFileName,pageNumbers:dPgs});
+          if(kPgs.length>0)newSources.push({filename:"ke_derinimas.pdf",sourceFileName:srcFileName,pageNumbers:kPgs});
           var origWarn=ke.warnings||[];
           var newWarn=origWarn.filter(function(w){
-            if(dPg>0&&/Projekto\s+brezinio\s+puslapis/i.test(w))return false;
-            if(kPg>0&&/Kauno\s+energija\s+derinimo\s+puslapis/i.test(w))return false;
+            if(dPgs.length>0&&/Projekto\s+brezinio\s+puslapis/i.test(w))return false;
+            if(kPgs.length>0&&/Kauno\s+energija\s+derinimo\s+puslapis/i.test(w))return false;
             return true;
           });
           var updatedKE=Object.assign({},ke,{
@@ -1709,15 +1854,19 @@ function PermitDetail(p){
               </div>}
               <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid "+C.b1}}>
                 <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Rankinis koregavimas</div>
+                <div style={{fontSize:10,color:C.t3,fontFamily:F,marginBottom:6,fontStyle:"italic"}}>Galima įvesti kelis puslapius: „21, 22" arba „21-23".</div>
+                <div style={{marginBottom:8}}>
+                  <Btn v="secondary" sm onClick={function(){openPermitPdfInNewTab(o)}}>📄 Atidaryti projektą PDF</Btn>
+                </div>
                 <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
-                  <div style={{flex:"1 1 140px",minWidth:120}}>
-                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Projekto brėžinys (psl. nr.)</div>
-                    <input type="number" min="1" value={keDrawPgIn} onChange={function(e){sKEDrawPgIn(e.target.value)}}
+                  <div style={{flex:"1 1 160px",minWidth:140}}>
+                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Projekto brėžinio puslapiai</div>
+                    <input type="text" value={keDrawPgIn} onChange={function(e){sKEDrawPgIn(e.target.value)}} placeholder="pvz.: 27"
                       style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
-                  <div style={{flex:"1 1 140px",minWidth:120}}>
-                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>KE derinimas (psl. nr.)</div>
-                    <input type="number" min="1" value={kePgIn} onChange={function(e){sKEPgIn(e.target.value)}}
+                  <div style={{flex:"1 1 160px",minWidth:140}}>
+                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>KE derinimo puslapiai</div>
+                    <input type="text" value={kePgIn} onChange={function(e){sKEPgIn(e.target.value)}} placeholder="pvz.: 21"
                       style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
                   <Btn v="secondary" sm onClick={saveKEManualEdits} disabled={keAprvBusy}>💾 Įrašyti pakeitimus</Btn>
@@ -2415,7 +2564,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.33</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.34</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2457,7 +2606,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.33</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.34</div>
         </div>
       </div>
     </div>
@@ -2604,12 +2753,14 @@ function App(){
     }
     if(hasTelia){
       finalPermit=await preparePendingTeliaEmail(finalPermit);
-      await sendTeliaReviewNotification(finalPermit);
     }
     if(hasKE){
       var kePending=await preparePendingKauoenergijaEmail(finalPermit, pageTexts);
       finalPermit=Object.assign({},finalPermit,{pendingKauoenergijaEmail:kePending});
-      await sendKauoenergijaReviewNotification(finalPermit);
+    }
+    // Vienas bendras review email — su visomis pasirinktomis institucijomis
+    if(hasTelia||hasKE){
+      await sendCombinedReviewNotification(finalPermit);
     }
     savePermits(permits.concat([finalPermit]));
     setView(user.role==="admin"?"inbox":"mine");
