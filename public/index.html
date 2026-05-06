@@ -986,7 +986,7 @@ function buildExternalEmailWrapper(body){
     +'<div style="max-width:620px;margin:24px auto;padding:8px 24px">'
     +body
     +'<div style="margin-top:28px;padding-top:14px;border-top:1px solid #E5E7EB;font-size:11px;color:#6B7280;line-height:1.5">'
-    +'UAB „EnergoLT" &middot; Stumbro g. 3, Šakių k., LT-47413 Kauno r.<br>'
+    +'UAB „EnergoLT" &middot; V. Krėvės pr. 120, LT-51119 Kaunas<br>'
     +'Tel.: +370 620 64619 &middot; El. p.: <a href="mailto:info@energolt.eu" style="color:#6B7280">info@energolt.eu</a>'
     +'</div>'
     +'</div></body></html>';
@@ -1009,16 +1009,29 @@ function buildKauoenergijaEmailHtml(permit){
   );
 }
 
-// Telia laiško HTML šablonas — Tomo originalus turinys + švarus išorinis wrapper'is (be Digpoint branding'o).
+// Datas YYYY-MM-DD pakeičia į YYYY.MM.DD formatą (kabamasis intervalas su brūkšniu)
+function fmtDateDots(d){
+  if(!d)return "";
+  return String(d).replace(/-/g,".");
+}
+function fmtDateRangeDots(start,end){
+  var sd=start?fmtDateDots(start):"";
+  var ed=end?fmtDateDots(end):"";
+  if(sd&&ed)return sd+"-"+ed;
+  return sd||ed||"";
+}
+
+// Telia laiško HTML šablonas (atnaujintas formatas).
 function buildTeliaEmailHtml(permit){
+  var trasa=(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"");
   return buildExternalEmailWrapper(
     "<p style=\"margin:0 0 14px\">Laba diena,</p>"
-    +"<p style=\"margin:0 0 14px\">Reikalingas Telia kasimo leidimas, Kauno m. sav., trasai einanciai:</p>"
-    +"<table style=\"border-collapse:collapse;width:100%;margin:0 0 14px\"><tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Trasa:</td><td style=\"padding:4px 0;color:#111827;font-size:13px;font-weight:600\">"+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+"</td></tr>"
-    +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Darbus atliks:</td><td style=\"padding:4px 0;color:#111827;font-size:13px;font-weight:600\">UAB „EnergoLT“</td></tr>"
-    +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Darbu vadovas:</td><td style=\"padding:4px 0;color:#111827;font-size:13px\">"+(permit.manager||"")+" , tel.: "+(permit.managerPhone||"")+"</td></tr>"
-    +"<tr><td style=\"padding:4px 12px 4px 0;color:#6B7280;font-size:13px\">Laikotarpis:</td><td style=\"padding:4px 0;color:#111827;font-size:13px\">"+(permit.startDate||"")+" – "+(permit.endDate||"")+"</td></tr>"
-    +"</table><p style=\"margin:0\">Pridedu suderinima.</p>"
+    +"<p style=\"margin:0 0 8px\">Reikalingas Telia žemės kasimo leidimas, Kauno m. sav., trasai einančiai:</p>"
+    +"<ul style=\"margin:0 0 14px;padding-left:24px\"><li><strong>"+trasa+"</strong></li></ul>"
+    +"<p style=\"margin:0 0 12px\">Darbus atliks: <strong>UAB „EnergoLT"</strong></p>"
+    +"<p style=\"margin:0 0 12px\">Darbų vadovas: <strong>"+(permit.manager||"")+"</strong>, <strong>tel.: "+(permit.managerPhone||"")+"</strong></p>"
+    +"<p style=\"margin:0 0 14px\">Laikotarpis: <strong>"+fmtDateRangeDots(permit.startDate,permit.endDate)+"</strong></p>"
+    +"<p style=\"margin:0\">Pridedu projekto brėžinį, derinimą bei prieš tai išduotą leidimą.</p>"
   );
 }
 
@@ -1141,11 +1154,19 @@ async function sendCombinedReviewNotification(permit){
   if(pe)sections.push(buildSection("Telia","#0066CC",pe));
   if(ke)sections.push(buildSection("Kauno energija","#DC2626",ke));
   var instCount=(pe?1:0)+(ke?1:0);
+  // Nuoroda į paraišką Digpoint sistemoje (hash-based routing — App.useEffect aptiks ir atvers detalę)
+  var permitUrl=(typeof window!=="undefined"&&window.location)
+    ?(window.location.origin+window.location.pathname+"#permit="+encodeURIComponent(permit.id))
+    :"";
+  var linkBtn=permitUrl
+    ?'<p style="margin:14px 0;text-align:center"><a href="'+permitUrl+'" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">🔍 Atidaryti paraišką sistemoje</a></p>'
+    :"";
   var body=emailWrap("Paraiska laukia patikros","#CA8A04",
     "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
     +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Sistema paruošė paraišką <strong>#"+permitNo+"</strong> "
     +(instCount===1?"vienai institucijai":"dviem institucijoms")
     +". Prašome peržiūrėti ir patvirtinti prieš siunčiant.</p>"
+    +linkBtn
     +"<table style=\"border-collapse:collapse;width:100%;margin:14px 0\">"
     +emailRow("Pareiškėjas:",permit.manager||"-")
     +emailRow("Trasa:",(permit.teliaRouteFrom||"-")+" – "+(permit.teliaRouteTo||"-"))
@@ -1153,28 +1174,10 @@ async function sendCombinedReviewNotification(permit){
     +emailRow("Laikotarpis:",(permit.startDate||"-")+" – "+(permit.endDate||"-"))
     +"</table>"
     +sections.join('')
-    +"<p style=\"color:#374151;font-size:13px;margin:14px 0 0\">Patvirtinkite arba pataisykite paraišką Digpoint sistemoje. Iš ten taip pat galite atidaryti originalų projekto PDF.</p>");
-  // Sukuriame VISUS priedus iš abiejų institucijų (su prefix'u, kad nesusidvejintų)
-  var attachments=[];
-  async function pushAttachments(em,prefix){
-    if(!em)return;
-    var srcs=em.attachmentSources||[];
-    for(var i=0;i<srcs.length;i++){
-      var src=srcs[i];
-      var pages=getAttachmentPages(src);
-      if(pages.length===0)continue;
-      var srcFile=(permit.files||[]).find(function(f){return f.name===src.sourceFileName});
-      if(srcFile&&srcFile.data){
-        try{
-          var bytes=await extractPagesToNewPdf(srcFile.data,pages);
-          if(bytes)attachments.push({filename:prefix+"_"+src.filename,content:bytes,encoding:"base64"});
-        }catch(e){}
-      }
-    }
-  }
-  await pushAttachments(pe,"telia");
-  await pushAttachments(ke,"ke");
-  sendEmail(REVIEW_EMAIL,"[REVIEW] Paraiska #"+permitNo+" laukia patvirtinimo",body,attachments);
+    +"<p style=\"color:#374151;font-size:13px;margin:14px 0 0\">Patvirtinkite arba pataisykite paraišką Digpoint sistemoje. Originalų projekto PDF galite atidaryti tiesiai iš paraiškos lango.</p>");
+  // Review email NEBESIUNČIA PDF priedų — admin gali atidaryti paraišką sistemoje
+  // ir matyti / atsisiųsti PDF iš ten.
+  sendEmail(REVIEW_EMAIL,"[REVIEW] Paraiska #"+permitNo+" laukia patvirtinimo",body);
 }
 
 // Iš Telia laiško HTML (`buildExternalEmailWrapper` rezultato) ištraukia tik vidinį turinį
@@ -2564,7 +2567,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.34</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.35</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2606,7 +2609,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.34</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.35</div>
         </div>
       </div>
     </div>
@@ -2704,6 +2707,27 @@ function App(){
   var _loadedRef=useRef(false);
   useEffect(function(){if(loaded)_loadedRef.current=true;},[loaded]);
   useEffect(function(){if(_loadedRef.current)sSet("kl-permits",permits)},[permits]);
+
+  // Hash-based routing — atveria paraiškos detalę, kai nuoroda iš review email'o
+  // ar kitas linko su #permit=XYZ paspaudžiamas. Vyksta po prisijungimo + duomenų užkrovimo.
+  useEffect(function(){
+    if(!loaded||!user||permits.length===0)return;
+    try{
+      var hash=window.location.hash||"";
+      var m=hash.match(/^#permit=(.+)$/);
+      if(m){
+        var permitId=decodeURIComponent(m[1]);
+        var found=permits.find(function(x){return x.id===permitId});
+        if(found){
+          setDetail(found);
+          // Pašaliname hash, kad atnaujinus puslapį detalė neatsirastų vėl
+          if(window.history&&window.history.replaceState){
+            window.history.replaceState(null,"",window.location.pathname+window.location.search);
+          }
+        }
+      }
+    }catch(e){}
+  },[loaded,user&&user.id,permits.length]);
 
   function savePermits(arr){var checked=checkExpired(arr);setPermits(checked);}
 
