@@ -1231,6 +1231,33 @@ function PermitDetail(p){
           }
           sAprvBusy(false);
         }
+        function saveManualPages(){
+          if(aprvBusy)return;
+          var dPg=parseInt(drawPgIn,10);
+          var tPg=parseInt(teliaPgIn,10);
+          var existing=(o.pendingEmail||{}).attachmentSources||[];
+          var srcFileName=(existing[0]||{}).sourceFileName
+            ||(((o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)})||{}).name||"");
+          var newSources=[];
+          if(dPg>0)newSources.push({filename:"projekto_brezinys.pdf",sourceFileName:srcFileName,pageNumber:dPg});
+          if(tPg>0)newSources.push({filename:"telia_derinimas.pdf",sourceFileName:srcFileName,pageNumber:tPg});
+          // Pašaliname tas warning'us, kurie buvo dėl nerasto puslapio (rankiniu būdu jau padengta)
+          var origWarn=(o.pendingEmail||{}).warnings||[];
+          var newWarn=origWarn.filter(function(w){
+            if(dPg>0&&/Projekto\s+brezinio\s+puslapis/i.test(w))return false;
+            if(tPg>0&&/Telia\s+derinimo\s+puslapis/i.test(w))return false;
+            return true;
+          });
+          var updated=Object.assign({},o,{
+            pendingEmail:Object.assign({},o.pendingEmail||{},{
+              attachmentSources:newSources,
+              warnings:newWarn
+            })
+          });
+          p.onUpdate(updated);
+          sAprvSt("✓ Puslapiai atnaujinti");
+          setTimeout(function(){sAprvSt("")},2000);
+        }
         async function approve(){
           if(aprvBusy)return;
           if(!window.confirm("Patvirtinti ir siusti laiska i Telia ("+(pe.to||"-")+")?"))return;
@@ -1282,6 +1309,26 @@ function PermitDetail(p){
                 {pe.detectionInfo.approvalsTablePage&&<span> · Pritarimų lentelė: <span style={{fontFamily:FM}}>p. {pe.detectionInfo.approvalsTablePage}</span></span>}
                 {pe.detectionInfo.teliaApproverName&&<span> · Derintojas: <span style={{color:C.t2,fontWeight:600}}>{pe.detectionInfo.teliaApproverName}</span></span>}
               </div>}
+              {/* Rankinis puslapių parinkimas — kai automatika suklysta arba neaptiko */}
+              <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid "+C.b1}}>
+                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Rankinis puslapių parinkimas</div>
+                <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:8,lineHeight:1.5}}>
+                  Jei automatika suklydo, įveskite teisingus puslapių numerius iš originalaus PDF ir spauskite „Įrašyti puslapius".
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
+                  <div style={{flex:"1 1 140px",minWidth:120}}>
+                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Projekto brėžinys (psl. nr.)</div>
+                    <input type="number" min="1" value={drawPgIn} onChange={function(e){sDrawPgIn(e.target.value)}}
+                      style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
+                  </div>
+                  <div style={{flex:"1 1 140px",minWidth:120}}>
+                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Telia derinimas (psl. nr.)</div>
+                    <input type="number" min="1" value={teliaPgIn} onChange={function(e){sTeliaPgIn(e.target.value)}}
+                      style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
+                  </div>
+                  <Btn v="secondary" sm onClick={saveManualPages} disabled={aprvBusy}>💾 Įrašyti puslapius</Btn>
+                </div>
+              </div>
               <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:12,marginBottom:6}}>Laisko turinys:</div>
               {pe.html
                 ?<iframe srcDoc={pe.html} sandbox="" style={{width:"100%",height:380,border:"1px solid "+C.b1,borderRadius:6,background:"#fff"}}/>
@@ -1974,7 +2021,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.30</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.31</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2016,7 +2063,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.30</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.31</div>
         </div>
       </div>
     </div>
