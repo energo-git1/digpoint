@@ -1009,10 +1009,8 @@ function buildKauoenergijaEmailHtml(permit){
     +"<p style=\"margin:0 0 14px\">Reikia kasimo leidimo bei kontaktų inžinieriaus su kuriuo būtų galima prieš darbų pradžią nustatyti ŠT gyšius.</p>"
     +"<p style=\"margin:0 0 14px\">Prisegam failus: projekto brėžiniai; suderinimas su UAB &quot;Kauno Energija&quot;.</p>"
     +"<p style=\"margin:0 0 14px\">Darbus atliks įmonė UAB &quot;EnergoLT&quot;, &quot;Energijos skirstymo operatorius&quot; rangovas.</p>"
-    +"<table style=\"border-collapse:collapse;width:100%\">"
-    +emailRow("Projektų vadovas:",(permit.manager||"")+" , tel.: "+(permit.managerPhone||""))
-    +emailRow("Laikotarpis:",(permit.startDate||"")+" – "+(permit.endDate||""))
-    +"</table>"
+    +"<p style=\"margin:0 0 12px\">Darbų vadovas: "+(permit.manager||"")+", tel.: "+(permit.managerPhone||"")+"</p>"
+    +"<p style=\"margin:0 0 14px\">Laikotarpis: "+fmtDateRangeDots(permit.startDate,permit.endDate)+"</p>"
   );
 }
 
@@ -1034,11 +1032,11 @@ function buildTeliaEmailHtml(permit){
   return buildExternalEmailWrapper(
     "<p style=\"margin:0 0 14px\">Laba diena,</p>"
     +"<p style=\"margin:0 0 8px\">Reikalingas Telia žemės kasimo leidimas, Kauno m. sav., trasai einančiai:</p>"
-    +"<ul style=\"margin:0 0 14px;padding-left:24px\"><li><strong>"+trasa+"</strong></li></ul>"
-    +"<p style=\"margin:0 0 12px\">Darbus atliks: <strong>UAB „EnergoLT"</strong></p>"
-    +"<p style=\"margin:0 0 12px\">Darbų vadovas: <strong>"+(permit.manager||"")+"</strong>, <strong>tel.: "+(permit.managerPhone||"")+"</strong></p>"
-    +"<p style=\"margin:0 0 14px\">Laikotarpis: <strong>"+fmtDateRangeDots(permit.startDate,permit.endDate)+"</strong></p>"
-    +"<p style=\"margin:0\">Pridedu projekto brėžinį, derinimą bei prieš tai išduotą leidimą.</p>"
+    +"<ul style=\"margin:0 0 14px;padding-left:24px\"><li>"+trasa+"</li></ul>"
+    +"<p style=\"margin:0 0 12px\">Darbus atliks: UAB „EnergoLT"</p>"
+    +"<p style=\"margin:0 0 12px\">Darbų vadovas: "+(permit.manager||"")+", tel.: "+(permit.managerPhone||"")+"</p>"
+    +"<p style=\"margin:0 0 14px\">Laikotarpis: "+fmtDateRangeDots(permit.startDate,permit.endDate)+"</p>"
+    +"<p style=\"margin:0\">Pridedu projekto brėžinį bei prieš tai išduotą derinimą.</p>"
   );
 }
 
@@ -1101,7 +1099,7 @@ async function preparePendingTeliaEmail(permit){
   }
   return Object.assign({},permit,{pendingEmail:{
     to:TELIA_EMAIL,
-    subject:"Telia zemes kasimo leidimas — "+(permit.teliaRouteFrom||""),
+    subject:"Telia zemes kasimo leidimas — "+(permit.teliaRouteFrom||"")+", Kauno m. sav.",
     html:buildTeliaEmailHtml(permit),
     attachmentSources:attachmentSources,
     warnings:warnings,
@@ -1611,7 +1609,7 @@ function PermitDetail(p){
           var updatedPermit=Object.assign({},o,{teliaRouteFrom:newFrom,teliaRouteTo:newTo});
           var updatedPE=Object.assign({},o.pendingEmail||{},{
             attachmentSources:newSources,warnings:newWarn,
-            subject:"Telia zemes kasimo leidimas — "+newFrom,
+            subject:"Telia zemes kasimo leidimas — "+newFrom+", Kauno m. sav.",
             html:buildTeliaEmailHtml(updatedPermit)
           });
           p.onUpdate(Object.assign({},updatedPermit,{pendingEmail:updatedPE}));
@@ -2480,7 +2478,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.40</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.41</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2522,7 +2520,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.40</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.41</div>
         </div>
       </div>
     </div>
