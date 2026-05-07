@@ -1416,12 +1416,10 @@ function PermitDetail(p){
   var _pvf=useState(o.permitValidFrom||"");var pvf=_pvf[0],sPvf=_pvf[1];
   var _cFiles=useState(o.closeFiles||[]);var cFiles=_cFiles[0],sCFiles=_cFiles[1];
   var _lbcFiles=useState(o.lbcFiles||[]);var lbcFiles=_lbcFiles[0],sLbcFiles=_lbcFiles[1];
-  var _cFiles=useState(o.closeFiles||[]);var cFiles=_cFiles[0],sCFiles=_cFiles[1];
-  var _lbcFiles=useState(o.lbcFiles||[]);var lbcFiles=_lbcFiles[0],sLbcFiles=_lbcFiles[1];
   var _pvu=useState(o.permitValidUntil||"");var pvu=_pvu[0],sPvu=_pvu[1];
   var _aprvSt=useState("");var aprvSt=_aprvSt[0],sAprvSt=_aprvSt[1];
   var _aprvBusy=useState(false);var aprvBusy=_aprvBusy[0],sAprvBusy=_aprvBusy[1];
-  // Rankinio puslapių parinkimo įvestys — inicijuojamos pagal aptiktas reikšmes (jei yra)
+  // Rankinio puslapių parinkimo įvestys — Telia (inicijuojamos iš pendingEmail)
   // Palaiko KELIS puslapius: "27, 28, 29" arba "27-29"
   var _initSrcs=((o.pendingEmail||{}).attachmentSources||[]);
   var _initDrawPgs=getAttachmentPages(_initSrcs.find(function(s){return s.filename==="projekto_brezinys.pdf"})||{});
@@ -1431,7 +1429,7 @@ function PermitDetail(p){
   // Rankinio trasos redagavimo įvestys
   var _trFromIn=useState(o.teliaRouteFrom||"");var trFromIn=_trFromIn[0],sTrFromIn=_trFromIn[1];
   var _trToIn=useState(o.teliaRouteTo||"");var trToIn=_trToIn[0],sTrToIn=_trToIn[1];
-  // Kauno energija review state
+  // Kauno energija review state — inicijuojamos ATSKIRAI iš pendingKauoenergijaEmail
   var _initKESrcs=((o.pendingKauoenergijaEmail||{}).attachmentSources||[]);
   var _initKEDrawPgs=getAttachmentPages(_initKESrcs.find(function(s){return s.filename==="projekto_brezinys.pdf"})||{});
   var _initKEPgs=getAttachmentPages(_initKESrcs.find(function(s){return s.filename==="ke_derinimas.pdf"})||{});
@@ -1484,7 +1482,7 @@ function PermitDetail(p){
       u.status=st;
       u.history=(o.history||[]).concat([{status:st,date:fmtDate(new Date()),note:note||""}]);
     }
-    u.closeFiles=cFiles;u.lbcFiles=lbcFiles;u.closeFiles=cFiles;u.lbcFiles=lbcFiles;p.onUpdate(u);p.onClose();
+    u.closeFiles=cFiles;u.lbcFiles=lbcFiles;p.onUpdate(u);p.onClose();
   }
 
   return <Modal open={true} onClose={p.onClose} title={"Paraiskas #"+o.id.slice(-5).toUpperCase()} w={600}>
@@ -2536,7 +2534,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.36</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.37</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2578,7 +2576,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.36</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.37</div>
         </div>
       </div>
     </div>
