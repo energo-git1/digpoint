@@ -1192,9 +1192,8 @@ function extractTeliaEmailBodyContent(htmlDoc){
   return m2?m2[1]:"";
 }
 
-// Adminui — review notifikacija su faktiniu Telia laiško turiniu, įspėjimais
-// ir TOMIS PAČIOMIS PDF priedais (kad admin galėtų tiesiog email'e atidaryti
-// ir vizualiai patikrinti puslapius prieš patvirtinant).
+// Adminui — review notifikacija su Telia laiško turiniu ir nuoroda į paraišką.
+// PDF priedai NEBESIUNČIAMI — admin gali atidaryti paraišką sistemoje ir matyti PDF ten.
 async function sendTeliaReviewNotification(permit){
   if(!REVIEW_EMAIL)return;
   var permitNo=permit.id?permit.id.slice(-5).toUpperCase():"?????";
@@ -1207,57 +1206,27 @@ async function sendTeliaReviewNotification(permit){
     pe.warnings.forEach(function(w){warnHtml+='<li>'+w+'</li>';});
     warnHtml+='</ul></div>';
   }
-  var attHtml=Array.isArray(pe.attachmentSources)&&pe.attachmentSources.length>0
-    ?'<p style="margin:0 0 6px;font-size:13px;color:#374151"><strong>Priedai:</strong></p><ul style="margin:0;padding-left:20px;font-size:13px;color:#374151">'
-      +pe.attachmentSources.map(function(a){return '<li>'+a.filename+' <span style="color:#6B7280">(p. '+a.pageNumber+' iš '+a.sourceFileName+')</span></li>'}).join('')
-      +'</ul>'
-    :'<p style="margin:0;font-size:13px;color:#EF4444"><strong>⚠️ Priedų nera!</strong></p>';
-  var di=pe.detectionInfo||{};
-  var diHtml=di.usedMethod
-    ?'<p style="margin:8px 0 0;font-size:11px;color:#6B7280">Aptikimo metodas: <strong>'+di.usedMethod+'</strong>'
-      +(di.approvalsTablePage?' &middot; Pritarimų lentelė: p. '+di.approvalsTablePage:'')
-      +(di.teliaApproverName?' &middot; Derintojas: '+di.teliaApproverName:'')
-      +'</p>'
-    :'';
-  // Faktinis Telia laiško turinys (be antraštės/pėdos), kad adminas matytų be Digpoint atidarymo
+  // Nuoroda į paraišką Digpoint sistemoje
+  var permitUrl=(typeof window!=="undefined"&&window.location)
+    ?(window.location.origin+window.location.pathname+"#permit="+encodeURIComponent(permit.id))
+    :"";
+  var linkBtn=permitUrl
+    ?'<p style="margin:14px 0;text-align:center"><a href="'+permitUrl+'" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">🔍 Atidaryti paraišką sistemoje</a></p>'
+    :"";
+  // Faktinis Telia laiško turinys (be antraštės/pėdos)
   var teliaContent=extractTeliaEmailBodyContent(pe.html||"");
   var body=emailWrap("Telia paraiska laukia patikros","#CA8A04",
     "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
     +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Sistema paruoše Telia kasimo leidimo paraišką <strong>#"+permitNo+"</strong>. Prašome peržiūrėti ir patvirtinti prieš siunčiant Telia.</p>"
+    +linkBtn
     +warnHtml
-    +"<table style=\"border-collapse:collapse;width:100%;margin:14px 0\">"
-    +emailRow("Pareiškėjas:",permit.manager||"-")
-    +emailRow("Trasa:",(permit.teliaRouteFrom||"-")+" – "+(permit.teliaRouteTo||"-"))
-    +emailRow("Investicinis Nr.:",permit.investNo||"-")
-    +emailRow("Laikotarpis:",(permit.startDate||"-")+" – "+(permit.endDate||"-"))
-    +"</table>"
-    +"<div style=\"background:#F9FAFB;border:1px solid #E5E7EB;padding:14px;border-radius:6px;margin:14px 0\">"
-    +"<p style=\"margin:0 0 8px;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600\">Paruošto Telia laiško metaduomenys</p>"
-    +"<p style=\"margin:0 0 4px;font-size:13px;color:#374151\"><strong>Kam:</strong> "+(pe.to||"-")+"</p>"
-    +"<p style=\"margin:0 0 8px;font-size:13px;color:#374151\"><strong>Tema:</strong> "+(pe.subject||"-")+"</p>"
-    +attHtml
-    +diHtml
-    +"</div>"
     +"<div style=\"background:#fff;border:2px solid #0066CC;border-radius:6px;padding:14px;margin:14px 0\">"
     +"<p style=\"margin:0 0 10px;color:#0066CC;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600\">📧 Telia laiško turinys</p>"
     +(teliaContent||"<p style=\"color:#EF4444\">⚠️ Turinys nepasiektas</p>")
     +"</div>"
-    +"<p style=\"color:#374151;font-size:13px;margin:14px 0 0\">Patvirtinkite arba pataisykite paraišką Digpoint sistemoje.</p>");
-  // Sugeneruojame tuos pačius PDF priedus, kuriuos gaus Telia — kad admin galėtų
-  // peržiūrėti ne tik laiško turinį, bet ir konkrečius puslapius dar prieš patvirtinant.
-  var attachments=[];
-  var srcs=(pe.attachmentSources)||[];
-  for(var ai=0;ai<srcs.length;ai++){
-    var src=srcs[ai];
-    var srcFile=(permit.files||[]).find(function(f){return f.name===src.sourceFileName});
-    if(srcFile&&srcFile.data){
-      try{
-        var bytes=await extractPagesToNewPdf(srcFile.data,[src.pageNumber]);
-        if(bytes)attachments.push({filename:src.filename,content:bytes,encoding:"base64"});
-      }catch(e){/* tylus klystkelis — review email'as vis tiek išsiųstas */}
-    }
-  }
-  sendEmail(REVIEW_EMAIL,"[REVIEW] Telia paraiska #"+permitNo+" laukia patvirtinimo",body,attachments);
+    +"<p style=\"color:#374151;font-size:13px;margin:14px 0 0\">Patvirtinkite arba pataisykite paraišką Digpoint sistemoje. Originalų projekto PDF galite atidaryti tiesiai iš paraiškos lango.</p>");
+  // PDF priedai NEBESIUNČIAMI — admin gali atidaryti paraišką sistemoje
+  sendEmail(REVIEW_EMAIL,"[REVIEW] Telia paraiska #"+permitNo+" laukia patvirtinimo",body);
 }
 
 // Kauno energija paraiškos paruošimas review'ui (analogiškas Telia versijai).
@@ -2567,7 +2536,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.35</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.36</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2609,7 +2578,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.35</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.36</div>
         </div>
       </div>
     </div>
