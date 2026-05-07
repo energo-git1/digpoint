@@ -237,24 +237,30 @@ function buildApproverNameRegex(name){
 // kuriame brėžiniai tik išvardyti tekstu, bet pati grafinė schema nėra).
 function isDrawingPageText(text){
   if(!text)return false;
+  // Kampinis štampas — patikimiausias požymis kad tai tikras brėžinys.
+  // EnergoLT projektuose štampe visada yra: PDV + Proj. + STATYTOJAS arba DOKUMENTO PAVADINIMAS
+  var hasStampas=(
+    /\bPDV\b/.test(text)&&/\bProj\./.test(text)&&
+    (/STATYTOJAS/i.test(text)||/DOKUMENTO\s+PAVADINIMAS/i.test(text)||/UAB\s+.{0,10}EnergoLT/i.test(text))
+  );
+  if(hasStampas){
+    // Papildoma apsauga — jei tai titulinis lapas ar sudėties žiniaraštis, atmetame
+    // (jie taip pat turi štampą, bet nėra brėžiniai)
+    var isNotDrawing=/PROJEKTO\s+DOKUMENTŲ\s+SUDĖTIES|PROJEKTO\s+BENDRIEJI\s+RODIKLIAI|PROJEKTO\s+PRITARIMŲ\s+LENTELĖ|AIŠKINAMOJI\s+DALIS|ŽINIARAŠTIS|KABELIŲ\s+MONTAVIMO|TEISĖS\s+AKTAI|ĮTAKOS\s+SKIRSTOMAJAM/i.test(text);
+    if(!isNotDrawing)return true;
+  }
+  // Papildomas patikrinimas — antraštė + brėžinio specifiniai požymiai
   var titlePatterns=[
     /ELEKTROS\s+TINK[LŲU]+\s+(PLANAS|SCHEMA|BR[ĖE][ŽZ]INYS)/i,
     /IN[ŽZ]INERINI[UŲ]\s+TINK[LŲU]+\s+(PLANAS|SCHEMA|BR[ĖE][ŽZ]INYS)/i,
     /\b\d+[,.]?\d*\s*kV\s+(KL|kabel)\s.{0,40}plan/i,
-    /Proj\.?\s*\d+[,.]?\d*\s*kV\s+(KL|kabel).{0,40}plan/i,
     /kabel[iuų]\s+linij[oų]\s+plan/i,
     /(0[,.]?\d+|10|20)\s*kV\s+KL\s+plan/i,
   ];
   var hasTitle=titlePatterns.some(function(re){return re.test(text)});
-  // Brėžinio specifiniai požymiai (PDF teksto sluoksnyje):
-  var hasMastelis=/M\s*1\s*:\s*\d{2,}/i.test(text);                              // M 1:500, M 1:1000
-  var coordCount=(text.match(/[XY]\s*=\s*\d/g)||[]).length;                      // X=...  Y=...
+  var hasMastelis=/M\s*1\s*:\s*\d{2,}/i.test(text);
+  var coordCount=(text.match(/[XY]\s*=\s*\d/g)||[]).length;
   var hasDrawingMarkers=/(SUTARTINIAI\s+ŽYM|kabelis\s+vamzdyje|kabelis\s+klojamas|kryptiniu\s+gręžimu|Žemės\s+sklypo\s+riba|Apsaugos\s+zon[oų])/i.test(text);
-  // Brėžinys = bent du požymiai — apsauga nuo informacinių sąrašų:
-  //   1) Antraštė + mastelis
-  //   2) Antraštė + bent 3 koordinatės
-  //   3) Antraštė + brėžinio žymėjimai (SUTARTINIAI ŽYMĖJIMAI ir t.t.)
-  //   4) Mastelis + koordinatės (atvejis, kai antraštė rastered į image, bet kiti tekstai liko)
   if(hasTitle&&hasMastelis)return true;
   if(hasTitle&&coordCount>=3)return true;
   if(hasTitle&&hasDrawingMarkers)return true;
@@ -2469,7 +2475,7 @@ function AuthScreen(p){
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
 <<<<<<< HEAD
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.43</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.44</div>
 =======
       <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.40</div>
 >>>>>>> parent of 87a7de3 (Laiško turinio tvarkymas)
@@ -2515,7 +2521,7 @@ function Sidebar(p){
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
 <<<<<<< HEAD
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.43</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.44</div>
 =======
           <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.40</div>
 >>>>>>> parent of 87a7de3 (Laiško turinio tvarkymas)
