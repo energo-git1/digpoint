@@ -993,7 +993,7 @@ function buildExternalEmailWrapper(body){
     +'<div style="max-width:620px;margin:24px auto;padding:8px 24px">'
     +body
     +'<div style="margin-top:28px;padding-top:14px;border-top:1px solid #E5E7EB;font-size:11px;color:#6B7280;line-height:1.5">'
-    +'UAB „EnergoLT" &middot; V. Krėvės pr. 120, LT-51119 Kaunas<br>'
+    +'UAB &quot;EnergoLT&quot; &middot; V. Krėvės pr. 120, LT-51119 Kaunas<br>'
     +'Tel.: +370 620 64619 &middot; El. p.: <a href="mailto:info@energolt.eu" style="color:#6B7280">info@energolt.eu</a>'
     +'</div>'
     +'</div></body></html>';
@@ -1032,11 +1032,19 @@ function buildTeliaEmailHtml(permit){
   return buildExternalEmailWrapper(
     "<p style=\"margin:0 0 14px\">Laba diena,</p>"
     +"<p style=\"margin:0 0 8px\">Reikalingas Telia žemės kasimo leidimas, Kauno m. sav., trasai einančiai:</p>"
+<<<<<<< HEAD
     +"<ul style=\"margin:0 0 14px;padding-left:24px\"><li>"+trasa+"</li></ul>"
     +"<p style=\"margin:0 0 12px\">Darbus atliks: UAB „EnergoLT"</p>"
     +"<p style=\"margin:0 0 12px\">Darbų vadovas: "+(permit.manager||"")+", tel.: "+(permit.managerPhone||"")+"</p>"
     +"<p style=\"margin:0 0 14px\">Laikotarpis: "+fmtDateRangeDots(permit.startDate,permit.endDate)+"</p>"
     +"<p style=\"margin:0\">Pridedu projekto brėžinį bei prieš tai išduotą derinimą.</p>"
+=======
+    +"<ul style=\"margin:0 0 14px;padding-left:24px\"><li><strong>"+trasa+"</strong></li></ul>"
+    +"<p style=\"margin:0 0 12px\">Darbus atliks: <strong>UAB &quot;EnergoLT&quot;</strong></p>"
+    +"<p style=\"margin:0 0 12px\">Darbų vadovas: <strong>"+(permit.manager||"")+"</strong>, <strong>tel.: "+(permit.managerPhone||"")+"</strong></p>"
+    +"<p style=\"margin:0 0 14px\">Laikotarpis: <strong>"+fmtDateRangeDots(permit.startDate,permit.endDate)+"</strong></p>"
+    +"<p style=\"margin:0\">Pridedu projekto brėžinį, derinimą bei prieš tai išduotą leidimą.</p>"
+>>>>>>> f02e69c3f583bfb11b310d1331d6f3c35c1f4099
   );
 }
 
