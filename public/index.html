@@ -1561,7 +1561,7 @@ function PermitDetail(p){
         </div>
       </div>
 
-      {/* Telia review/patvirtinimo blokas — kai paraiška laukia patvirtinimo */}
+      {/* Telia review/patvirtinimo blokas */}
       {(isA||isD)&&o.status==="LaukiaPatvirtinimo"&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&(function(){
         var pe=o.pendingEmail||{};
         var hasWarn=Array.isArray(pe.warnings)&&pe.warnings.length>0;
@@ -1574,48 +1574,35 @@ function PermitDetail(p){
             p.onUpdate(updated);
             sAprvSt("✓ Atnaujinta");
             setTimeout(function(){sAprvSt("")},2000);
-          }catch(e){
-            sAprvSt("✗ Klaida: "+e.message);
-          }
+          }catch(e){sAprvSt("✗ Klaida: "+e.message);}
           sAprvBusy(false);
         }
         function saveManualEdits(){
           if(aprvBusy)return;
-          // 1) Trasa
           var newFrom=(trFromIn||"").trim();
           var newTo=(trToIn||"").trim();
-          // 2) Puslapiai (galimi keli — "27, 28" ar "27-29")
           var dPgs=parsePageNumbers(drawPgIn);
           var tPgs=parsePageNumbers(teliaPgIn);
           var existing=(o.pendingEmail||{}).attachmentSources||[];
-          var srcFileName=(existing[0]||{}).sourceFileName
-            ||(((o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)})||{}).name||"");
+          var srcFileName=(existing[0]||{}).sourceFileName||(((o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)})||{}).name||"");
           var newSources=[];
           if(dPgs.length>0)newSources.push({filename:"projekto_brezinys.pdf",sourceFileName:srcFileName,pageNumbers:dPgs});
           if(tPgs.length>0)newSources.push({filename:"telia_derinimas.pdf",sourceFileName:srcFileName,pageNumbers:tPgs});
-          // 3) Pašaliname warning'us, kurie jau išspręsti rankiniu būdu
-          var origWarn=(o.pendingEmail||{}).warnings||[];
-          var newWarn=origWarn.filter(function(w){
+          var newWarn=(o.pendingEmail||{}).warnings||[];
+          newWarn=newWarn.filter(function(w){
             if(dPgs.length>0&&/Projekto\s+brezinio\s+puslapis/i.test(w))return false;
             if(tPgs.length>0&&/Telia\s+derinimo\s+puslapis/i.test(w))return false;
             if(newFrom&&newTo&&/Trasa\s+nenurodyta/i.test(w))return false;
             if(newFrom&&newTo&&newFrom!==newTo&&/Trasos\s+pradzia\s+ir\s+pabaiga\s+sutampa/i.test(w))return false;
             return true;
           });
-          // 4) Sukuriame atnaujintą permit (su nauja trasa)
-          var updatedPermit=Object.assign({},o,{
-            teliaRouteFrom:newFrom,
-            teliaRouteTo:newTo
-          });
-          // 5) Regeneruojame Telia laiško HTML su nauja trasa + atnaujinta tema
-          var updatedPendingEmail=Object.assign({},o.pendingEmail||{},{
-            attachmentSources:newSources,
-            warnings:newWarn,
+          var updatedPermit=Object.assign({},o,{teliaRouteFrom:newFrom,teliaRouteTo:newTo});
+          var updatedPE=Object.assign({},o.pendingEmail||{},{
+            attachmentSources:newSources,warnings:newWarn,
             subject:"Telia zemes kasimo leidimas — "+newFrom,
             html:buildTeliaEmailHtml(updatedPermit)
           });
-          var updated=Object.assign({},updatedPermit,{pendingEmail:updatedPendingEmail});
-          p.onUpdate(updated);
+          p.onUpdate(Object.assign({},updatedPermit,{pendingEmail:updatedPE}));
           sAprvSt("✓ Pakeitimai išsaugoti");
           setTimeout(function(){sAprvSt("")},2000);
         }
@@ -1625,37 +1612,18 @@ function PermitDetail(p){
           sAprvBusy(true);sAprvSt("Generuojami priedai ir siunčiama...");
           try{
             var attCount=await approveAndSendTelia(o);
-            var updated=Object.assign({},o,{
-              pendingEmail:null,
-              history:(o.history||[]).concat([{
-                status:o.status,
-                date:fmtDate(new Date()),
-                note:"Telia laiškas issiustas ("+(p.user.name||"-")+", "+attCount+" priedas(-ai))"
-              }])
-            });
-            // Statusas keičiasi į "Pateikta" tik kai NĖRA likusių pending laiškų (Telia + KE)
-            if(!updated.pendingKauoenergijaEmail){
-              updated.status="Pateikta";
-              updated.history=updated.history.concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Visi laiškai institucijoms išsiusti"}]);
-            }
-            p.onUpdate(updated);
-            sAprvSt("✓ Issiusta.");
+            var updated=Object.assign({},o,{pendingEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia laiškas issiustas ("+(p.user.name||"-")+", "+attCount+" priedas(-ai))"}])});
+            if(!updated.pendingKauoenergijaEmail){updated.status="Pateikta";updated.history=updated.history.concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Visi laiškai institucijoms išsiusti"}]);}
+            p.onUpdate(updated);sAprvSt("✓ Issiusta.");
             setTimeout(function(){if(!updated.pendingKauoenergijaEmail)p.onClose();},1500);
-          }catch(e){
-            sAprvSt("✗ Klaida siuncziant: "+e.message);
-            sAprvBusy(false);
-          }
+          }catch(e){sAprvSt("✗ Klaida siuncziant: "+e.message);sAprvBusy(false);}
         }
         return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
           <div style={{background:C.s2,border:"1.5px solid #CA8A0466",borderRadius:10,padding:14}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#CA8A04",marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>
-              🔍 Telia paraiska — patikra pries siunciant
-            </div>
+            <div style={{fontSize:11,fontWeight:700,color:"#CA8A04",marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>🔍 Telia paraiska — patikra pries siunciant</div>
             {hasWarn&&<div style={{background:C.ylD,border:"1px solid "+C.yl+"66",borderRadius:6,padding:"10px 12px",marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:C.yl,marginBottom:6,fontFamily:F}}>⚠️ Įspejimai:</div>
-              <ul style={{margin:0,paddingLeft:18,fontSize:11,color:C.yl,fontFamily:F,lineHeight:1.6}}>
-                {pe.warnings.map(function(w,i){return <li key={i}>{w}</li>})}
-              </ul>
+              <ul style={{margin:0,paddingLeft:18,fontSize:11,color:C.yl,fontFamily:F,lineHeight:1.6}}>{pe.warnings.map(function(w,i){return <li key={i}>{w}</li>})}</ul>
             </div>}
             <div style={{background:C.bg,border:"1px solid "+C.b1,borderRadius:6,padding:12,marginBottom:12}}>
               <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Paruosto laisko perziura</div>
@@ -1666,65 +1634,60 @@ function PermitDetail(p){
               <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:8}}>Priedai:</div>
               {hasAtt
                 ?<ul style={{margin:"4px 0 0 0",paddingLeft:18,fontSize:11,color:C.tx,fontFamily:FM}}>
-                  {pe.attachmentSources.map(function(a,i){return <li key={i}>{a.filename} <span style={{color:C.t3}}>(p. {a.pageNumber} iš {a.sourceFileName})</span></li>})}
+                  {pe.attachmentSources.map(function(a,i){var pgs=getAttachmentPages(a);return <li key={i}>{a.filename} <span style={{color:C.t3}}>(p. {pgs.join(", ")||"?"} iš {a.sourceFileName})</span></li>})}
                 </ul>
                 :<div style={{fontSize:11,color:C.rd,fontFamily:F,marginTop:4,fontWeight:600}}>⚠️ Priedų nėra!</div>}
               {pe.detectionInfo&&pe.detectionInfo.usedMethod&&<div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:8,paddingTop:8,borderTop:"1px solid "+C.b1}}>
                 Aptikimo metodas: <span style={{color:C.t2,fontWeight:600}}>{pe.detectionInfo.usedMethod}</span>
-                {pe.detectionInfo.approvalsTablePage&&<span> · Pritarimų lentelė: <span style={{fontFamily:FM}}>p. {pe.detectionInfo.approvalsTablePage}</span></span>}
+                {pe.detectionInfo.approvalsTablePage&&<span> · Pritarimų lentelė: p. {pe.detectionInfo.approvalsTablePage}</span>}
                 {pe.detectionInfo.teliaApproverName&&<span> · Derintojas: <span style={{color:C.t2,fontWeight:600}}>{pe.detectionInfo.teliaApproverName}</span></span>}
               </div>}
-              {/* Rankinis duomenų koregavimas — kai automatika suklysta arba neaptiko */}
+              {/* Rankinis koregavimas */}
               <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid "+C.b1}}>
-                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Rankinis koregavimas</div>
-                <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:10,lineHeight:1.5}}>
-                  Jei automatika suklydo, čia galite patikslinti trasos pradžią/pabaigą bei priedų puslapius. Pakeitimai bus matomi laiško peržiūroje.
-                </div>
+                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Rankinis koregavimas</div>
+                <div style={{marginBottom:8}}><Btn v="secondary" sm onClick={function(){openPermitPdfInNewTab(o)}}>📄 Atidaryti projektą PDF</Btn></div>
                 <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-                  <div style={{flex:"1 1 240px",minWidth:200}}>
+                  <div style={{flex:"1 1 220px",minWidth:180}}>
                     <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Trasos pradžia</div>
                     <input type="text" value={trFromIn} onChange={function(e){sTrFromIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88"
-                      style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
+                      style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
-                  <div style={{flex:"1 1 240px",minWidth:200}}>
+                  <div style={{flex:"1 1 220px",minWidth:180}}>
                     <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Trasos pabaiga</div>
                     <input type="text" value={trToIn} onChange={function(e){sTrToIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88, Kaunas"
-                      style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
+                      style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
                 </div>
-                <div style={{fontSize:10,color:C.t3,fontFamily:F,marginBottom:6,fontStyle:"italic"}}>Galima įvesti kelis puslapius: „27, 28" arba „27-29". Reikalui — atidarykite originalą:</div>
-                <div style={{marginBottom:8}}>
-                  <Btn v="secondary" sm onClick={function(){openPermitPdfInNewTab(o)}}>📄 Atidaryti projektą PDF</Btn>
-                </div>
+                <div style={{fontSize:10,color:C.t3,fontFamily:F,marginBottom:6,fontStyle:"italic"}}>Puslapiai: „27, 28" arba „27-29"</div>
                 <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
-                  <div style={{flex:"1 1 160px",minWidth:140}}>
-                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Projekto brėžinio puslapiai</div>
-                    <input type="text" value={drawPgIn} onChange={function(e){sDrawPgIn(e.target.value)}} placeholder="pvz.: 27, 28"
-                      style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
+                  <div style={{flex:"1 1 140px",minWidth:120}}>
+                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Brėžinio puslapiai</div>
+                    <input type="text" value={drawPgIn} onChange={function(e){sDrawPgIn(e.target.value)}} placeholder="pvz.: 27"
+                      style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
-                  <div style={{flex:"1 1 160px",minWidth:140}}>
+                  <div style={{flex:"1 1 140px",minWidth:120}}>
                     <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Telia derinimo puslapiai</div>
                     <input type="text" value={teliaPgIn} onChange={function(e){sTeliaPgIn(e.target.value)}} placeholder="pvz.: 22"
-                      style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
+                      style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
-                  <Btn v="secondary" sm onClick={saveManualEdits} disabled={aprvBusy}>💾 Įrašyti pakeitimus</Btn>
+                  <Btn v="secondary" sm onClick={saveManualEdits} disabled={aprvBusy}>💾 Įrašyti</Btn>
                 </div>
               </div>
-              <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:12,marginBottom:6}}>Laisko turinys:</div>
+              <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:12,marginBottom:6}}>Laiško turinys:</div>
               {pe.html
-                ?<iframe srcDoc={pe.html} sandbox="" style={{width:"100%",height:380,border:"1px solid "+C.b1,borderRadius:6,background:"#fff"}}/>
+                ?<iframe srcDoc={pe.html} sandbox="" style={{width:"100%",height:340,border:"1px solid "+C.b1,borderRadius:6,background:"#fff"}}/>
                 :<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Laiško turinys neparuoštas</div>}
             </div>
-            {aprvSt&&<div style={{fontSize:11,color:aprvSt.indexOf("✗")===0?C.rd:aprvSt.indexOf("✓")===0?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:aprvSt.indexOf("✗")===0?C.rdD:aprvSt.indexOf("✓")===0?C.gnD:C.acD,borderRadius:6}}>{aprvSt}</div>}
+            {aprvSt&&<div style={{fontSize:11,color:aprvSt.startsWith("✗")?C.rd:aprvSt.startsWith("✓")?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:aprvSt.startsWith("✗")?C.rdD:aprvSt.startsWith("✓")?C.gnD:C.acD,borderRadius:6}}>{aprvSt}</div>}
             <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
-              <Btn v="secondary" sm onClick={regenerate} disabled={aprvBusy}>🔄 Atnaujinti perziura</Btn>
+              <Btn v="secondary" sm onClick={regenerate} disabled={aprvBusy}>🔄 Atnaujinti</Btn>
               <Btn sm onClick={approve} disabled={aprvBusy} style={{background:"#CA8A04",color:"#fff",border:"none"}}>✓ Patvirtinti ir siusti Telia</Btn>
             </div>
           </div>
         </div>;
       })()}
 
-      {/* Kauno energija review/patvirtinimo blokas — analogiškas Telia */}
+      {/* Kauno energija review/patvirtinimo blokas */}
       {(isA||isD)&&o.status==="LaukiaPatvirtinimo"&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&(function(){
         var ke=o.pendingKauoenergijaEmail||{};
         var hasWarn=Array.isArray(ke.warnings)&&ke.warnings.length>0;
@@ -1734,8 +1697,7 @@ function PermitDetail(p){
           sKEAprvBusy(true);sKEAprvSt("Iš naujo aptinkami puslapiai...");
           try{
             var newKE=await preparePendingKauoenergijaEmail(o);
-            var updated=Object.assign({},o,{pendingKauoenergijaEmail:newKE});
-            p.onUpdate(updated);
+            p.onUpdate(Object.assign({},o,{pendingKauoenergijaEmail:newKE}));
             sKEAprvSt("✓ Atnaujinta");
             setTimeout(function(){sKEAprvSt("")},2000);
           }catch(e){sKEAprvSt("✗ Klaida: "+e.message);}
@@ -1746,24 +1708,16 @@ function PermitDetail(p){
           var dPgs=parsePageNumbers(keDrawPgIn);
           var kPgs=parsePageNumbers(kePgIn);
           var existing=ke.attachmentSources||[];
-          var srcFileName=(existing[0]||{}).sourceFileName
-            ||(((o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)})||{}).name||"");
+          var srcFileName=(existing[0]||{}).sourceFileName||(((o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)})||{}).name||"");
           var newSources=[];
           if(dPgs.length>0)newSources.push({filename:"projekto_brezinys.pdf",sourceFileName:srcFileName,pageNumbers:dPgs});
           if(kPgs.length>0)newSources.push({filename:"ke_derinimas.pdf",sourceFileName:srcFileName,pageNumbers:kPgs});
-          var origWarn=ke.warnings||[];
-          var newWarn=origWarn.filter(function(w){
+          var newWarn=(ke.warnings||[]).filter(function(w){
             if(dPgs.length>0&&/Projekto\s+brezinio\s+puslapis/i.test(w))return false;
             if(kPgs.length>0&&/Kauno\s+energija\s+derinimo\s+puslapis/i.test(w))return false;
             return true;
           });
-          var updatedKE=Object.assign({},ke,{
-            attachmentSources:newSources,
-            warnings:newWarn,
-            html:buildKauoenergijaEmailHtml(o)
-          });
-          var updated=Object.assign({},o,{pendingKauoenergijaEmail:updatedKE});
-          p.onUpdate(updated);
+          p.onUpdate(Object.assign({},o,{pendingKauoenergijaEmail:Object.assign({},ke,{attachmentSources:newSources,warnings:newWarn,html:buildKauoenergijaEmailHtml(o)})}));
           sKEAprvSt("✓ Pakeitimai išsaugoti");
           setTimeout(function(){sKEAprvSt("")},2000);
         }
@@ -1773,37 +1727,18 @@ function PermitDetail(p){
           sKEAprvBusy(true);sKEAprvSt("Generuojami priedai ir siunčiama...");
           try{
             var attCount=await approveAndSendKauoenergija(o);
-            var updated=Object.assign({},o,{
-              pendingKauoenergijaEmail:null,
-              history:(o.history||[]).concat([{
-                status:o.status,
-                date:fmtDate(new Date()),
-                note:"Kauno energija laiškas issiustas ("+(p.user.name||"-")+", "+attCount+" priedas(-ai))"
-              }])
-            });
-            // Jei abu (Telia + KE) jau išsiusti, statusas keičiasi į "Pateikta"
-            if(!updated.pendingEmail){
-              updated.status="Pateikta";
-              updated.history=updated.history.concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Visi laiškai instancijoms išsiusti"}]);
-            }
-            p.onUpdate(updated);
-            sKEAprvSt("✓ Issiusta.");
+            var updated=Object.assign({},o,{pendingKauoenergijaEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Kauno energija laiškas issiustas ("+(p.user.name||"-")+", "+attCount+" priedas(-ai))"}])});
+            if(!updated.pendingEmail){updated.status="Pateikta";updated.history=updated.history.concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Visi laiškai institucijoms išsiusti"}]);}
+            p.onUpdate(updated);sKEAprvSt("✓ Issiusta.");
             setTimeout(function(){if(!updated.pendingEmail)p.onClose();},1500);
-          }catch(e){
-            sKEAprvSt("✗ Klaida siuncziant: "+e.message);
-            sKEAprvBusy(false);
-          }
+          }catch(e){sKEAprvSt("✗ Klaida siuncziant: "+e.message);sKEAprvBusy(false);}
         }
         return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
           <div style={{background:C.s2,border:"1.5px solid #DC262666",borderRadius:10,padding:14}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#DC2626",marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>
-              🔥 Kauno energija paraiska — patikra pries siunciant
-            </div>
+            <div style={{fontSize:11,fontWeight:700,color:"#DC2626",marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>🔥 Kauno energija paraiska — patikra pries siunciant</div>
             {hasWarn&&<div style={{background:C.ylD,border:"1px solid "+C.yl+"66",borderRadius:6,padding:"10px 12px",marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:C.yl,marginBottom:6,fontFamily:F}}>⚠️ Įspejimai:</div>
-              <ul style={{margin:0,paddingLeft:18,fontSize:11,color:C.yl,fontFamily:F,lineHeight:1.6}}>
-                {ke.warnings.map(function(w,i){return <li key={i}>{w}</li>})}
-              </ul>
+              <ul style={{margin:0,paddingLeft:18,fontSize:11,color:C.yl,fontFamily:F,lineHeight:1.6}}>{ke.warnings.map(function(w,i){return <li key={i}>{w}</li>})}</ul>
             </div>}
             <div style={{background:C.bg,border:"1px solid "+C.b1,borderRadius:6,padding:12,marginBottom:12}}>
               <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Paruosto laisko perziura</div>
@@ -1814,42 +1749,41 @@ function PermitDetail(p){
               <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:8}}>Priedai:</div>
               {hasAtt
                 ?<ul style={{margin:"4px 0 0 0",paddingLeft:18,fontSize:11,color:C.tx,fontFamily:FM}}>
-                  {ke.attachmentSources.map(function(a,i){return <li key={i}>{a.filename} <span style={{color:C.t3}}>(p. {a.pageNumber} iš {a.sourceFileName})</span></li>})}
+                  {ke.attachmentSources.map(function(a,i){var pgs=getAttachmentPages(a);return <li key={i}>{a.filename} <span style={{color:C.t3}}>(p. {pgs.join(", ")||"?"} iš {a.sourceFileName})</span></li>})}
                 </ul>
                 :<div style={{fontSize:11,color:C.rd,fontFamily:F,marginTop:4,fontWeight:600}}>⚠️ Priedų nėra!</div>}
               {ke.detectionInfo&&ke.detectionInfo.usedMethod&&<div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:8,paddingTop:8,borderTop:"1px solid "+C.b1}}>
                 Aptikimo metodas: <span style={{color:C.t2,fontWeight:600}}>{ke.detectionInfo.usedMethod}</span>
-                {ke.detectionInfo.approvalsTablePage&&<span> · Pritarimų lentelė: <span style={{fontFamily:FM}}>p. {ke.detectionInfo.approvalsTablePage}</span></span>}
+                {ke.detectionInfo.approvalsTablePage&&<span> · Pritarimų lentelė: p. {ke.detectionInfo.approvalsTablePage}</span>}
                 {ke.detectionInfo.keApproverName&&<span> · Derintojas: <span style={{color:C.t2,fontWeight:600}}>{ke.detectionInfo.keApproverName}</span></span>}
               </div>}
+              {/* Rankinis koregavimas — atskiras KE blokui */}
               <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid "+C.b1}}>
-                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Rankinis koregavimas</div>
-                <div style={{fontSize:10,color:C.t3,fontFamily:F,marginBottom:6,fontStyle:"italic"}}>Galima įvesti kelis puslapius: „21, 22" arba „21-23".</div>
-                <div style={{marginBottom:8}}>
-                  <Btn v="secondary" sm onClick={function(){openPermitPdfInNewTab(o)}}>📄 Atidaryti projektą PDF</Btn>
-                </div>
+                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Rankinis koregavimas</div>
+                <div style={{marginBottom:8}}><Btn v="secondary" sm onClick={function(){openPermitPdfInNewTab(o)}}>📄 Atidaryti projektą PDF</Btn></div>
+                <div style={{fontSize:10,color:C.t3,fontFamily:F,marginBottom:6,fontStyle:"italic"}}>Puslapiai: „21, 22" arba „21-23"</div>
                 <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
-                  <div style={{flex:"1 1 160px",minWidth:140}}>
-                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Projekto brėžinio puslapiai</div>
+                  <div style={{flex:"1 1 140px",minWidth:120}}>
+                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Brėžinio puslapiai</div>
                     <input type="text" value={keDrawPgIn} onChange={function(e){sKEDrawPgIn(e.target.value)}} placeholder="pvz.: 27"
-                      style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
+                      style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
-                  <div style={{flex:"1 1 160px",minWidth:140}}>
+                  <div style={{flex:"1 1 140px",minWidth:120}}>
                     <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>KE derinimo puslapiai</div>
                     <input type="text" value={kePgIn} onChange={function(e){sKEPgIn(e.target.value)}} placeholder="pvz.: 21"
-                      style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
+                      style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
-                  <Btn v="secondary" sm onClick={saveKEManualEdits} disabled={keAprvBusy}>💾 Įrašyti pakeitimus</Btn>
+                  <Btn v="secondary" sm onClick={saveKEManualEdits} disabled={keAprvBusy}>💾 Įrašyti</Btn>
                 </div>
               </div>
-              <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:12,marginBottom:6}}>Laisko turinys:</div>
+              <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:12,marginBottom:6}}>Laiško turinys:</div>
               {ke.html
-                ?<iframe srcDoc={ke.html} sandbox="" style={{width:"100%",height:380,border:"1px solid "+C.b1,borderRadius:6,background:"#fff"}}/>
+                ?<iframe srcDoc={ke.html} sandbox="" style={{width:"100%",height:340,border:"1px solid "+C.b1,borderRadius:6,background:"#fff"}}/>
                 :<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Laiško turinys neparuoštas</div>}
             </div>
-            {keAprvSt&&<div style={{fontSize:11,color:keAprvSt.indexOf("✗")===0?C.rd:keAprvSt.indexOf("✓")===0?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:keAprvSt.indexOf("✗")===0?C.rdD:keAprvSt.indexOf("✓")===0?C.gnD:C.acD,borderRadius:6}}>{keAprvSt}</div>}
+            {keAprvSt&&<div style={{fontSize:11,color:keAprvSt.startsWith("✗")?C.rd:keAprvSt.startsWith("✓")?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:keAprvSt.startsWith("✗")?C.rdD:keAprvSt.startsWith("✓")?C.gnD:C.acD,borderRadius:6}}>{keAprvSt}</div>}
             <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
-              <Btn v="secondary" sm onClick={regenerateKE} disabled={keAprvBusy}>🔄 Atnaujinti perziura</Btn>
+              <Btn v="secondary" sm onClick={regenerateKE} disabled={keAprvBusy}>🔄 Atnaujinti</Btn>
               <Btn sm onClick={approveKE} disabled={keAprvBusy} style={{background:"#DC2626",color:"#fff",border:"none"}}>✓ Patvirtinti ir siusti Kauno energija</Btn>
             </div>
           </div>
@@ -2534,7 +2468,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.37</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.38</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2576,7 +2510,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.37</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.38</div>
         </div>
       </div>
     </div>
