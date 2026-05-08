@@ -10,6 +10,13 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.min.js"></script>
+  <script>
+    // LKS-94 (EPSG:3346) → WGS-84 (EPSG:4326) projekcijų apibrėžimas
+    if(typeof proj4!=="undefined"){
+      proj4.defs("EPSG:3346","+proj=tmerc +lat_0=0 +lon_0=24 +k=0.9998 +x_0=500000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+    }
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -539,6 +546,71 @@ function parseInvestNo(text){
   return null;
 }
 
+// ── Koordinačių pagrindu trasos aptikimas ─────────────────────
+// Ištraukia LKS-94 koordinatės poras iš PDF teksto (A ir B taškai),
+// konvertuoja į WGS-84 ir gauna adresus per Nominatim reverse geocoding.
+// Grąžina {from, to} arba null jei nepavyko.
+async function parseTrasaFromCoordinates(text){
+  if(typeof proj4==="undefined")return null;
+  // Ieškome X=... Y=... koordinačių porų — LKS-94 formatai:
+  // "X=6082920.37\nY=495839.31" arba "X=6082920 Y=495839" arba "X=6082920,37"
+  var coordRe=/X\s*=\s*([\d\s,\.]{6,12})\s*[\n\r\s,;]*Y\s*=\s*([\d\s,\.]{5,10})/gi;
+  var pairs=[];
+  var m;
+  while((m=coordRe.exec(text))!==null){
+    var x=parseFloat(m[1].replace(/\s/g,"").replace(",","."));
+    var y=parseFloat(m[2].replace(/\s/g,"").replace(",","."));
+    // LKS-94: X (northing) ~5900000–6400000, Y (easting) ~300000–700000
+    if(x>5800000&&x<6500000&&y>200000&&y<800000){
+      pairs.push({x:x,y:y});
+    }
+  }
+  if(pairs.length<2)return null;
+  // A taškas — pirmoji koordinatė, B taškas — paskutinė
+  var ptA=pairs[0];
+  var ptB=pairs[pairs.length-1];
+  // Jei A ir B per arti (< 10m) — ta pati vieta, naudinga tik viena
+  var dist=Math.sqrt(Math.pow(ptA.x-ptB.x,2)+Math.pow(ptA.y-ptB.y,2));
+  if(dist<10)ptB=pairs[Math.floor(pairs.length/2)]||ptA;
+  // Konvertuojame LKS-94 → WGS-84
+  function lks94ToWgs84(x,y){
+    try{
+      // proj4: [easting, northing] = [Y, X] LKS-94
+      var wgs=proj4("EPSG:3346","WGS84",[y,x]);
+      return {lng:wgs[0],lat:wgs[1]};
+    }catch(e){return null;}
+  }
+  var wgsA=lks94ToWgs84(ptA.x,ptA.y);
+  var wgsB=lks94ToWgs84(ptB.x,ptB.y);
+  if(!wgsA||!wgsB)return null;
+  // Reverse geocoding per Nominatim
+  async function reverseGeocode(lat,lng){
+    try{
+      var url="https://nominatim.openstreetmap.org/reverse?format=json&lat="+lat+"&lon="+lng+"&zoom=18&addressdetails=1&accept-language=lt";
+      var r=await fetch(url,{headers:{"User-Agent":"Digpoint/1.0 EnergoLT"}});
+      if(!r.ok)return null;
+      var d=await r.json();
+      var a=d.address||{};
+      // Suformuojame: gatvė + namo nr.
+      var street=(a.road||a.pedestrian||a.path||"").trim();
+      var house=(a.house_number||"").trim();
+      var city=(a.city||a.town||a.village||a.municipality||"").trim();
+      if(!street)return null;
+      return {short:street+(house?" "+house:""), full:street+(house?" "+house:"")+(city?", "+city:"")};
+    }catch(e){return null;}
+  }
+  var [addrA,addrB]=await Promise.all([
+    reverseGeocode(wgsA.lat,wgsA.lng),
+    reverseGeocode(wgsB.lat,wgsB.lng)
+  ]);
+  if(!addrA&&!addrB)return null;
+  return {
+    from:addrA?addrA.short:(addrB?addrB.short:""),
+    to:addrB?addrB.full:(addrA?addrA.full:""),
+    method:"koordinatės"
+  };
+}
+
 // ── Vartotojai saugomi serveryje per /api/store/kl-users ──────
 // initUsers() pašalinta — ji perrašinėjo serverio duomenis iš localStorage.
 // Vartotojų mutacijos vyksta tik per dedikuotus API endpointus:
@@ -767,12 +839,20 @@ function PermitForm(p){
         if(foundInv)sInvNo(function(cur){return cur?cur:foundInv;});
         var foundLoc=parseLocation(text);
         if(foundLoc)sEsoLoc(function(cur){return cur?cur:foundLoc;});
-        // Telia / Kauno energija trasos pradžia ir pabaiga — abu užpildomi
-        // tuo pačiu objekto adresu, adminas patikslins per review.
+        // Telia / Kauno energija trasos pradžia ir pabaiga
+        // 1) Bandome iš adreso teksto
         var foundRoute=parseTeliaRoute(text);
         if(foundRoute){
           sTrFrom(function(cur){return cur?cur:foundRoute.from;});
           sTrTo(function(cur){return cur?cur:foundRoute.to;});
+        }else{
+          // 2) Fallback — koordinačių pagrindu (LKS-94 → WGS-84 → Nominatim)
+          parseTrasaFromCoordinates(text).then(function(coordRoute){
+            if(coordRoute){
+              sTrFrom(function(cur){return cur?cur:coordRoute.from;});
+              sTrTo(function(cur){return cur?cur:coordRoute.to;});
+            }
+          }).catch(function(){});
         }
       });
     }
@@ -1058,12 +1138,19 @@ async function preparePendingTeliaEmail(permit){
       // 🆕 2-as sluoksnis: jei trasa nebuvo aptikta formoje (pirmi 5 psl.),
       // bandome dar kartą iš pilno PDF teksto. Jokio papildomo I/O — pageTexts jau atmintyje.
       if(!permit.teliaRouteFrom||!permit.teliaRouteTo){
-        var foundRoute=parseTeliaRoute(pageTexts.join("\n"));
+        var fullText=pageTexts.join("\n");
+        var foundRoute=parseTeliaRoute(fullText);
         if(foundRoute){
-          permit=Object.assign({},permit,{
-            teliaRouteFrom:foundRoute.from,
-            teliaRouteTo:foundRoute.to
-          });
+          permit=Object.assign({},permit,{teliaRouteFrom:foundRoute.from,teliaRouteTo:foundRoute.to});
+        }else{
+          // Fallback — koordinačių pagrindu
+          try{
+            var coordRoute=await parseTrasaFromCoordinates(fullText);
+            if(coordRoute){
+              permit=Object.assign({},permit,{teliaRouteFrom:coordRoute.from,teliaRouteTo:coordRoute.to});
+              detectionInfo=Object.assign({},detectionInfo||{},{trasaMetodas:"koordinatės"});
+            }
+          }catch(e){}
         }
       }
       // Bandome ištraukti Telia derintojo vardą iš pritarimų lentelės — informacijai
@@ -2526,7 +2613,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.50</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.51</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2568,7 +2655,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.50</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.51</div>
         </div>
       </div>
     </div>
