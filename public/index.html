@@ -447,10 +447,31 @@ function getAttachmentPages(src){
   return [];
 }
 
-// Atidaro paraiškos PDF (iš files[].data) naujame naršyklės skirtuke — admin gali peržiūrėti.
+// Gauna PDF data URL — iš atminties (jei turime) arba fetch'ina iš serverio URL.
+async function getPdfDataUrl(file){
+  if(file.data)return file.data;
+  if(file.url){
+    try{
+      var r=await fetch(file.url);
+      var blob=await r.blob();
+      return await new Promise(function(res){
+        var rd=new FileReader();
+        rd.onload=function(e){res(e.target.result);};
+        rd.readAsDataURL(blob);
+      });
+    }catch(e){return null;}
+  }
+  return null;
+}
+
+// Atidaro paraiškos PDF naujame naršyklės skirtuke — admin gali peržiūrėti.
 function openPermitPdfInNewTab(permit){
   var pdf=(permit.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-  if(!pdf||!pdf.data){alert("Paraiškoje nerastas PDF failas.");return}
+  if(!pdf){alert("Paraiškoje nerastas PDF failas.");return;}
+  // Jei yra serverio URL — atidarome tiesiogiai
+  if(pdf.url){window.open(pdf.url,'_blank');return;}
+  // Fallback — iš data URL
+  if(!pdf.data){alert("PDF failas nepasiekiamas.");return;}
   try{
     var arr=pdf.data.split(',');
     var bin=atob(arr[1]);
@@ -458,8 +479,7 @@ function openPermitPdfInNewTab(permit){
     var u8=new Uint8Array(len);
     for(var i=0;i<len;i++)u8[i]=bin.charCodeAt(i);
     var blob=new Blob([u8],{type:'application/pdf'});
-    var url=URL.createObjectURL(blob);
-    window.open(url,'_blank');
+    window.open(URL.createObjectURL(blob),'_blank');
   }catch(e){alert("Nepavyko atidaryti PDF: "+e.message);}
 }
 
@@ -765,12 +785,34 @@ var PERMIT_ORGS=["AB ESO","Kauno miesto savivaldybe","Telia, Kaunas","Kauno ener
 var TELIA_EMAIL="ligita.rutkauskiene@telia.lt";
 function FileDropZone(p){
   var _drag=useState(false);var drag=_drag[0],sDrag=_drag[1];
+  var _uploading=useState(false);var uploading=_uploading[0],sUploading=_uploading[1];
   var ref=useRef(null);
   function readFiles(fileList){
     Array.from(fileList).forEach(function(file){
+      // Įkeliame failą į serverį per /api/upload, DB saugome tik metaduomenis + data URL PDF aptikimui
       var reader=new FileReader();
       reader.onload=function(e){
-        p.onAdd({name:file.name,size:file.size,type:file.type,data:e.target.result});
+        var dataUrl=e.target.result;
+        // Siunčiame į serverį
+        sUploading(true);
+        var fd=new FormData();fd.append("file",file);
+        fetch("/api/upload",{method:"POST",body:fd})
+          .then(function(r){return r.json();})
+          .then(function(d){
+            sUploading(false);
+            if(d.url){
+              // Saugome ir serverio URL, ir data (tik PDF'ams reikalinga PDF.js analizei)
+              // data išvalomos iš DB objekto prieš saugant — žr. addPermit stripping
+              p.onAdd({name:file.name,size:file.size,type:file.type,url:d.url,filename:d.filename,data:dataUrl});
+            }else{
+              // Fallback jei upload nepavyko — saugome tik lokaliai
+              p.onAdd({name:file.name,size:file.size,type:file.type,data:dataUrl});
+            }
+          })
+          .catch(function(){
+            sUploading(false);
+            p.onAdd({name:file.name,size:file.size,type:file.type,data:dataUrl});
+          });
       };
       reader.readAsDataURL(file);
     });
@@ -1132,9 +1174,10 @@ async function preparePendingTeliaEmail(permit){
   var warnings=[];
   var detectionInfo=null;
   var pdfFile=(permit.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-  if(pdfFile&&pdfFile.data){
+  var pdfData=pdfFile?await getPdfDataUrl(pdfFile):null;
+  if(pdfFile&&pdfData){
     try{
-      var pageTexts=await extractPdfTextByPage(pdfFile.data);
+      var pageTexts=await extractPdfTextByPage(pdfData);
       // 🆕 2-as sluoksnis: jei trasa nebuvo aptikta formoje (pirmi 5 psl.),
       // bandome dar kartą iš pilno PDF teksto. Jokio papildomo I/O — pageTexts jau atmintyje.
       if(!permit.teliaRouteFrom||!permit.teliaRouteTo){
@@ -1296,8 +1339,8 @@ async function preparePendingKauoenergijaEmail(permit, pageTexts){
   var warnings=[];
   var detectionInfo=null;
   var pdfFile=(permit.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-  if(!pageTexts && pdfFile && pdfFile.data){
-    try{ pageTexts = await extractPdfTextByPage(pdfFile.data); }catch(e){}
+  if(!pageTexts && pdfFile){
+    try{ var _pd=await getPdfDataUrl(pdfFile); if(_pd)pageTexts=await extractPdfTextByPage(_pd); }catch(e){}
   }
   if(pageTexts && pageTexts.length>0){
     // Investicinis/projekto nr. — bandom rasti pilnu PDF tekstu, jei dar nenustatytas
@@ -1355,9 +1398,9 @@ async function approveAndSendKauoenergija(permit){
     var pages=getAttachmentPages(src);
     if(pages.length===0)continue;
     var srcFile=(permit.files||[]).find(function(f){return f.name===src.sourceFileName});
-    if(srcFile&&srcFile.data){
-      var bytes=await extractPagesToNewPdf(srcFile.data,pages);
-      if(bytes)attachments.push({filename:src.filename,content:bytes,encoding:"base64"});
+    if(srcFile){
+      var _d=await getPdfDataUrl(srcFile);
+      if(_d){var bytes=await extractPagesToNewPdf(_d,pages);if(bytes)attachments.push({filename:src.filename,content:bytes,encoding:"base64"});}
     }
   }
   var res=await fetch("/api/notify/email",{
@@ -1377,7 +1420,6 @@ async function approveAndSendKauoenergija(permit){
 async function approveAndSendTelia(permit){
   var pe=permit.pendingEmail;
   if(!pe||!pe.to)throw new Error("Laiskas neparuosztas");
-  // Regeneruojame PDF priedus iš metaduomenų (sourceFileName + pageNumbers masyvas)
   var attachments=[];
   var srcs=pe.attachmentSources||[];
   for(var i=0;i<srcs.length;i++){
@@ -1385,9 +1427,9 @@ async function approveAndSendTelia(permit){
     var pages=getAttachmentPages(src);
     if(pages.length===0)continue;
     var srcFile=(permit.files||[]).find(function(f){return f.name===src.sourceFileName});
-    if(srcFile&&srcFile.data){
-      var bytes=await extractPagesToNewPdf(srcFile.data,pages);
-      if(bytes)attachments.push({filename:src.filename,content:bytes,encoding:"base64"});
+    if(srcFile){
+      var _d=await getPdfDataUrl(srcFile);
+      if(_d){var bytes=await extractPagesToNewPdf(_d,pages);if(bytes)attachments.push({filename:src.filename,content:bytes,encoding:"base64"});}
     }
   }
   // Siunčiame faktinį laišką į Telia
@@ -1419,11 +1461,14 @@ function PdfPagePickerModal(p){
   var _previewBusy=useState(false);var previewBusy=_previewBusy[0],sPreviewBusy=_previewBusy[1];
 
   useEffect(function(){
-    if(!p.pdfData){sErr("PDF duomenys nerasti.");sLoading(false);return;}
     var cancelled=false;
     (async function(){
+      // Gauname PDF data — iš prop arba fetch'iname iš serverio
+      var dataUrl=p.pdfData||(p.pdfFile?await getPdfDataUrl(p.pdfFile):null);
+      if(!dataUrl){sErr("PDF failas nepasiekiamas.");sLoading(false);return;}
+      if(cancelled)return;
       try{
-        var base64=p.pdfData.split(',')[1];
+        var base64=dataUrl.split(',')[1];
         var binary=atob(base64);
         var bytes=new Uint8Array(binary.length);
         for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
@@ -1683,6 +1728,7 @@ function PermitDetail(p){
       {showTeliaPicker&&(function(){
         var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
         return <PdfPagePickerModal
+          pdfFile={pdfFile||null}
           pdfData={pdfFile?pdfFile.data:null}
           selected={teliaSel}
           onConfirm={function(sel){
@@ -1704,6 +1750,7 @@ function PermitDetail(p){
       {showKEPicker&&(function(){
         var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
         return <PdfPagePickerModal
+          pdfFile={pdfFile||null}
           pdfData={pdfFile?pdfFile.data:null}
           selected={keSel}
           onConfirm={function(sel){
@@ -2613,7 +2660,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.53</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.54</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2655,7 +2702,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.53</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.54</div>
         </div>
       </div>
     </div>
@@ -2758,13 +2805,12 @@ function App(){
     _initPermitCount.current=permits.length;
   },[loaded]);
   useEffect(function(){
-    // Rašome į DB tik kai:
-    // a) _initPermitCount jau nustatytas (t.y. loaded įvyko)
-    // b) permits.length >= _initPermitCount ARBA permits.length > 0
-    //    (neleidžiame sumažinti nuo N iki 0 dėl race condition)
+    // Rašome į DB tik kai loaded įvyko (_initPermitCount nustatytas)
+    // Neleidžiame perrašyti DB su tuščiu masyvu dėl race condition
     if(_initPermitCount.current<0)return;
     if(permits.length===0&&_initPermitCount.current>0)return;
-    sSet("kl-permits",permits);
+    // Pašaliname didelius data laukus prieš saugant
+    sSet("kl-permits",stripPermitsForDb(permits));
   },[permits]);
 
   // Hash-based routing — atveria paraiškos detalę, kai nuoroda iš review email'o
@@ -2788,6 +2834,20 @@ function App(){
     }catch(e){}
   },[loaded,user&&user.id,permits.length]);
 
+  // stripPermitsForDb — pašalina didelius base64 data laukus iš failų prieš saugant į DB.
+  // Failai jau įkelti į serverį per /api/upload — DB reikia tik metaduomenų ir serverio URL.
+  function stripPermitsForDb(arr){
+    return arr.map(function(permit){
+      if(!permit.files||permit.files.length===0)return permit;
+      var strippedFiles=permit.files.map(function(f){
+        if(!f.data)return f;
+        var copy=Object.assign({},f);
+        delete copy.data;
+        return copy;
+      });
+      return Object.assign({},permit,{files:strippedFiles});
+    });
+  }
   function savePermits(arr){var checked=checkExpired(arr);setPermits(checked);}
 
   function handleLogin(u){
