@@ -1856,6 +1856,60 @@ function PermitDetail(p){
         </div>;
       })()}
 
+      {/* Admino atmetimo blokas — LaukiaPatvirtinimo stadijoje, kai komunikacijų nėra */}
+      {isA&&o.status==="LaukiaPatvirtinimo"&&(function(){
+        var _rejNote=useState("");var rejNote=_rejNote[0],sRejNote=_rejNote[1];
+        var _rejOpen=useState(false);var rejOpen=_rejOpen[0],sRejOpen=_rejOpen[1];
+        function reject(){
+          if(!rejNote.trim()){alert("Įveskite atmetimo priežastį.");return;}
+          if(!window.confirm("Atmesti paraišką ir pranešti užsakovui?"))return;
+          var updated=Object.assign({},o,{
+            status:"Atmestas",
+            pendingEmail:null,
+            pendingKauoenergijaEmail:null,
+            history:(o.history||[]).concat([{
+              status:"Atmestas",
+              date:fmtDate(new Date()),
+              note:"Atmesta: "+rejNote.trim()+" ("+p.user.name+")"
+            }])
+          });
+          // Laiškas užsakovui apie atmetimą
+          if(o.email){
+            var permitNo=o.id?o.id.slice(-5).toUpperCase():"?????";
+            var subject="Kasimo leidimo paraiška #"+permitNo+" atmesta";
+            var body=emailWrap("Paraiska atmesta","#EF4444",
+              "<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Gerb. <strong>"+(o.manager||"")+"</strong>,</p>"
+              +"<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Informuojame, kad Jūsų kasimo leidimo paraiška <strong>#"+permitNo+"</strong> buvo atmesta.</p>"
+              +"<div style=\"background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:12px 14px;margin:12px 0\">"
+              +"<p style=\"margin:0;color:#991B1B;font-size:13px\"><strong>Priežastis:</strong> "+rejNote.trim()+"</p>"
+              +"</div>"
+              +"<p style=\"color:#374151;font-size:13px;margin:12px 0 0\">Jei turite klausimų, susisiekite su dokumentacijos skyriumi.</p>");
+            sendEmail(o.email,subject,body);
+          }
+          p.onUpdate(updated);
+          p.onClose();
+        }
+        return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+          {!rejOpen
+            ?<div style={{display:"flex",justifyContent:"flex-start"}}>
+              <Btn v="danger" sm onClick={function(){sRejOpen(true);}}>✗ Atmesti paraišką</Btn>
+            </div>
+            :<div style={{background:C.rdD,border:"1px solid "+C.rd+"44",borderRadius:8,padding:"12px 14px"}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.rd,marginBottom:8,fontFamily:F}}>Atmetimo priežastis</div>
+              <div style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:8,lineHeight:1.5}}>
+                Pvz.: „Inžinerinių komunikacijų trasoje nėra, leidimų išiminėti nereikia."
+              </div>
+              <textarea value={rejNote} onChange={function(e){sRejNote(e.target.value)}}
+                placeholder="Įveskite atmetimo priežastį..."
+                style={{width:"100%",padding:"8px 10px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6,resize:"vertical",minHeight:70,marginBottom:10}}/>
+              <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+                <Btn v="secondary" sm onClick={function(){sRejOpen(false);sRejNote("");}}>Atšaukti</Btn>
+                <Btn v="danger" sm onClick={reject} disabled={!rejNote.trim()}>✗ Patvirtinti atmetimą</Btn>
+              </div>
+            </div>}
+        </div>;
+      })()}
+
       {/* Užsakovo atšaukimo mygtukas — tik savo paraišką, tik kol laukia patvirtinimo */}
       {o.status==="LaukiaPatvirtinimo"&&o.createdBy===p.user.id&&!isA&&!isD&&(function(){
         function cancelPermit(){
@@ -2506,7 +2560,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.47</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.48</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2548,7 +2602,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.47</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.48</div>
         </div>
       </div>
     </div>

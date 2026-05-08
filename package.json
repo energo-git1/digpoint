@@ -1,6 +1,22 @@
 {
   "name": "kasimo-leidimai",
+<<<<<<< Updated upstream
   "version": "1.1.48",
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+  "version": "1.1.48",
+=======
+  "version": "1.1.38",
+>>>>>>> parent of f02e69c (Merge branch 'main' of https://github.com/energo-git1/digpoint)
+=======
+  "version": "1.1.40",
+>>>>>>> parent of 87a7de3 (Laiško turinio tvarkymas)
+=======
+  "version": "1.1.48",
+>>>>>>> cf18c4d936d5ba5bdb88ab65f3bd7b4829628ae6
+>>>>>>> Stashed changes
   "description": "Žemės kasimo leidimų užsakymų valdymo sistema",
   "main": "server.js",
   "scripts": {
