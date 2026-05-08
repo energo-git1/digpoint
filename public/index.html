@@ -1754,8 +1754,18 @@ function PermitDetail(p){
                 :<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Laiško turinys neparuoštas</div>}
             </div>
             {aprvSt&&<div style={{fontSize:11,color:aprvSt.startsWith("✗")?C.rd:aprvSt.startsWith("✓")?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:aprvSt.startsWith("✗")?C.rdD:aprvSt.startsWith("✓")?C.gnD:C.acD,borderRadius:6}}>{aprvSt}</div>}
-            <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+            <div style={{display:"flex",gap:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
               <Btn v="secondary" sm onClick={regenerate} disabled={aprvBusy}>🔄 Atnaujinti</Btn>
+              {o.pendingKauoenergijaEmail&&<Btn v="danger" sm disabled={aprvBusy} onClick={function(){
+                var priezastis=window.prompt("Atmetimo priežastis (Telia):","Inžinerinių komunikacijų trasoje nėra");
+                if(priezastis===null)return;
+                var updated=Object.assign({},o,{
+                  pendingEmail:null,
+                  history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia atmesta: "+(priezastis||"-")+" ("+(p.user.name||"-")+")"}])
+                });
+                if(!updated.pendingKauoenergijaEmail){updated.status="Atmestas";updated.history=updated.history.concat([{status:"Atmestas",date:fmtDate(new Date()),note:"Visos institucijos atmestos"}]);}
+                p.onUpdate(updated);sAprvSt("✓ Telia atmesta.");
+              }}>✗ Atmesti Telia</Btn>}
               <Btn sm onClick={approve} disabled={aprvBusy} style={{background:"#CA8A04",color:"#fff",border:"none"}}>✓ Patvirtinti ir siusti Telia</Btn>
             </div>
           </div>
@@ -1848,8 +1858,18 @@ function PermitDetail(p){
                 :<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Laiško turinys neparuoštas</div>}
             </div>
             {keAprvSt&&<div style={{fontSize:11,color:keAprvSt.startsWith("✗")?C.rd:keAprvSt.startsWith("✓")?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:keAprvSt.startsWith("✗")?C.rdD:keAprvSt.startsWith("✓")?C.gnD:C.acD,borderRadius:6}}>{keAprvSt}</div>}
-            <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+            <div style={{display:"flex",gap:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
               <Btn v="secondary" sm onClick={regenerateKE} disabled={keAprvBusy}>🔄 Atnaujinti</Btn>
+              {o.pendingEmail&&<Btn v="danger" sm disabled={keAprvBusy} onClick={function(){
+                var priezastis=window.prompt("Atmetimo priežastis (Kauno energija):","Inžinerinių komunikacijų trasoje nėra");
+                if(priezastis===null)return;
+                var updated=Object.assign({},o,{
+                  pendingKauoenergijaEmail:null,
+                  history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"KE atmesta: "+(priezastis||"-")+" ("+(p.user.name||"-")+")"}])
+                });
+                if(!updated.pendingEmail){updated.status="Atmestas";updated.history=updated.history.concat([{status:"Atmestas",date:fmtDate(new Date()),note:"Visos institucijos atmestos"}]);}
+                p.onUpdate(updated);sKEAprvSt("✓ KE atmesta.");
+              }}>✗ Atmesti KE</Btn>}
               <Btn sm onClick={approveKE} disabled={keAprvBusy} style={{background:"#DC2626",color:"#fff",border:"none"}}>✓ Patvirtinti ir siusti Kauno energija</Btn>
             </div>
           </div>
@@ -2506,7 +2526,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.47</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.49</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2548,7 +2568,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.47</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.49</div>
         </div>
       </div>
     </div>
