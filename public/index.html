@@ -841,9 +841,16 @@ function FileDropZone(p){
 }
 
 function PermitForm(p){
+  var orderers=(p.users||[]).filter(function(u){return u.role==="orderer"||u.role==="admin"});
+  var _selOrd=useState(p.user.id||"");var selOrd=_selOrd[0],sSelOrd=_selOrd[1];
   var _mgr=useState(p.user.name||"");var mgr=_mgr[0],sMgr=_mgr[1];
   var _ph=useState(p.user.phone||"");var ph=_ph[0],sPh=_ph[1];
   var _em=useState(p.user.email||"");var em=_em[0],sEm=_em[1];
+  function selectOrderer(id){
+    sSelOrd(id);
+    var u=orderers.find(function(x){return x.id===id});
+    if(u){sMgr(u.name||"");sPh(u.phone||"");sEm(u.email||"");}
+  }
   var _orgs=useState([]);var orgs=_orgs[0],sOrgs=_orgs[1];
   var _s=useState("");var start=_s[0],sStart=_s[1];
   var _e=useState("");var end=_e[0],sEnd=_e[1];
@@ -917,6 +924,13 @@ function PermitForm(p){
     <p style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:20}}>Uzpildykite forma ir pateikite dokumentacijai.</p>
     <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Kontaktine informacija</div>
+      {orderers.length>0&&<div style={{marginBottom:12}}>
+        <div style={{fontSize:11,color:C.t2,marginBottom:4,fontFamily:F}}>Uzsakovas</div>
+        <select value={selOrd} onChange={function(e){selectOrderer(e.target.value)}} style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid "+C.b1,background:C.bg,color:C.tx,fontSize:13,fontFamily:F}}>
+          <option value="">— pasirinkti —</option>
+          {orderers.map(function(u){return <option key={u.id} value={u.id}>{u.name||u.username}</option>})}
+        </select>
+      </div>}
       <Inp label="Darbu vadovas" value={mgr} onChange={sMgr} ph="Vardas Pavarde" req/>
       <Inp label="Darbu vadovo tel. nr." value={ph} onChange={sPh} ph="+370 600 00000" req/>
       <Inp label="El. pasto adresas" type="email" value={em} onChange={sEm} ph="vardas@imone.lt" req/>
@@ -3029,7 +3043,7 @@ function App(){
 
   var main=null;
   if(view==="new"&&(user.role==="orderer"||user.role==="admin")){
-    main=<PermitForm user={user} onSubmit={addPermit} onCancel={function(){setView(user.role==="admin"?"inbox":"mine")}}/>;
+    main=<PermitForm user={user} users={users} onSubmit={addPermit} onCancel={function(){setView(user.role==="admin"?"inbox":"mine")}}/>;
   }else if(view==="schedule"){
     main=<ScheduleView permits={permits} users={users} onSelect={function(permit){setDetail(permit)}}/>;
   }else if(view==="demo"){
