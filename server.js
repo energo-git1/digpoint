@@ -417,7 +417,7 @@ const mailer = nodemailer.createTransport({
   tls: { rejectUnauthorized: false },
 });
 
-const MAIL_FROM = 'geopoint@energolt.eu';
+const MAIL_FROM = 'digpoint@energolt.eu';
 
 app.post('/api/notify/email', async (req, res) => {
   const { to, subject, html, attachments } = req.body || {};
