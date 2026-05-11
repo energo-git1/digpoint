@@ -1618,6 +1618,9 @@ function PermitDetail(p){
   var _previewKEBusy=useState(false);var previewKEBusy=_previewKEBusy[0],sPreviewKEBusy=_previewKEBusy[1];
   var _keAprvSt=useState("");var keAprvSt=_keAprvSt[0],sKEAprvSt=_keAprvSt[1];
   var _keAprvBusy=useState(false);var keAprvBusy=_keAprvBusy[0],sKEAprvBusy=_keAprvBusy[1];
+  // Kauno energija — rankinio trasos redagavimo įvestys
+  var _keFromIn=useState(o.teliaRouteFrom||"");var keFromIn=_keFromIn[0],sKEFromIn=_keFromIn[1];
+  var _keToIn=useState(o.teliaRouteTo||"");var keToIn=_keToIn[0],sKEToIn=_keToIn[1];
   var isA=p.user.role==="admin";
   var isD=p.user.role==="dokumentacija";
   var cr=p.users.find(function(u){return u.id===o.createdBy});
@@ -1795,10 +1798,12 @@ function PermitDetail(p){
         var attPages=attSrc?getAttachmentPages(attSrc):[];
         async function regenerate(){
           if(aprvBusy)return;
-          sAprvBusy(true);sAprvSt("Iš naujo aptinkami puslapiai...");
+          sAprvBusy(true);sAprvSt("Išsaugoma trasa ir atnaujinama...");
           try{
-            var updated=await preparePendingTeliaEmail(o);
-            // Sinchronizuojame teliaSel su naujais aptiktais puslapiais
+            var newFrom=(trFromIn||"").trim();
+            var newTo=(trToIn||"").trim();
+            var base=Object.assign({},o,{teliaRouteFrom:newFrom,teliaRouteTo:newTo});
+            var updated=await preparePendingTeliaEmail(base);
             var newSrcs=(updated.pendingEmail||{}).attachmentSources||[];
             var allPgs=[];newSrcs.forEach(function(s){allPgs=allPgs.concat(getAttachmentPages(s));});
             sTeliaSel(allPgs.filter(function(v,i,a){return a.indexOf(v)===i;}).sort(function(a,b){return a-b;}));
@@ -1807,19 +1812,6 @@ function PermitDetail(p){
             setTimeout(function(){sAprvSt("")},2000);
           }catch(e){sAprvSt("✗ Klaida: "+e.message);}
           sAprvBusy(false);
-        }
-        function saveTrasa(){
-          if(aprvBusy)return;
-          var newFrom=(trFromIn||"").trim();
-          var newTo=(trToIn||"").trim();
-          var updatedPermit=Object.assign({},o,{teliaRouteFrom:newFrom,teliaRouteTo:newTo});
-          var updatedPE=Object.assign({},pe,{
-            subject:"Telia zemes kasimo leidimas — "+newFrom+", Kauno m. sav.",
-            html:buildTeliaEmailHtml(updatedPermit)
-          });
-          p.onUpdate(Object.assign({},updatedPermit,{pendingEmail:updatedPE}));
-          sAprvSt("✓ Trasa išsaugota");
-          setTimeout(function(){sAprvSt("")},2000);
         }
         async function previewSending(){
           if(previewTeliaBusy||teliaSel.length===0||!pdfFile)return;
@@ -1899,7 +1891,6 @@ function PermitDetail(p){
                     <input type="text" value={trToIn} onChange={function(e){sTrToIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88, Kaunas"
                       style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
-                  <Btn v="secondary" sm onClick={saveTrasa} disabled={aprvBusy}>💾 Išsaugoti trasą</Btn>
                 </div>
               </div>
               <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:12,marginBottom:6}}>Laiško turinys:</div>
@@ -1933,13 +1924,16 @@ function PermitDetail(p){
         var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
         async function regenerateKE(){
           if(keAprvBusy)return;
-          sKEAprvBusy(true);sKEAprvSt("Iš naujo aptinkami puslapiai...");
+          sKEAprvBusy(true);sKEAprvSt("Išsaugoma trasa ir atnaujinama...");
           try{
-            var newKE=await preparePendingKauoenergijaEmail(o);
+            var newFrom=(keFromIn||"").trim();
+            var newTo=(keToIn||"").trim();
+            var base=Object.assign({},o,{teliaRouteFrom:newFrom,teliaRouteTo:newTo});
+            var newKE=await preparePendingKauoenergijaEmail(base);
             var newSrcs=(newKE||{}).attachmentSources||[];
             var allPgs=[];newSrcs.forEach(function(s){allPgs=allPgs.concat(getAttachmentPages(s));});
             sKESel(allPgs.filter(function(v,i,a){return a.indexOf(v)===i;}).sort(function(a,b){return a-b;}));
-            p.onUpdate(Object.assign({},o,{pendingKauoenergijaEmail:newKE}));
+            p.onUpdate(Object.assign({},base,{pendingKauoenergijaEmail:newKE}));
             sKEAprvSt("✓ Atnaujinta");
             setTimeout(function(){sKEAprvSt("")},2000);
           }catch(e){sKEAprvSt("✗ Klaida: "+e.message);}
@@ -2007,6 +2001,22 @@ function PermitDetail(p){
                     ✓ Pasirinkta: {keSel.join(", ")} psl. — bus sujungta į vieną PDF
                   </div>
                   :<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Puslapiai nepasirinkti!</div>}
+              </div>
+              {/* Trasos koregavimas */}
+              <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid "+C.b1}}>
+                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Trasa</div>
+                <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+                  <div style={{flex:"1 1 200px",minWidth:160}}>
+                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Trasos pradžia</div>
+                    <input type="text" value={keFromIn} onChange={function(e){sKEFromIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88"
+                      style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
+                  </div>
+                  <div style={{flex:"1 1 200px",minWidth:160}}>
+                    <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Trasos pabaiga</div>
+                    <input type="text" value={keToIn} onChange={function(e){sKEToIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88, Kaunas"
+                      style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
+                  </div>
+                </div>
               </div>
               <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:12,marginBottom:6}}>Laiško turinys:</div>
               {ke.html
@@ -2788,7 +2798,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.63</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.64</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2830,7 +2840,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.63</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.64</div>
         </div>
       </div>
     </div>
