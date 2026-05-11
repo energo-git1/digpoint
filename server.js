@@ -226,7 +226,7 @@ app.patch('/api/users/:id/role', (req, res) => {
 
 // ── Create user ───────────────────────────────────────────────
 app.post('/api/users', (req, res) => {
-  const { id, name, username, email, password, role, mustChangePassword, adAuth, createdAt } = req.body;
+  const { id, name, username, email, phone, password, role, mustChangePassword, adAuth, createdAt } = req.body;
   if (!name || !username || !role) {
     return res.status(400).json({ error: 'Trūksta privalomų laukų.' });
   }
@@ -234,11 +234,29 @@ app.post('/api/users', (req, res) => {
   if (users.find((u) => u.username === username)) {
     return res.status(409).json({ error: 'Vartotojas tokiu vardu jau egzistuoja.' });
   }
-  const newUser = { id, name, username, email: email || '', password: password || '', role, mustChangePassword: !!mustChangePassword, adAuth: !!adAuth, createdAt: createdAt || new Date().toISOString() };
+  const newUser = { id, name, username, email: email || '', phone: phone || '', password: password || '', role, mustChangePassword: !!mustChangePassword, adAuth: !!adAuth, createdAt: createdAt || new Date().toISOString() };
   dbSet('kl-users', users.concat([newUser]));
   const { password: _pw, ...safeUser } = newUser;
   console.log(`  👤 Sukurtas vartotojas: ${name} (${username}), rolė: ${role}`);
   res.status(201).json({ user: safeUser });
+});
+
+// ── Update user contact info ──────────────────────────────────
+app.patch('/api/users/:id/contact', (req, res) => {
+  const users = dbGet('kl-users') || [];
+  const user  = users.find((u) => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'Vartotojas nerastas.' });
+  const name  = (req.body.name  || '').trim();
+  if (!name) return res.status(400).json({ error: 'Vardas yra privalomas.' });
+  const updated = Object.assign({}, user, {
+    name,
+    phone: (req.body.phone || '').trim(),
+    email: (req.body.email || '').trim(),
+  });
+  dbSet('kl-users', users.map((u) => (u.id === updated.id ? updated : u)));
+  const { password: _, ...safeUser } = updated;
+  console.log(`  ✏️  Kontaktai atnaujinti: ${name} (${user.username})`);
+  res.json({ user: safeUser });
 });
 
 // ── Delete user ───────────────────────────────────────────────
