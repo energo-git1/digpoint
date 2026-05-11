@@ -2784,7 +2784,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.61</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.62</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2826,7 +2826,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.61</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.62</div>
         </div>
       </div>
     </div>
@@ -2922,6 +2922,7 @@ function App(){
   },[user&&user.id]);
 
   var _initPermitCount=useRef(-1);
+  var _clearIntent=useRef(false);
   useEffect(function(){
     // Įsimename kiek paraiškų gavome iš serverio (gali būti 0 jei tuščia DB)
     // Šis useEffect paleisčiamas TIK vieną kartą (po loaded)
@@ -2930,9 +2931,11 @@ function App(){
   },[loaded]);
   useEffect(function(){
     // Rašome į DB tik kai loaded įvyko (_initPermitCount nustatytas)
-    // Neleidžiame perrašyti DB su tuščiu masyvu dėl race condition
+    // Neleidžiame perrašyti DB su tuščiu masyvu dėl race condition,
+    // išskyrus kai vartotojas tyčia išvalė (clearIntent)
     if(_initPermitCount.current<0)return;
-    if(permits.length===0&&_initPermitCount.current>0)return;
+    if(permits.length===0&&_initPermitCount.current>0&&!_clearIntent.current)return;
+    _clearIntent.current=false;
     // Pašaliname didelius data laukus prieš saugant
     sSet("kl-permits",stripPermitsForDb(permits));
   },[permits]);
@@ -2973,6 +2976,7 @@ function App(){
     });
   }
   function savePermits(arr){var checked=checkExpired(arr);setPermits(checked);}
+  function clearPermits(){_clearIntent.current=true;setPermits([]);}
 
   function handleLogin(u){
     setUser(u);
@@ -3140,7 +3144,7 @@ function App(){
   }else if(view==="schedule"){
     main=<ScheduleView permits={permits} users={users} onSelect={function(permit){setDetail(permit)}}/>;
   }else if(view==="demo"){
-    main=<DemoView user={user} permits={permits} onLoad={function(newPermits){savePermits(permits.concat(newPermits));setView("schedule");}} onClear={function(){savePermits([]);setView("inbox");}}/>;
+    main=<DemoView user={user} permits={permits} onLoad={function(newPermits){savePermits(permits.concat(newPermits));setView("schedule");}} onClear={function(){clearPermits();setView("inbox");}}/>;
   }else if(view==="profile"){
     var defView=user.role==="orderer"?"mine":user.role==="dokumentacija"?"assigned":"inbox";
     main=<ProfilePage user={user} onUpdated={function(u){var upd=Object.assign({},user,u);setUser(upd);try{localStorage.setItem('kl-session',JSON.stringify(upd))}catch(e){}}} onCancel={function(){setView(defView)}}/>;
