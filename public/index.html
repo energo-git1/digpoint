@@ -72,7 +72,6 @@ function buildStatusMap(){
     Nebegalioja:           {bg:"rgba(107,114,128,.12)",c:"#6B7280",dot:"#6B7280"},
     Atmestas:              {bg:C.rdD,  c:C.rd, dot:C.rd},
     Naujas:             {bg:C.acD,  c:C.ac, dot:C.ac},
-    Priskirtas:         {bg:C.ylD,  c:C.yl, dot:C.yl},
     LaukiaPatvirtinimo: {bg:"rgba(202,138,4,.18)",c:"#CA8A04",dot:"#CA8A04"},
     Vykdomas:           {bg:C.orD,  c:C.or, dot:C.or},
     Baigtas:            {bg:"rgba(59,130,246,.15)",c:"#60A5FA",dot:"#60A5FA"},
@@ -84,7 +83,7 @@ var SL = {
   Pildoma:"Pildoma", "Laukiama tvirtinimo":"Laukiama tvirtinimo",
   Pateikta:"Pateikta", "Gautas leidimas":"Gautas leidimas",
   Nebegalioja:"Nebegalioja", Atmestas:"Atmestas",
-  Naujas:"Naujas", Priskirtas:"Priskirtas", LaukiaPatvirtinimo:"Laukia patvirtinimo",
+  Naujas:"Naujas", LaukiaPatvirtinimo:"Laukia patvirtinimo",
   Vykdamos:"Vykdomas", Baigtas:"Baigtas (laukia leidimo)", Gautas:"Leidimas gautas",
 };
 
@@ -1655,8 +1654,8 @@ function PermitDetail(p){
     if(isA){
       if(at&&at!==o.assignedTo){
         var aw=p.users.find(function(u){return u.id===at});
-        u.assignedTo=at;u.status="Priskirtas";
-        u.history=(o.history||[]).concat([{status:"Priskirtas",date:fmtDate(new Date()),note:"priskirta: "+(aw?aw.name:at)}]);
+        u.assignedTo=at;
+        u.history=(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Priskirta: "+(aw?aw.name:at)}]);
       }
       if((st==="Gautas leidimas"||st==="Gautas"||st==="Atmestas")&&st!==o.status){
         u.status=st;
@@ -2822,7 +2821,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.65</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.66</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2864,7 +2863,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.65</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.66</div>
         </div>
       </div>
     </div>
@@ -3040,7 +3039,15 @@ function App(){
     var hasKE=orgs.indexOf("Kauno energija")!==-1;
     var hasESO=orgs.indexOf("AB ESO")!==-1;
     var orgLabel=permit.organization||orgs.join(", ");
-    var finalPermit=permit;
+    // Automatinis priskyrimas — pirmam dokumentacijos darbuotojui
+    var docWorkers=users.filter(function(u){return u.role==="dokumentacija";});
+    var autoAssign=docWorkers.length>0?docWorkers[0]:null;
+    var finalPermit=autoAssign
+      ?Object.assign({},permit,{
+          assignedTo:autoAssign.id,
+          history:(permit.history||[]).concat([{status:permit.status,date:fmtDate(new Date()),note:"Automatiškai priskirta: "+autoAssign.name}])
+        })
+      :permit;
     // Vieną kartą iškoduojame visus PDF puslapius — perduodam tiek Telia, tiek KE paruošimui
     var pageTexts=null;
     if(hasTelia||hasKE){
