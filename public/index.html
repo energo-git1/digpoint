@@ -761,7 +761,7 @@ function HistoryTimeline(p){
   if(!p.history||!p.history.length)return <div style={{fontSize:11,color:C.t3,fontFamily:F}}>Nera istorijos.</div>;
   return <div style={{display:"flex",flexDirection:"column",gap:0}}>
     {p.history.map(function(h,i){
-      var s=STATUS_MAP[h.status]||STATUS_MAP.Naujas;var isLast=i===p.history.length-1;
+      var s=STATUS_MAP[h.status]||STATUS_MAP["Laukiama tvirtinimo"]||{bg:C.acD,c:C.ac,dot:C.ac};var isLast=i===p.history.length-1;
       return <div key={i} style={{display:"flex",gap:10}}>
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:16}}>
           <div style={{width:10,height:10,borderRadius:"50%",background:s.dot,border:"2px solid "+C.s1,zIndex:1,flexShrink:0}}/>
@@ -2347,7 +2347,7 @@ function ScheduleView(p){
     var effE=e>rangeEnd?rangeEnd:e;
     var left=(effS.getDate()-1)/totalDays*100;
     var width=Math.max(0.5,(effE.getDate()-effS.getDate()+1)/totalDays*100);
-    var sm=STATUS_MAP[permit.status]||STATUS_MAP["Naujas"];
+    var sm=STATUS_MAP[permit.status]||STATUS_MAP["Laukiama tvirtinimo"]||{dot:C.ac};
     return {left:left+"%",width:width+"%",background:sm.dot,opacity:0.85};
   }
 
@@ -2453,7 +2453,7 @@ function ScheduleView(p){
             {permits.map(function(permit,pIdx){
               var bs=barStyle(permit);
               var ps=permitBarStyle(permit);
-              var sm=STATUS_MAP[permit.status]||STATUS_MAP["Naujas"];
+              var sm=STATUS_MAP[permit.status]||STATUS_MAP["Laukiama tvirtinimo"]||{bg:C.acD,c:C.ac,dot:C.ac};
               var isLastRow=pIdx===permits.length-1;
               return <div key={permit.id} onClick={function(){p.onSelect(permit)}}
                 style={{display:"flex",borderBottom:isLastRow?"none":"1px solid "+C.b1,cursor:"pointer",transition:"background .1s"}}
@@ -2751,7 +2751,7 @@ function DemoView(p){
       <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Bus sugeneruota</div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
         {Object.keys(byStatus).map(function(s){
-          var sm=STATUS_MAP[s]||STATUS_MAP.Naujas;
+          var sm=STATUS_MAP[s]||STATUS_MAP["Laukiama tvirtinimo"]||{bg:C.acD,c:C.ac,dot:C.ac};
           return <div key={s} style={{padding:"6px 10px",borderRadius:7,background:sm.bg,border:"1px solid "+sm.dot+"33"}}>
             <span style={{fontSize:13,fontWeight:800,color:sm.c}}>{byStatus[s]}</span>
             <span style={{fontSize:9,color:sm.c,marginLeft:4,fontFamily:F}}>{SL[s]||s}</span>
@@ -2761,7 +2761,7 @@ function DemoView(p){
       {Object.keys(byOrg).map(function(org){return <div key={org} style={{marginBottom:8}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,fontFamily:F,marginBottom:4}}>{org} ({byOrg[org].length})</div>
         {byOrg[org].map(function(permit){
-          var sm=STATUS_MAP[permit.status]||STATUS_MAP.Naujas;
+          var sm=STATUS_MAP[permit.status]||STATUS_MAP["Laukiama tvirtinimo"]||{bg:C.acD,c:C.ac,dot:C.ac};
           return <div key={permit.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",background:C.bg,borderRadius:6,marginBottom:2}}>
             <span style={{width:6,height:6,borderRadius:"50%",background:sm.dot,flexShrink:0}}/>
             <span style={{fontSize:11,color:C.tx,fontFamily:F,flex:1}}>{permit.manager}</span>
@@ -2829,7 +2829,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.77</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.78</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2871,7 +2871,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.77</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.78</div>
         </div>
       </div>
     </div>
