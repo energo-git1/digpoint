@@ -974,7 +974,7 @@ function PermitForm(p){
 // ESO AUTOMATIZAVIMO MYGTUKAS
 // Saugo užduotį į localStorage ir rodo instrukciją Cowork naudotojui
 // ═════════════════════════════════════════════════════════════
-var ESO_EMAIL = "uzklausos@enrgolt.eu";
+var ESO_EMAIL = "eimutis.simkus@energolt.eu"; // TODO: pakeisti į galutinį paštą
 var ESO_COMPANY = "EnergoLT";
 var ESO_URL = "https://www.eso.lt/aktualios-formos/kasimo-darbai/30";
 
@@ -1013,13 +1013,18 @@ function EsoSubmitBtn(p){
 
   async function prepareTask(){
     sSt("saving");
+    // Datos: nuo šiandienos iki +3 mėnesiai
+    var today=new Date();
+    var plus3=new Date(today);plus3.setMonth(plus3.getMonth()+3);
+    var esoStart=fmtDate(today);
+    var esoEnd=fmtDate(plus3);
     var task={
       permitId:o.id,
       manager:o.manager,
       managerPhone:o.managerPhone,
       location:o.location,
-      startDate:o.startDate,
-      endDate:o.endDate,
+      startDate:esoStart,
+      endDate:esoEnd,
       company:ESO_COMPANY,
       email:ESO_EMAIL,
       url:ESO_URL,
@@ -1059,19 +1064,22 @@ function EsoSubmitBtn(p){
         {/* Duomenų suvestinė */}
         <div style={{background:C.s2,borderRadius:8,padding:"10px 14px",border:"1px solid "+C.b1}}>
           <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Duomenys kurie bus pateikti ESO</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {(function(){
+            var t=new Date();var p=new Date(t);p.setMonth(p.getMonth()+3);
+            var esoFrom=fmtDate(t);var esoTo=fmtDate(p);
+            return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
             {[
               ["Įmonė",ESO_COMPANY],
               ["El. paštas",ESO_EMAIL],
               ["Darbų vadovas",o.manager],
               ["Telefonas",o.managerPhone],
-              ["Laikotarpis",(o.startDate||"-")+" – "+(o.endDate||"-")],
+              ["Laikotarpis",esoFrom+" – "+esoTo],
               ["Vieta",o.location||"-"]
             ].map(function(row){return <div key={row[0]}>
               <div style={{fontSize:9,color:C.t3,fontFamily:F}}>{row[0]}</div>
               <div style={{fontSize:11,fontWeight:600,color:C.tx,fontFamily:F}}>{row[1]}</div>
             </div>})}
-          </div>
+          </div>;})()}
           {o.investNo&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid "+C.b1}}>
             <div style={{fontSize:9,color:C.t3,fontFamily:F}}>Investicinis nr.</div>
             <div style={{fontSize:11,fontWeight:600,color:C.tx,fontFamily:F}}>{o.investNo}</div>
@@ -2783,7 +2791,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.73</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.74</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2825,7 +2833,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.73</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.74</div>
         </div>
       </div>
     </div>
