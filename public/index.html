@@ -538,27 +538,33 @@ function parseTeliaRoute(text){
 }
 
 function parseInvestNo(text){
-  // Ieškome įvairių formuluočių (didžiosiomis ir mažosiomis):
-  //   Investicinis nr. / numeris / Inv. nr.
-  //   Investicinio projekto Nr.
-  //   Projekto numeris / Nr. / Proj. Nr.
-  //   Statinio projekto numeris / Nr.
+  // Ieškome TIK investicinio numerio (E1N..., pvz. E1N2612455)
   var patterns=[
     /investicinis\s+(?:nr\.?|numeris)\s*[:.\s]+([A-Za-z0-9\-\/\.]{3,30})/i,
     /inv\.?\s*nr\.?\s*[:.\s]+([A-Za-z0-9\-\/\.]{3,30})/i,
     /investicinio\s+projekto\s+nr\.?\s*[:.\s]+([A-Za-z0-9\-\/\.]{3,30})/i,
-    /statinio\s+projekto\s+(?:nr\.?|numeris)\s*[:.\s]+([A-Za-z0-9\-\/\.]{3,30})/i,
-    /projekto\s+(?:nr\.?|numeris)\s*[:.\s]+([A-Za-z0-9\-\/\.]{3,30})/i,
-    /proj\.?\s*nr\.?\s*[:.\s]+([A-Za-z0-9\-\/\.]{3,30})/i,
   ];
   for(var i=0;i<patterns.length;i++){
     var m=text.match(patterns[i]);
     if(m&&m[1]){
       var val=m[1].trim();
-      // Reikšmė turi turėti bent vieną skaitmenį (kad nesugautume atsitiktinio teksto)
       if(/\d/.test(val))return val;
     }
   }
+  return null;
+}
+
+// Aptinka projekto numerį iš PDF — formatas pvz. "26-20-TDP-E" arba "26-20-TP-E"
+function parseProjectNo(text){
+  // 1) Po "PROJEKTO NUMERIS" antraštės (titulinis lapas) — tarp lentelės celių
+  var m1=text.match(/PROJEKTO\s+NUMERIS[\s\S]{0,50}?(\d{2}-\d{2,4}-[A-Z]{2,6}-[A-Z]{1,3})/);
+  if(m1&&m1[1])return m1[1].trim();
+  // 2) Dokumento žymuo formatas NN-NN-XXX-X (ignoruojame priedų žymenis kaip E.B-01)
+  var m2=text.match(/\b(\d{2}-\d{2,4}-(?:TDP|TP|PP|DP|AP)-[A-Z]{1,3})\b/);
+  if(m2&&m2[1])return m2[1].trim();
+  // 3) Platesnė paieška — bet ne priedų (su .B, .BSR ir pan.)
+  var m3=text.match(/\b(\d{2}-\d{2,4}-[A-Z]{2,6}-[A-Z]{1,3})\b/);
+  if(m3&&m3[1]&&!m3[1].includes('.'))return m3[1].trim();
   return null;
 }
 
@@ -1192,7 +1198,7 @@ function buildKauoenergijaEmailHtml(permit){
   return buildExternalEmailWrapper(
     "<p style=\"margin:0 0 14px\">Laba diena,</p>"
     +"<p style=\"margin:0 0 14px\">Planuojame atlikti elektros kabelio klojimo darbus, uždaru/atviru būdu, pagal proj. Nr.: "+projNo+", objekto adresas: "+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+", Kauno m. sav.</p>"
-    +"<p style=\"margin:0 0 14px\">Reikia kasimo leidimo bei kontaktų inžinieriaus su kuriuo būtų galima prieš darbų pradžią nustatyti ŠT gyšius.</p>"
+    +"<p style=\"margin:0 0 14px\">Reikia kasimo leidimo bei kontaktų inžinieriaus su kuriuo būtų galima prieš darbų pradžią nustatyti ŠT gylius.</p>"
     +"<p style=\"margin:0 0 14px\">Prisegam failus: projekto brėžiniai; suderinimas su UAB &quot;Kauno Energija&quot;.</p>"
     +"<p style=\"margin:0 0 14px\">Darbus atliks įmonė UAB &quot;EnergoLT&quot;, &quot;Energijos skirstymo operatorius&quot; rangovas.</p>"
     +"<p style=\"margin:0 0 12px\">Darbų vadovas: "+(permit.manager||"")+", tel.: "+(permit.managerPhone||"")+"</p>"
@@ -2829,7 +2835,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.78</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.79</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2871,7 +2877,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.78</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.79</div>
         </div>
       </div>
     </div>
