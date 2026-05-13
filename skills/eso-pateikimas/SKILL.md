@@ -65,12 +65,22 @@ Užpildyk šiuos laukus tiksliai tokia tvarka:
 
 Jei `files` masyve yra PDF failų — pridėk **visą projekto PDF** per failo įkėlimo lauką.
 
-Failai pasiekiami per Digpoint serverį. Kiekvienas failas turi `url` lauką (pvz. `/uploads/abc123_projektas.pdf`). Pilnas URL: `http://10.2.1.115:3001` + `url` reikšmė.
+**Žingsniai:**
 
-Norėdamas įkelti failą į ESO formą:
-1. Surask failo įkėlimo lauką (mygtukas „Pasirinkti failus" arba drag&drop zona)
-2. Naudok `file_upload` įrankį su `ref` elementu ir failo URL atsisiųstą į lokalų diską
-3. Jei automatinis pridėjimas nepavyksta — pranešk vartotojui kad pridėtų rankiniu būdu prieš spausdamas „Siųsti"
+1. Kiekvienas failas turi `url` lauką (pvz. `/uploads/abc123_projektas.pdf`). Pilnas URL: `http://10.2.1.115:3001` + `url` reikšmė.
+
+2. Parsisiunčia failą į laikiną aplanką naudodamas bash:
+```bash
+curl -o /tmp/eso_projektas.pdf "http://10.2.1.115:3001/uploads/FILENAME"
+```
+
+3. Surask failo įkėlimo lauką ESO formoje naudodamas `find` įrankį (ieško `input[type="file"]`).
+
+4. Naudok `file_upload` įrankį su:
+   - `paths: ["/tmp/eso_projektas.pdf"]`
+   - `ref`: elementas rastas 3 žingsnyje
+
+5. Jei automatinis pridėjimas nepavyksta — pranešk vartotojui kad pridėtų rankiniu būdu prieš spausdamas „Siųsti".
 
 ### Žingsnis D — Sutikimo varnelė
 
