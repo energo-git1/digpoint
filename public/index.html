@@ -854,6 +854,11 @@ function PermitForm(p){
   var _orgs=useState([]);var orgs=_orgs[0],sOrgs=_orgs[1];
   var _s=useState("");var start=_s[0],sStart=_s[1];
   var _e=useState("");var end=_e[0],sEnd=_e[1];
+  // Atskiri datos laukai kiekvienai institucijai
+  var _teliaS=useState("");var teliaStart=_teliaS[0],sTeliaStart=_teliaS[1];
+  var _teliaE=useState("");var teliaEnd=_teliaE[0],sTeliaEnd=_teliaE[1];
+  var _keS=useState("");var keStart=_keS[0],sKEStart=_keS[1];
+  var _keE=useState("");var keEnd=_keE[0],sKEEnd=_keE[1];
   var _desc=useState("");var desc=_desc[0],sDesc=_desc[1];
   var _files=useState([]);var files=_files[0],sFiles=_files[1];
   var _trFrom=useState("");var trFrom=_trFrom[0],sTrFrom=_trFrom[1];
@@ -865,17 +870,24 @@ function PermitForm(p){
   var isKE=orgs.indexOf("Kauno energija")!==-1;
   // Trasos laukai (trFrom/trTo) auto-pildomi iš projekto PDF (žr. addFile + parseTeliaRoute).
   // Validacijoje neprivaloma — jei nepavyksta išskaityti, adminas patikslins per review.
-  var ok=mgr&&ph&&em&&orgs.length>0&&start&&end&&!(start&&end&&end<start);
+  // Validacija: kiekviena institucija turi savo datas
+  var teliaOk=!isTelia||(teliaStart&&teliaEnd&&teliaEnd>=teliaStart);
+  var keOk=!isKE||(keStart&&keEnd&&keEnd>=keStart);
+  var esoOk=!isESO||(start&&end&&end>=start);
+  var otherOk=!(orgs.indexOf("Kauno miesto savivaldybe")!==-1)||(start&&end&&end>=start);
+  var ok=mgr&&ph&&em&&orgs.length>0&&teliaOk&&keOk&&((!isESO&&orgs.indexOf("Kauno miesto savivaldybe")===-1)||esoOk);
   function toggleOrg(o){
     var wasSelected=orgs.indexOf(o)!==-1;
     sOrgs(function(prev){var idx=prev.indexOf(o);return idx===-1?prev.concat([o]):prev.filter(function(x){return x!==o});});
-    // Telia, Kaunas — auto-pildomas laikotarpis: pradžia=šiandien, pabaiga=+6 mėn (jei laukai tušti)
+    // Telia — atskiras laikotarpis: šiandien + 6 mėn.
     if(o==="Telia, Kaunas"&&!wasSelected){
-      var today=new Date();
-      var sixMonthsLater=new Date(today);
-      sixMonthsLater.setMonth(sixMonthsLater.getMonth()+6);
-      sStart(function(cur){return cur?cur:fmtDate(today);});
-      sEnd(function(cur){return cur?cur:fmtDate(sixMonthsLater);});
+      var t=new Date();var t6=new Date(t);t6.setMonth(t6.getMonth()+6);
+      sTeliaStart(fmtDate(t));sTeliaEnd(fmtDate(t6));
+    }
+    // Kauno energija — atskiras laikotarpis: šiandien + 1 mėn.
+    if(o==="Kauno energija"&&!wasSelected){
+      var k=new Date();var k1=new Date(k);k1.setMonth(k1.getMonth()+1);
+      sKEStart(fmtDate(k));sKEEnd(fmtDate(k1));
     }
   }
   function addFile(f){
@@ -913,7 +925,10 @@ function PermitForm(p){
     var loc=isTelia?(trFrom&&trTo?trFrom+" - "+trTo:""):isESO?esoLoc:"";
     p.onSubmit({id:uid(),manager:mgr,managerPhone:ph,email:em,location:loc,
       organization:orgLabel,organizations:orgs,
-      startDate:start,endDate:end,description:desc,files:files,
+      startDate:start,endDate:end,
+      teliaStartDate:isTelia?teliaStart:null,teliaEndDate:isTelia?teliaEnd:null,
+      keStartDate:isKE?keStart:null,keEndDate:isKE?keEnd:null,
+      description:desc,files:files,
       investNo:invNo,
       teliaRouteFrom:trFrom,teliaRouteTo:trTo,
       createdBy:p.user.id,status:"Laukiama tvirtinimo",assignedTo:null,
@@ -948,14 +963,33 @@ function PermitForm(p){
       </div>
       {orgs.length===0&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:8}}>Pasirinkite bent viena institucija.</div>}
     </div>
-    <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
-      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbu laikotarpis</div>
+    {/* Telia laikotarpis */}
+    {isTelia&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Telia laikotarpis</div>
       <div style={{display:"flex",gap:12}}>
-        <div style={{flex:1}}><Inp label="Darbu pradzia" type="date" value={start} onChange={sStart} req/></div>
-        <div style={{flex:1}}><Inp label="Darbu pabaiga" type="date" value={end} onChange={sEnd} req/></div>
+        <div style={{flex:1}}><Inp label="Pradžia" type="date" value={teliaStart} onChange={sTeliaStart} req/></div>
+        <div style={{flex:1}}><Inp label="Pabaiga" type="date" value={teliaEnd} onChange={sTeliaEnd} req/></div>
       </div>
-      {start&&end&&end<start&&<div style={{color:C.rd,fontSize:11,marginTop:-8,marginBottom:8,fontFamily:F}}>Pabaigos data negali buti ankstesne uz pradzios.</div>}
-    </div>
+      {teliaStart&&teliaEnd&&teliaEnd<teliaStart&&<div style={{color:C.rd,fontSize:11,marginTop:-8,fontFamily:F}}>Pabaiga negali būti ankstesnė.</div>}
+    </div>}
+    {/* KE laikotarpis */}
+    {isKE&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Kauno energija laikotarpis</div>
+      <div style={{display:"flex",gap:12}}>
+        <div style={{flex:1}}><Inp label="Pradžia" type="date" value={keStart} onChange={sKEStart} req/></div>
+        <div style={{flex:1}}><Inp label="Pabaiga" type="date" value={keEnd} onChange={sKEEnd} req/></div>
+      </div>
+      {keStart&&keEnd&&keEnd<keStart&&<div style={{color:C.rd,fontSize:11,marginTop:-8,fontFamily:F}}>Pabaiga negali būti ankstesnė.</div>}
+    </div>}
+    {/* ESO / Savivaldybė bendras laikotarpis */}
+    {(isESO||orgs.indexOf("Kauno miesto savivaldybe")!==-1)&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbų laikotarpis</div>
+      <div style={{display:"flex",gap:12}}>
+        <div style={{flex:1}}><Inp label="Pradžia" type="date" value={start} onChange={sStart} req/></div>
+        <div style={{flex:1}}><Inp label="Pabaiga" type="date" value={end} onChange={sEnd} req/></div>
+      </div>
+      {start&&end&&end<start&&<div style={{color:C.rd,fontSize:11,marginTop:-8,fontFamily:F}}>Pabaiga negali būti ankstesnė.</div>}
+    </div>}
     <div style={{background:C.s2,borderRadius:12,border:"1px solid "+(orgs.length>0&&files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i)}).length===0?C.rd:C.b1),padding:16,marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Projekto dokumentai</div>
@@ -1146,11 +1180,15 @@ function buildExternalEmailWrapper(body){
 // Skirtumai nuo originalo: pakeistas wrapper'is, projekto nr. iš PDF įterpiamas jei rastas.
 function buildKauoenergijaEmailHtml(permit){
   var projNo=permit.projectNo?permit.projectNo:"[proj. nr. iš pdf]";
-  // Laikotarpis: nuo šiandienos iki šiandienos + 1 mėnuo
-  var today=new Date();
-  var plusMonth=new Date(today);plusMonth.setMonth(plusMonth.getMonth()+1);
-  var keFrom=fmtDateDots(fmtDate(today));
-  var keTo=fmtDateDots(fmtDate(plusMonth));
+  // Laikotarpis: iš paraiškos (keStartDate/keEndDate) arba šiandien + 1 mėnuo
+  var keFrom,keTo;
+  if(permit.keStartDate&&permit.keEndDate){
+    keFrom=fmtDateDots(permit.keStartDate);
+    keTo=fmtDateDots(permit.keEndDate);
+  }else{
+    var today=new Date();var plusMonth=new Date(today);plusMonth.setMonth(plusMonth.getMonth()+1);
+    keFrom=fmtDateDots(fmtDate(today));keTo=fmtDateDots(fmtDate(plusMonth));
+  }
   return buildExternalEmailWrapper(
     "<p style=\"margin:0 0 14px\">Laba diena,</p>"
     +"<p style=\"margin:0 0 14px\">Planuojame atlikti elektros kabelio klojimo darbus, uždaru/atviru būdu, pagal proj. Nr.: "+projNo+", objekto adresas: "+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+", Kauno m. sav.</p>"
@@ -1183,7 +1221,7 @@ function buildTeliaEmailHtml(permit){
     +"<ul style=\"margin:0 0 14px;padding-left:24px\"><li>"+trasa+"</li></ul>"
     +"<p style=\"margin:0 0 12px\">Darbus atliks: UAB „EnergoLT\"</p>"
     +"<p style=\"margin:0 0 12px\">Darbų vadovas: "+(permit.manager||"")+", tel.: "+(permit.managerPhone||"")+"</p>"
-    +"<p style=\"margin:0 0 14px\">Laikotarpis: "+fmtDateRangeDots(permit.startDate,permit.endDate)+"</p>"
+    +"<p style=\"margin:0 0 14px\">Laikotarpis: "+fmtDateRangeDots(permit.teliaStartDate||permit.startDate,permit.teliaEndDate||permit.endDate)+"</p>"
     +"<p style=\"margin:0\">Pridedu projekto dokumentus.</p>"
   );
 }
@@ -2791,7 +2829,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.74</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.76</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2833,7 +2871,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.74</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.76</div>
         </div>
       </div>
     </div>
