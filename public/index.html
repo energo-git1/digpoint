@@ -2821,7 +2821,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.67</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.68</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2863,7 +2863,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.67</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.68</div>
         </div>
       </div>
     </div>
@@ -3020,7 +3020,6 @@ function App(){
     try{localStorage.setItem('kl-session',JSON.stringify(u))}catch(e){}
     if(u.role==="pending")return;
     if(u.role==="orderer")setView("mine");
-    else if(u.role==="dokumentacija")setView("inbox");
     else setView("inbox");
   }
   function handleLogout(){setUser(null);try{localStorage.removeItem('kl-session')}catch(e){}}
@@ -3064,7 +3063,8 @@ function App(){
       finalPermit=Object.assign({},finalPermit,{pendingKauoenergijaEmail:kePending});
     }
     savePermits(permits.concat([finalPermit]));
-    setView(user.role==="admin"?"inbox":"mine");
+    // Po pateikimo: orderer → mano paraiškos, kiti → inbox
+    setView(user.role==="orderer"?"mine":"inbox");
   }
 
   function updatePermit(updated){
@@ -3126,7 +3126,6 @@ function App(){
   function onPasswordChanged(u){
     setUser(u);try{localStorage.setItem('kl-session',JSON.stringify(u))}catch(e){}
     if(u.role==="orderer")setView("mine");
-    else if(u.role==="dokumentacija")setView("inbox");
     else setView("inbox");
   }
   async function updateContact(userId,data){
@@ -3156,51 +3155,66 @@ function App(){
   </div>;
 
   var docsWorkers=users.filter(function(u){return u.role==="dokumentacija"});
-  var newCount=permits.filter(function(p){return p.status==="Laukiama tvirtinimo"}).length;
+  // Inbox = paraiškos laukiančios patvirtinimo (visos rolės mato visas)
+  var inboxStatuses=["Pildoma","Laukiama tvirtinimo","Naujas"];
+  var newCount=permits.filter(function(p){return inboxStatuses.indexOf(p.status)!==-1}).length;
   var pendingCount=users.filter(function(u){return u.role==="pending"}).length;
   var closingCount=permits.filter(function(p){return p.closingSubmitted&&!p.closingDone}).length;
+  // Leidimų statusai
+  var permitStatuses=["Gautas leidimas","Gautas","Nebegalioja"];
+  // Pateiktų paraiškų statusai
+  var submittedStatuses=["Pateikta"];
 
   var visible=[];
   if(view==="mine") visible=permits.filter(function(p){return p.createdBy===user.id});
-  else if(view==="assigned") visible=permits.filter(function(p){return p.assignedTo===user.id});
-  if(view==="inbox") visible=permits.filter(function(p){return p.status==="Laukiama tvirtinimo"});
+  else if(view==="inbox") visible=permits.filter(function(p){return inboxStatuses.indexOf(p.status)!==-1});
+  else if(view==="submitted") visible=permits.filter(function(p){return submittedStatuses.indexOf(p.status)!==-1});
+  else if(view==="permits"){
+    // Leidimai: admin/dok mato visas, užsakovas — tik savo
+    if(user.role==="orderer") visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id});
+    else visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1});
+  }
   else if(view==="all") visible=permits.slice();
   if(filter)visible=visible.filter(function(p){return p.status===filter});
   visible=visible.slice().sort(function(a,b){return (b.createdAt||"")>(a.createdAt||"")?1:-1});
 
   var main=null;
-  if(view==="new"&&(user.role==="orderer"||user.role==="admin")){
-    main=<PermitForm user={user} users={users} onSubmit={addPermit} onCancel={function(){setView(user.role==="admin"?"inbox":"mine")}}/>;
+  if(view==="new"&&(user.role==="orderer"||user.role==="admin"||user.role==="dokumentacija")){
+    var cancelView=user.role==="orderer"?"mine":user.role==="dokumentacija"?"inbox":"inbox";
+    main=<PermitForm user={user} users={users} onSubmit={addPermit} onCancel={function(){setView(cancelView)}}/>;
   }else if(view==="schedule"){
-    main=<ScheduleView permits={permits} users={users} onSelect={function(permit){setDetail(permit)}}/>;
+    // Leidimų grafike tik paraiškos su leidimu
+    var schedPermits=user.role==="orderer"
+      ?permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id})
+      :permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1});
+    main=<ScheduleView permits={schedPermits} users={users} onSelect={function(permit){setDetail(permit)}}/>;
   }else if(view==="demo"){
     main=<DemoView user={user} permits={permits} onLoad={function(newPermits){savePermits(permits.concat(newPermits));setView("schedule");}} onClear={function(){clearPermits();setView("inbox");}}/>;
   }else if(view==="profile"){
-    var defView=user.role==="orderer"?"mine":user.role==="dokumentacija"?"inbox":"inbox";
+    var defView=user.role==="orderer"?"mine":"inbox";
     main=<ProfilePage user={user} onUpdated={function(u){var upd=Object.assign({},user,u);setUser(upd);try{localStorage.setItem('kl-session',JSON.stringify(upd))}catch(e){}}} onCancel={function(){setView(defView)}}/>;
   }else if(view==="users"){
     main=<UserMgmt users={users} permits={permits} onAddUser={addUser} onAssignRole={assignRole} onDeleteUser={deleteUser} onUpdateContact={updateContact} onOpenPermit={function(id){var pm=permits.find(function(x){return x.id===id});if(pm){setDetail(pm);setView("all")}}}/>;
   }else{
-    var titles={inbox:"Naujos paraiskas",mine:"Mano paraiskas",assigned:"Priskirtos man",all:"Visos paraiskas"};
+    var titles={inbox:"Naujos paraiškos",mine:"Mano paraiškos",submitted:"Pateiktos paraiškos",permits:"Leidimai",all:"Visos paraiškos"};
     main=<div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
         <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F}}>{titles[view]||""}</h2>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <select value={filter} onChange={function(e){setFilter(e.target.value)}} style={{padding:"6px 10px",borderRadius:8,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontFamily:F,fontSize:11,outline:"none",cursor:"pointer"}}>
-            <option value="">Visos busenos</option>
+          {view==="all"&&<select value={filter} onChange={function(e){setFilter(e.target.value)}} style={{padding:"6px 10px",borderRadius:8,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontFamily:F,fontSize:11,outline:"none",cursor:"pointer"}}>
+            <option value="">Visos būsenos</option>
             {Object.keys(STATUS_MAP).map(function(s){return <option key={s} value={s}>{SL[s]||s}</option>})}
-          </select>
-          {user.role==="orderer"&&<Btn sm onClick={function(){setView("new")}}>+ Nauja</Btn>}
+          </select>}
         </div>
       </div>
-      {(view==="all"||view==="inbox")&&<div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap"}}>
+      {view==="all"&&<div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap"}}>
         {Object.keys(STATUS_MAP).map(function(s){var n=permits.filter(function(p){return p.status===s}).length;if(!n)return null;
           return <div key={s} style={{padding:"8px 10px",borderRadius:8,background:C.s2,border:"1px solid "+C.b1,flex:"1 1 80px",minWidth:80}}>
             <div style={{fontSize:16,fontWeight:800,color:C.tx,fontFamily:F}}>{n}</div>
             <div style={{fontSize:9,color:C.t2,fontFamily:F,display:"flex",alignItems:"center",gap:3}}><span style={{width:4,height:4,borderRadius:"50%",background:STATUS_MAP[s].dot}}/>{SL[s]||s}</div>
           </div>})}
       </div>}
-      {visible.length===0?<Empty icon="&#128077;" title="Paraiskas nera."/>:visible.map(function(permit){return <PermitRow key={permit.id} permit={permit} users={users} onClick={function(){setDetail(permit)}}/>})}
+      {visible.length===0?<Empty icon="&#128077;" title="Paraiškų nėra."/>:visible.map(function(permit){return <PermitRow key={permit.id} permit={permit} users={users} onClick={function(){setDetail(permit)}}/>})}
     </div>;
   }
 
