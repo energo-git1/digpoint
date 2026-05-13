@@ -65,22 +65,27 @@ document.body.setAttribute('data-theme',_t0);
 // follow the active palette (called from toggleTheme below).
 function buildStatusMap(){
   return {
+    Pildoma:               {bg:C.acD,  c:C.ac, dot:C.ac},
+    "Laukiama tvirtinimo": {bg:"rgba(202,138,4,.18)",c:"#CA8A04",dot:"#CA8A04"},
+    Pateikta:              {bg:"rgba(139,92,246,.12)",c:"#8B5CF6",dot:"#8B5CF6"},
+    "Gautas leidimas":     {bg:C.gnD,  c:C.gn, dot:C.gn},
+    Nebegalioja:           {bg:"rgba(107,114,128,.12)",c:"#6B7280",dot:"#6B7280"},
+    Atmestas:              {bg:C.rdD,  c:C.rd, dot:C.rd},
     Naujas:             {bg:C.acD,  c:C.ac, dot:C.ac},
     Priskirtas:         {bg:C.ylD,  c:C.yl, dot:C.yl},
     LaukiaPatvirtinimo: {bg:"rgba(202,138,4,.18)",c:"#CA8A04",dot:"#CA8A04"},
-    Pateikta:           {bg:"rgba(139,92,246,.12)",c:"#8B5CF6",dot:"#8B5CF6"},
     Vykdomas:           {bg:C.orD,  c:C.or, dot:C.or},
     Baigtas:            {bg:"rgba(59,130,246,.15)",c:"#60A5FA",dot:"#60A5FA"},
     Gautas:             {bg:C.gnD,  c:C.gn, dot:C.gn},
-    Nebegalioja:        {bg:"rgba(107,114,128,.12)",c:"#6B7280",dot:"#6B7280"},
-    Atmestas:           {bg:C.rdD,  c:C.rd, dot:C.rd},
   };
 }
 var STATUS_MAP = buildStatusMap();
 var SL = {
+  Pildoma:"Pildoma", "Laukiama tvirtinimo":"Laukiama tvirtinimo",
+  Pateikta:"Pateikta", "Gautas leidimas":"Gautas leidimas",
+  Nebegalioja:"Nebegalioja", Atmestas:"Atmestas",
   Naujas:"Naujas", Priskirtas:"Priskirtas", LaukiaPatvirtinimo:"Laukia patvirtinimo",
-  Pateikta:"Pateikta", Vykdamos:"Vykdamos", Baigtas:"Baigtas (laukia leidimo)",
-  Gautas:"Leidimas gautas", Nebegalioja:"Nebegalioja", Atmestas:"Atmestas",
+  Vykdamos:"Vykdomas", Baigtas:"Baigtas (laukia leidimo)", Gautas:"Leidimas gautas",
 };
 
 var ROLES = {orderer:"Užsakovas",dokumentacija:"Dokumentacija",admin:"Administratorius",pending:"Laukia patvirtinimo"};
@@ -672,22 +677,22 @@ function generateDemoPermits(currentUserId){
   var A7="Taikos pr. 145, Kaunas";          // 1 Savivaldybė
   var permits=[
     // ── A1: Smolensko g. — 3 ESO užsakymai skirtingais laikotarpiais ──
-    {id:uid(),organization:"AB ESO",manager:"Tomas Ruzveltas",managerPhone:"+37061234567",email:"t.ruzveltas@energolt.eu",location:A1,startDate:d(y,3,10),endDate:d(y,3,28),description:"",files:[],status:"Gautas",assignedTo:"doc1",permitValidFrom:d(y,3,12),permitValidUntil:d(y,6,12),createdBy:currentUserId,createdAt:d(y,3,5),history:[{status:"Naujas",date:d(y,3,5)},{status:"Gautas",date:d(y,3,12),note:"Leidimas gautas, galioja iki "+d(y,6,12)}]},
-    {id:uid(),organization:"AB ESO",manager:"Petras Petraitis",managerPhone:"+37062345678",email:"p.petraitis@energolt.eu",location:A1,startDate:d(y,4,14),endDate:d(y,5,2),description:"",files:[],status:"Gautas",assignedTo:"doc1",permitValidFrom:d(y,4,16),permitValidUntil:fmtDate(new Date(now.getTime()+9*24*60*60*1000)),createdBy:currentUserId,createdAt:d(y,4,8),history:[{status:"Naujas",date:d(y,4,8)},{status:"Gautas",date:d(y,4,16)}]},
-    {id:uid(),organization:"AB ESO",manager:"Jonas Kazlauskas",managerPhone:"+37063456789",email:"j.kazlauskas@energolt.eu",location:A1,startDate:d(y,5,19),endDate:d(y,6,13),description:"",files:[],status:"Vykdomas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,5,12),history:[{status:"Naujas",date:d(y,5,12)},{status:"Priskirtas",date:d(y,5,13)},{status:"Vykdomas",date:d(y,5,16)}]},
+    {id:uid(),organization:"AB ESO",manager:"Tomas Ruzveltas",managerPhone:"+37061234567",email:"t.ruzveltas@energolt.eu",location:A1,startDate:d(y,3,10),endDate:d(y,3,28),description:"",files:[],status:"Gautas leidimas",assignedTo:"doc1",permitValidFrom:d(y,3,12),permitValidUntil:d(y,6,12),createdBy:currentUserId,createdAt:d(y,3,5),history:[{status:"Pildoma",date:d(y,3,5)},{status:"Gautas leidimas",date:d(y,3,12),note:"Leidimas gautas, galioja iki "+d(y,6,12)}]},
+    {id:uid(),organization:"AB ESO",manager:"Petras Petraitis",managerPhone:"+37062345678",email:"p.petraitis@energolt.eu",location:A1,startDate:d(y,4,14),endDate:d(y,5,2),description:"",files:[],status:"Gautas leidimas",assignedTo:"doc1",permitValidFrom:d(y,4,16),permitValidUntil:fmtDate(new Date(now.getTime()+9*24*60*60*1000)),createdBy:currentUserId,createdAt:d(y,4,8),history:[{status:"Pildoma",date:d(y,4,8)},{status:"Gautas leidimas",date:d(y,4,16)}]},
+    {id:uid(),organization:"AB ESO",manager:"Jonas Kazlauskas",managerPhone:"+37063456789",email:"j.kazlauskas@energolt.eu",location:A1,startDate:d(y,5,19),endDate:d(y,6,13),description:"",files:[],status:"Laukiama tvirtinimo",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,5,12),history:[{status:"Pildoma",date:d(y,5,12)},{status:"Laukiama tvirtinimo",date:d(y,5,13)},{status:"Laukiama tvirtinimo",date:d(y,5,16)}]},
     // ── A2: Architektų g. — 2 ESO užsakymai ──
-    {id:uid(),organization:"AB ESO",manager:"Aistė Stankevičienė",managerPhone:"+37064567890",email:"a.stankeviciene@energolt.eu",location:A2,startDate:d(y,4,1),endDate:d(y,4,18),description:"",files:[],status:"Gautas",assignedTo:"doc1",permitValidFrom:d(y,4,3),permitValidUntil:d(y,7,3),createdBy:currentUserId,createdAt:d(y,3,25),history:[{status:"Gautas",date:d(y,4,3)}]},
-    {id:uid(),organization:"AB ESO",manager:"Mindaugas Grigas",managerPhone:"+37065678901",email:"m.grigas@energolt.eu",location:A2,startDate:d(y,5,5),endDate:d(y,5,23),description:"",files:[],status:"Baigtas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,4,28),history:[{status:"Naujas",date:d(y,4,28)},{status:"Vykdomas",date:d(y,5,5)},{status:"Baigtas",date:d(y,5,22)}]},
+    {id:uid(),organization:"AB ESO",manager:"Aistė Stankevičienė",managerPhone:"+37064567890",email:"a.stankeviciene@energolt.eu",location:A2,startDate:d(y,4,1),endDate:d(y,4,18),description:"",files:[],status:"Gautas leidimas",assignedTo:"doc1",permitValidFrom:d(y,4,3),permitValidUntil:d(y,7,3),createdBy:currentUserId,createdAt:d(y,3,25),history:[{status:"Gautas leidimas",date:d(y,4,3)}]},
+    {id:uid(),organization:"AB ESO",manager:"Mindaugas Grigas",managerPhone:"+37065678901",email:"m.grigas@energolt.eu",location:A2,startDate:d(y,5,5),endDate:d(y,5,23),description:"",files:[],status:"Pateikta",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,4,28),history:[{status:"Pildoma",date:d(y,4,28)},{status:"Laukiama tvirtinimo",date:d(y,5,5)},{status:"Pateikta",date:d(y,5,22)}]},
     // ── A3: Savanorių pr. — ESO + Savivaldybė ──
-    {id:uid(),organization:"AB ESO",manager:"Rasa Mockevičienė",managerPhone:"+37066789012",email:"r.mockeviciene@energolt.eu",location:A3,startDate:d(y,5,26),endDate:d(y,6,20),description:"",files:[],status:"Priskirtas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,5,18),history:[{status:"Naujas",date:d(y,5,18)},{status:"Priskirtas",date:d(y,5,20)}]},
-    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Valdas Urbonas",managerPhone:"+37067890123",email:"v.urbonas@energolt.eu",location:A3,startDate:d(y,6,2),endDate:d(y,6,27),description:"Šaligatvio rekonstrukcija",files:[],status:"Naujas",assignedTo:null,createdBy:currentUserId,createdAt:d(y,5,22),history:[{status:"Naujas",date:d(y,5,22)}]},
+    {id:uid(),organization:"AB ESO",manager:"Rasa Mockevičienė",managerPhone:"+37066789012",email:"r.mockeviciene@energolt.eu",location:A3,startDate:d(y,5,26),endDate:d(y,6,20),description:"",files:[],status:"Laukiama tvirtinimo",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,5,18),history:[{status:"Pildoma",date:d(y,5,18)},{status:"Laukiama tvirtinimo",date:d(y,5,20)}]},
+    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Valdas Urbonas",managerPhone:"+37067890123",email:"v.urbonas@energolt.eu",location:A3,startDate:d(y,6,2),endDate:d(y,6,27),description:"Šaligatvio rekonstrukcija",files:[],status:"Pildoma",assignedTo:null,createdBy:currentUserId,createdAt:d(y,5,22),history:[{status:"Pildoma",date:d(y,5,22)}]},
     // ── A4: Raudondvario pl. — 2 ESO (vienas atmestas) ──
-    {id:uid(),organization:"AB ESO",manager:"Laura Butėnaitė",managerPhone:"+37068901234",email:"l.butenaite@energolt.eu",location:A4,startDate:d(y,2,10),endDate:d(y,2,28),description:"",files:[],status:"Atmestas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,2,5),history:[{status:"Naujas",date:d(y,2,5)},{status:"Atmestas",date:d(y,2,12),note:"Trūksta projekto dokumentų"}]},
-    {id:uid(),organization:"AB ESO",manager:"Saulius Liaugminas",managerPhone:"+37069012345",email:"s.liaugminas@energolt.eu",location:A4,startDate:d(y,3,18),endDate:d(y,4,8),description:"",files:[],status:"Gautas",assignedTo:"doc1",permitValidFrom:d(y,3,20),permitValidUntil:d(y,3,15),createdBy:currentUserId,createdAt:d(y,3,12),history:[{status:"Gautas",date:d(y,3,20)}]},
+    {id:uid(),organization:"AB ESO",manager:"Laura Butėnaitė",managerPhone:"+37068901234",email:"l.butenaite@energolt.eu",location:A4,startDate:d(y,2,10),endDate:d(y,2,28),description:"",files:[],status:"Atmestas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,2,5),history:[{status:"Pildoma",date:d(y,2,5)},{status:"Atmestas",date:d(y,2,12),note:"Trūksta projekto dokumentų"}]},
+    {id:uid(),organization:"AB ESO",manager:"Saulius Liaugminas",managerPhone:"+37069012345",email:"s.liaugminas@energolt.eu",location:A4,startDate:d(y,3,18),endDate:d(y,4,8),description:"",files:[],status:"Gautas leidimas",assignedTo:"doc1",permitValidFrom:d(y,3,20),permitValidUntil:d(y,3,15),createdBy:currentUserId,createdAt:d(y,3,12),history:[{status:"Gautas leidimas",date:d(y,3,20)}]},
     // ── A5–A7: Savivaldybės objektai ──
-    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Eglė Paulauskienė",managerPhone:"+37060123456",email:"e.paulauskiene@energolt.eu",location:A5,startDate:d(y,4,7),endDate:d(y,4,25),description:"Vandentiekio tiesimas",files:[],status:"Gautas",assignedTo:"doc1",permitValidFrom:d(y,4,9),permitValidUntil:d(y,7,9),createdBy:currentUserId,createdAt:d(y,4,2),history:[{status:"Gautas",date:d(y,4,9)}]},
-    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Tomas Ruzveltas",managerPhone:"+37061234567",email:"t.ruzveltas@energolt.eu",location:A6,startDate:d(y,6,9),endDate:d(y,7,4),description:"Lietaus kanalizacija",files:[],status:"Naujas",assignedTo:null,createdBy:currentUserId,createdAt:d(y,5,28),history:[{status:"Naujas",date:d(y,5,28)}]},
-    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Petras Petraitis",managerPhone:"+37062345678",email:"p.petraitis@energolt.eu",location:A7,startDate:d(y,3,3),endDate:d(y,3,21),description:"Dujotiekio keitimas",files:[],status:"Atmestas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,2,25),history:[{status:"Naujas",date:d(y,2,25)},{status:"Atmestas",date:d(y,3,4),note:"Netinkamas projektas"}]},
+    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Eglė Paulauskienė",managerPhone:"+37060123456",email:"e.paulauskiene@energolt.eu",location:A5,startDate:d(y,4,7),endDate:d(y,4,25),description:"Vandentiekio tiesimas",files:[],status:"Gautas leidimas",assignedTo:"doc1",permitValidFrom:d(y,4,9),permitValidUntil:d(y,7,9),createdBy:currentUserId,createdAt:d(y,4,2),history:[{status:"Gautas leidimas",date:d(y,4,9)}]},
+    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Tomas Ruzveltas",managerPhone:"+37061234567",email:"t.ruzveltas@energolt.eu",location:A6,startDate:d(y,6,9),endDate:d(y,7,4),description:"Lietaus kanalizacija",files:[],status:"Pildoma",assignedTo:null,createdBy:currentUserId,createdAt:d(y,5,28),history:[{status:"Pildoma",date:d(y,5,28)}]},
+    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Petras Petraitis",managerPhone:"+37062345678",email:"p.petraitis@energolt.eu",location:A7,startDate:d(y,3,3),endDate:d(y,3,21),description:"Dujotiekio keitimas",files:[],status:"Atmestas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,2,25),history:[{status:"Pildoma",date:d(y,2,25)},{status:"Atmestas",date:d(y,3,4),note:"Netinkamas projektas"}]},
   ];
   return permits;
 }
@@ -920,8 +925,8 @@ function PermitForm(p){
       startDate:start,endDate:end,description:desc,files:files,
       investNo:invNo,
       teliaRouteFrom:trFrom,teliaRouteTo:trTo,
-      createdBy:p.user.id,status:"Naujas",assignedTo:null,
-      createdAt:fmtDate(new Date()),history:[{status:"Naujas",date:fmtDate(new Date())}]});
+      createdBy:p.user.id,status:"Pildoma",assignedTo:null,
+      createdAt:fmtDate(new Date()),history:[{status:"Pildoma",date:fmtDate(new Date())}]});
   }
   return <div style={{maxWidth:560}}>
     <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:4}}>Nauja kasimo leidimo paraiska</h2>
@@ -1653,18 +1658,20 @@ function PermitDetail(p){
         u.assignedTo=at;u.status="Priskirtas";
         u.history=(o.history||[]).concat([{status:"Priskirtas",date:fmtDate(new Date()),note:"priskirta: "+(aw?aw.name:at)}]);
       }
-      if((st==="Gautas"||st==="Atmestas")&&st!==o.status){
+      if((st==="Gautas leidimas"||st==="Gautas"||st==="Atmestas")&&st!==o.status){
         u.status=st;
-        if(st==="Gautas"){
+        if(st==="Gautas leidimas"||st==="Gautas"){
           if(pvf) u.permitValidFrom=pvf;
           if(pvu) u.permitValidUntil=pvu;
         }
-        u.history=(u.history||o.history||[]).concat([{status:st,date:fmtDate(new Date()),note:note||(st==="Gautas"&&pvu?"Leidimas gautas, galioja iki "+pvu:"")}]);
+        u.history=(u.history||o.history||[]).concat([{status:st,date:fmtDate(new Date()),note:note||((st==="Gautas leidimas"||st==="Gautas")&&pvu?"Leidimas gautas, galioja iki "+pvu:"")}]);
       }
     }
     if(isD&&o.assignedTo===p.user.id&&st!==o.status){
       u.status=st;
-      u.history=(o.history||[]).concat([{status:st,date:fmtDate(new Date()),note:note||""}]);
+      if((st==="Gautas leidimas"||st==="Gautas")&&pvf)u.permitValidFrom=pvf;
+      if((st==="Gautas leidimas"||st==="Gautas")&&pvu)u.permitValidUntil=pvu;
+      u.history=(o.history||[]).concat([{status:st,date:fmtDate(new Date()),note:note||((st==="Gautas leidimas"||st==="Gautas")&&pvu?"Leidimas gautas, galioja iki "+pvu:"")}]);
     }
     u.closeFiles=cFiles;u.lbcFiles=lbcFiles;p.onUpdate(u);p.onClose();
   }
@@ -1789,7 +1796,7 @@ function PermitDetail(p){
       })()}
 
       {/* Telia review/patvirtinimo blokas */}
-      {(isA||isD)&&o.status==="LaukiaPatvirtinimo"&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&(function(){
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&(function(){
         var pe=o.pendingEmail||{};
         var hasWarn=Array.isArray(pe.warnings)&&pe.warnings.length>0;
         var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
@@ -1918,7 +1925,7 @@ function PermitDetail(p){
       })()}
 
       {/* Kauno energija review/patvirtinimo blokas */}
-      {(isA||isD)&&o.status==="LaukiaPatvirtinimo"&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&(function(){
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&(function(){
         var ke=o.pendingKauoenergijaEmail||{};
         var hasWarn=Array.isArray(ke.warnings)&&ke.warnings.length>0;
         var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
@@ -2043,7 +2050,7 @@ function PermitDetail(p){
       })()}
 
       {/* Užsakovo atšaukimo mygtukas — tik savo paraišką, tik kol laukia patvirtinimo */}
-      {o.status==="LaukiaPatvirtinimo"&&o.createdBy===p.user.id&&!isA&&!isD&&(function(){
+      {(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&o.createdBy===p.user.id&&!isA&&!isD&&(function(){
         function cancelPermit(){
           if(!window.confirm("Ar tikrai atšaukti savo paraišką? Po atšaukimo paraiška bus pažymėta kaip atmesta ir nebus siunčiama institucijai."))return;
           var updated=Object.assign({},o,{
@@ -2070,8 +2077,25 @@ function PermitDetail(p){
         </div>;
       })()}
 
+      {/* Pateikti tvirtinti — uzsakovas arba adminas kai Pildoma */}
+      {(o.createdBy===p.user.id||isA)&&o.status==="Pildoma"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+        <div style={{background:C.acD,borderRadius:8,padding:"10px 14px",border:"1px solid "+C.ac+"44",marginBottom:10}}>
+          <div style={{fontSize:11,color:C.ac,fontFamily:F,lineHeight:1.5}}>Paraiska pildoma. Kai dokumentai paruosti — pateikite tvirtinti dokumentacijos specialistui.</div>
+        </div>
+        <div style={{display:"flex",justifyContent:"flex-end"}}>
+          <Btn onClick={async function(){
+            var updated=Object.assign({},o,{status:"Laukiama tvirtinimo",history:(o.history||[]).concat([{status:"Laukiama tvirtinimo",date:fmtDate(new Date()),note:"Pateikta tvirtinti"}])});
+            var orgs=updated.organizations||[];
+            if(orgs.indexOf("Telia, Kaunas")!==-1||orgs.indexOf("Kauno energija")!==-1){
+              await sendCombinedReviewNotification(updated);
+            }
+            p.onUpdate(updated);
+          }} style={{background:C.ac,color:"#fff",border:"none"}} sm>Pateikti tvirtinti →</Btn>
+        </div>
+      </div>}
+
       {/* Admin veiksmai */}
-      {isA&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+      {isA&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Administravimas</div>
         {o.organization==="AB ESO"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
         <div style={{marginBottom:12}}>
@@ -2084,8 +2108,8 @@ function PermitDetail(p){
               </label>})}
             </div>}
         </div>
-        <Sel label="Keisti busena" value={st} onChange={sSt} options={[{value:"Naujas",label:"Naujas"},{value:"Priskirtas",label:"Priskirtas"},{value:"Pateikta",label:"Pateikta"},{value:"Gautas",label:"Leidimas gautas"},{value:"Atmestas",label:"Atmestas"}]}/>
-        {st==="Gautas"&&<div style={{background:C.gnD,borderRadius:8,padding:"10px 12px",border:"1px solid "+C.gn+"33",marginBottom:8}}>
+        <Sel label="Keisti busena" value={st} onChange={sSt} options={[{value:"Pildoma",label:"Pildoma"},{value:"Laukiama tvirtinimo",label:"Laukiama tvirtinimo"},{value:"Pateikta",label:"Pateikta"},{value:"Gautas leidimas",label:"Gautas leidimas"},{value:"Atmestas",label:"Atmestas"}]}/>
+        {(st==="Gautas leidimas"||st==="Gautas")&&<div style={{background:C.gnD,borderRadius:8,padding:"10px 12px",border:"1px solid "+C.gn+"33",marginBottom:8}}>
           <div style={{fontSize:10,fontWeight:700,color:C.gn,fontFamily:F,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Leidimo galiojimo terminas</div>
           <div style={{display:"flex",gap:10}}>
             <div style={{flex:1}}><Inp label="Galioja nuo" type="date" value={pvf} onChange={sPvf}/></div>
@@ -2093,7 +2117,7 @@ function PermitDetail(p){
           </div>
           {o.permitValidUntil&&<div style={{fontSize:10,color:C.gn,fontFamily:FM}}>Esama reiksme: {o.permitValidFrom||"?"} — {o.permitValidUntil}</div>}
         </div>}
-        {(st==="Gautas"||st==="Atmestas")&&<Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>}
+        {(st==="Gautas leidimas"||st==="Gautas"||st==="Atmestas")&&<Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>}
         <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:8}}>
           <Btn v="secondary" onClick={p.onClose} sm>Atsaukti</Btn>
           <Btn v="danger" sm onClick={function(){if(window.confirm("Istrinti sias paraiskas?")){p.onDelete(o.id);p.onClose()}}}>Istrinti</Btn>
@@ -2102,10 +2126,10 @@ function PermitDetail(p){
       </div>}
 
       {/* Dokumentacija veiksmai */}
-      {isD&&o.assignedTo===p.user.id&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+      {isD&&o.assignedTo===p.user.id&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Veiksmai</div>
         {o.organization==="AB ESO"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
-        <Sel label="Busena" value={st} onChange={sSt} options={[{value:"Priskirtas",label:"Priskirtas"},{value:"Vykdomas",label:"Vykdomas"},{value:"Baigtas",label:"Baigtas (laukia leidimo)"}]}/>
+        <Sel label="Busena" value={st} onChange={sSt} options={[{value:"Pateikta",label:"Pateikta"},{value:"Gautas leidimas",label:"Gautas leidimas"},{value:"Atmestas",label:"Atmestas"}]}/>
         <Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>
         <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:8}}>
           <Btn v="secondary" onClick={p.onClose} sm>Atsaukti</Btn>
@@ -2114,7 +2138,7 @@ function PermitDetail(p){
       </div>}
 
       {/* Dokumentacija — leidimo galiojimo datos (kai Gautas) */}
-      {isD&&o.assignedTo===p.user.id&&(o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+      {isD&&o.assignedTo===p.user.id&&(o.status==="Gautas leidimas"||o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{background:C.gnD,borderRadius:8,padding:"10px 12px",border:"1px solid "+C.gn+"33",marginBottom:8}}>
           <div style={{fontSize:10,fontWeight:700,color:C.gn,fontFamily:F,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Leidimo galiojimo terminas</div>
           <div style={{display:"flex",gap:10}}>
@@ -2137,7 +2161,7 @@ function PermitDetail(p){
 
 
       {/* Leidimo uzdarymas — tik uzsakovas, tik kai gautas leidimas */}
-      {p.user.role==="orderer"&&(o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+      {p.user.role==="orderer"&&(o.status==="Gautas leidimas"||o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Kasimo leidimo uzdarymas</div>
         <div style={{background:C.s2,borderRadius:10,border:"1px solid "+(cFiles.length===0?C.rd:C.b1),padding:14,marginBottom:10}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -2166,7 +2190,7 @@ function PermitDetail(p){
       </div>}
 
       {/* Skaitymo rezimas */}
-      {(p.user.role==="orderer"||(isD&&o.assignedTo!==p.user.id)||o.status==="Gautas"||o.status==="Atmestas")&&!isA&&
+      {(p.user.role==="orderer"||(isD&&o.assignedTo!==p.user.id)||o.status==="Gautas leidimas"||o.status==="Gautas"||o.status==="Atmestas")&&!isA&&
         <div style={{display:"flex",justifyContent:"flex-end"}}><Btn v="secondary" onClick={p.onClose} sm>Uzdaryti</Btn></div>}
     </div>
   </Modal>
@@ -2203,7 +2227,7 @@ function PermitRow(p){
   if(o.status==="Nebegalioja"){
     rowBg=C.rdD;rowBorder=C.rd;rowBorderW="1.5px";
     warnLabel=<span style={{fontSize:9,fontWeight:700,color:C.rd,fontFamily:FM}}>Nebegalioja</span>;
-  } else if(o.status==="Gautas"&&o.permitValidUntil){
+  } else if((o.status==="Gautas leidimas"||o.status==="Gautas")&&o.permitValidUntil){
     var wd=workDaysUntil(o.permitValidUntil);
     if(wd>=0&&wd<=5){
       rowBg=C.ylD;rowBorder=C.yl;rowBorderW="1.5px";
@@ -2798,7 +2822,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.64</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.65</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2832,7 +2856,7 @@ function Sidebar(p){
   var role=p.user.role;
   var items=[];
   if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiskas"},{id:"mine",icon:"📋",label:"Mano paraiskas"},{id:"schedule",icon:"📅",label:"Leidimu grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="dokumentacija") items=[{id:"assigned",icon:"📥",label:"Priskirtos man"},{id:"all",icon:"📋",label:"Visos paraiskas"},{id:"schedule",icon:"📅",label:"Leidimu grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="dokumentacija") items=[{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"all",icon:"📋",label:"Visos paraiskas"},{id:"schedule",icon:"📅",label:"Leidimu grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
   else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiskas"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"all",icon:"📋",label:"Visos paraiskas"},{id:"schedule",icon:"📅",label:"Leidimu grafik."},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"demo",icon:"🧪",label:"Demo duomenys"},{id:"profile",icon:"👤",label:"Mano profilis"}];
   return <div style={{width:200,background:C.s1,borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",height:"100vh",flexShrink:0}}>
     <div style={{padding:"18px 16px 10px",borderBottom:"1px solid "+C.b1}}>
@@ -2840,7 +2864,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.64</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.65</div>
         </div>
       </div>
     </div>
@@ -2876,7 +2900,7 @@ function checkExpired(arr){
   var today=fmtDate(new Date());
   var changed=false;
   var result=arr.map(function(permit){
-    if(permit.status==="Gautas"&&permit.permitValidUntil&&permit.permitValidUntil<today){
+    if((permit.status==="Gautas leidimas"||permit.status==="Gautas")&&permit.permitValidUntil&&permit.permitValidUntil<today){
       changed=true;
       return Object.assign({},permit,{status:"Nebegalioja",history:(permit.history||[]).concat([{status:"Nebegalioja",date:today,note:"Leidimo terminas pasibaige"}])});
     }
@@ -2916,7 +2940,7 @@ function App(){
       if(raw&&raw.length>0){
         var today=fmtDate(new Date());
         var checked=raw.map(function(permit){
-          if(permit.status==="Gautas"&&permit.permitValidUntil&&permit.permitValidUntil<today){
+          if((permit.status==="Gautas leidimas"||permit.status==="Gautas")&&permit.permitValidUntil&&permit.permitValidUntil<today){
             return Object.assign({},permit,{status:"Nebegalioja",history:(permit.history||[]).concat([{status:"Nebegalioja",date:today,note:"Leidimo terminas pasibaige"}])});
           }
           return permit;
@@ -2931,7 +2955,7 @@ function App(){
   useEffect(function(){
     if(!user)return;
     if(user.role==="orderer")setView("mine");
-    else if(user.role==="dokumentacija")setView("assigned");
+    else if(user.role==="dokumentacija")setView("inbox");
     else setView("inbox");
   },[user&&user.id]);
 
@@ -2997,7 +3021,7 @@ function App(){
     try{localStorage.setItem('kl-session',JSON.stringify(u))}catch(e){}
     if(u.role==="pending")return;
     if(u.role==="orderer")setView("mine");
-    else if(u.role==="dokumentacija")setView("assigned");
+    else if(u.role==="dokumentacija")setView("inbox");
     else setView("inbox");
   }
   function handleLogout(){setUser(null);try{localStorage.removeItem('kl-session')}catch(e){}}
@@ -3016,18 +3040,7 @@ function App(){
     var hasKE=orgs.indexOf("Kauno energija")!==-1;
     var hasESO=orgs.indexOf("AB ESO")!==-1;
     var orgLabel=permit.organization||orgs.join(", ");
-    // Statusas: Telia ARBA KE → review (Laukia patvirtinimo); tik ESO → Pateikta
-    var newStatus, statusNote;
-    if(hasTelia||hasKE){
-      newStatus="LaukiaPatvirtinimo";
-      statusNote="Paraiska laukia patikros pries siunciant institucijoms";
-    }else if(hasESO){
-      newStatus="Pateikta";
-      statusNote="Automatiskai pateikta sistemai";
-    }
-    var finalPermit=newStatus
-      ?Object.assign({},permit,{status:newStatus,history:(permit.history||[]).concat([{status:newStatus,date:fmtDate(new Date()),note:statusNote}])})
-      :permit;
+    var finalPermit=permit;
     // Vieną kartą iškoduojame visus PDF puslapius — perduodam tiek Telia, tiek KE paruošimui
     var pageTexts=null;
     if(hasTelia||hasKE){
@@ -3042,10 +3055,6 @@ function App(){
     if(hasKE){
       var kePending=await preparePendingKauoenergijaEmail(finalPermit, pageTexts);
       finalPermit=Object.assign({},finalPermit,{pendingKauoenergijaEmail:kePending});
-    }
-    // Vienas bendras review email — su visomis pasirinktomis institucijomis
-    if(hasTelia||hasKE){
-      await sendCombinedReviewNotification(finalPermit);
     }
     savePermits(permits.concat([finalPermit]));
     setView(user.role==="admin"?"inbox":"mine");
@@ -3110,7 +3119,7 @@ function App(){
   function onPasswordChanged(u){
     setUser(u);try{localStorage.setItem('kl-session',JSON.stringify(u))}catch(e){}
     if(u.role==="orderer")setView("mine");
-    else if(u.role==="dokumentacija")setView("assigned");
+    else if(u.role==="dokumentacija")setView("inbox");
     else setView("inbox");
   }
   async function updateContact(userId,data){
@@ -3140,14 +3149,14 @@ function App(){
   </div>;
 
   var docsWorkers=users.filter(function(u){return u.role==="dokumentacija"});
-  var newCount=permits.filter(function(p){return p.status==="Naujas"||p.status==="Pateikta"}).length;
+  var newCount=permits.filter(function(p){return p.status==="Laukiama tvirtinimo"}).length;
   var pendingCount=users.filter(function(u){return u.role==="pending"}).length;
   var closingCount=permits.filter(function(p){return p.closingSubmitted&&!p.closingDone}).length;
 
   var visible=[];
   if(view==="mine") visible=permits.filter(function(p){return p.createdBy===user.id});
   else if(view==="assigned") visible=permits.filter(function(p){return p.assignedTo===user.id});
-  else if(view==="inbox") visible=permits.filter(function(p){return p.status==="Naujas"||p.status==="Pateikta"});
+  if(view==="inbox") visible=permits.filter(function(p){return p.status==="Laukiama tvirtinimo"});
   else if(view==="all") visible=permits.slice();
   if(filter)visible=visible.filter(function(p){return p.status===filter});
   visible=visible.slice().sort(function(a,b){return (b.createdAt||"")>(a.createdAt||"")?1:-1});
@@ -3160,7 +3169,7 @@ function App(){
   }else if(view==="demo"){
     main=<DemoView user={user} permits={permits} onLoad={function(newPermits){savePermits(permits.concat(newPermits));setView("schedule");}} onClear={function(){clearPermits();setView("inbox");}}/>;
   }else if(view==="profile"){
-    var defView=user.role==="orderer"?"mine":user.role==="dokumentacija"?"assigned":"inbox";
+    var defView=user.role==="orderer"?"mine":user.role==="dokumentacija"?"inbox":"inbox";
     main=<ProfilePage user={user} onUpdated={function(u){var upd=Object.assign({},user,u);setUser(upd);try{localStorage.setItem('kl-session',JSON.stringify(upd))}catch(e){}}} onCancel={function(){setView(defView)}}/>;
   }else if(view==="users"){
     main=<UserMgmt users={users} permits={permits} onAddUser={addUser} onAssignRole={assignRole} onDeleteUser={deleteUser} onUpdateContact={updateContact} onOpenPermit={function(id){var pm=permits.find(function(x){return x.id===id});if(pm){setDetail(pm);setView("all")}}}/>;
