@@ -2854,9 +2854,9 @@ function AuthScreen(p){
 function Sidebar(p){
   var role=p.user.role;
   var items=[];
-  if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiskas"},{id:"mine",icon:"📋",label:"Mano paraiskas"},{id:"schedule",icon:"📅",label:"Leidimu grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="dokumentacija") items=[{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"all",icon:"📋",label:"Visos paraiskas"},{id:"schedule",icon:"📅",label:"Leidimu grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiskas"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"all",icon:"📋",label:"Visos paraiskas"},{id:"schedule",icon:"📅",label:"Leidimu grafik."},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"demo",icon:"🧪",label:"Demo duomenys"},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"mine",icon:"📋",label:"Mano paraiškos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="dokumentacija") items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"all",icon:"📋",label:"Visos paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"demo",icon:"🧪",label:"Demo duomenys"},{id:"profile",icon:"👤",label:"Mano profilis"}];
   return <div style={{width:200,background:C.s1,borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",height:"100vh",flexShrink:0}}>
     <div style={{padding:"18px 16px 10px",borderBottom:"1px solid "+C.b1}}>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
