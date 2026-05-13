@@ -53,7 +53,7 @@ Užpildyk šiuos laukus tiksliai tokia tvarka:
 | El. paštas sutikimo gavimui | `email` iš užduoties |
 | Savivaldybė | **NUSKAITYTI iš PDF** — jei failai yra, perskaityk PDF pavadinimus ir spėk savivaldybę iš adreso; jei negali — pasirink „Kauno miesto savivaldybė" (dažniausias atvejis EnergoLT) |
 | Darbų vykdymo vieta | `location` iš užduoties |
-| Numatytų darbų paskirtis ir pobūdis | `description` iš užduoties (arba "Kasimo darbai pagal projektą") |
+| Numatytų darbų paskirtis ir pobūdis | **"Elektros tinklų įrengimas"** — visada šis tekstas |
 | Kasimo darbų pradžia | `startDate` — konvertuok į DD.MM.YYYY formatą |
 | Kasimo darbų pabaiga | `endDate` — konvertuok į DD.MM.YYYY formatą |
 | Darbų vietos nuoroda | **PALIKTI TUŠČIĄ** |
@@ -62,7 +62,14 @@ Užpildyk šiuos laukus tiksliai tokia tvarka:
 
 ### Žingsnis C — Brėžiniai (PDF failai)
 
-Jei `files` masyve yra PDF failų — bandyk juos pridėti per failo įkėlimo lauką. Failai fiziškai yra Digpoint uploads/ aplanke serveryje — informuok vartotoją jei automatinis pridėjimas nepavyks, kad jis pridėtų rankiniu būdu.
+Jei `files` masyve yra PDF failų — pridėk **visą projekto PDF** per failo įkėlimo lauką.
+
+Failai pasiekiami per Digpoint serverį. Kiekvienas failas turi `url` lauką (pvz. `/uploads/abc123_projektas.pdf`). Pilnas URL: `http://10.2.1.115:3001` + `url` reikšmė.
+
+Norėdamas įkelti failą į ESO formą:
+1. Surask failo įkėlimo lauką (mygtukas „Pasirinkti failus" arba drag&drop zona)
+2. Naudok `file_upload` įrankį su `ref` elementu ir failo URL atsisiųstą į lokalų diską
+3. Jei automatinis pridėjimas nepavyksta — pranešk vartotojui kad pridėtų rankiniu būdu prieš spausdamas „Siųsti"
 
 ### Žingsnis D — Sutikimo varnelė
 
