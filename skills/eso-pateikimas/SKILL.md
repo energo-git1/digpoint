@@ -45,20 +45,21 @@ Surask bloką su tekstu „Prašymą pildo ESO (sub)rangovo organizacija..." arb
 
 Užpildyk šiuos laukus tiksliai tokia tvarka:
 
-| Laukas | Reikšmė |
+| Laukas (HTML name) | Reikšmė |
 |--------|----------|
-| Organizacijos/įmonės pavadinimas | `company` iš užduoties |
-| Darbų vadovo vardas, pavardė | `manager` iš užduoties |
-| Darbų vadovo telefono numeris | `managerPhone` iš užduoties |
-| El. paštas sutikimo gavimui | `email` iš užduoties |
-| Savivaldybė | **NUSKAITYTI iš PDF** — jei failai yra, perskaityk PDF pavadinimus ir spėk savivaldybę iš adreso; jei negali — pasirink „Kauno miesto savivaldybė" (dažniausias atvejis EnergoLT) |
-| Darbų vykdymo vieta | `location` iš užduoties |
-| Numatytų darbų paskirtis ir pobūdis | **"Elektros tinklų įrengimas"** — visada šis tekstas |
-| Kasimo darbų pradžia | `startDate` — konvertuok į DD.MM.YYYY formatą |
-| Kasimo darbų pabaiga | `endDate` — konvertuok į DD.MM.YYYY formatą |
-| Darbų vietos nuoroda | **PALIKTI TUŠČIĄ** |
-| Investicinis numeris | `investNo` jei yra, kitu atveju palikti tuščią |
-| Jūsų žinutė mums | **PALIKTI TUŠČIĄ** |
+| `legal_company_name` | `company` iš užduoties |
+| `legal_manager_name` | `manager` iš užduoties |
+| `legal_manager_phone` | `managerPhone` iš užduoties |
+| `acceptance_email` | `email` iš užduoties |
+| `obj_municipality` (select) | „Kauno miesto savivaldybė" — visada šis pasirinkimas |
+| `obj_address` | `location` iš užduoties |
+| `excavation_purpose` | **"Elektros tinklų įrengimas"** — visada šis tekstas |
+| `excavation_start` | `startDate` iš užduoties — YYYY-MM-DD formatas |
+| `excavation_end` | `endDate` iš užduoties — YYYY-MM-DD formatas |
+| `excavation_link` | **PALIKTI TUŠČIĄ** |
+| `technical_eso_investment_nr` | `investNo` jei yra, kitu atveju tuščia |
+| Žinutė | **PALIKTI TUŠČIĄ** |
+| `agree_to_terms` (checkbox) | **Pažymėti** |
 
 ### Žingsnis C — Brėžiniai (PDF failai)
 
