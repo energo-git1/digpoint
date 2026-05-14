@@ -645,10 +645,10 @@ function fmtSize(b){ if(b<1024)return b+"B"; if(b<1048576)return Math.round(b/10
 
 // ── El. pašto helperiai (identiškai Geopoint) ─────────────────
 function emailRow(label,value){return'<tr><td style="padding:4px 12px 4px 0;color:#6B7280;font-size:13px;white-space:nowrap">'+label+'</td><td style="padding:4px 0;color:#111827;font-size:13px;font-weight:600">'+value+'</td></tr>'}
-function emailWrap(title,color,body){return'<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,sans-serif"><div style="max-width:540px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)"><div style="background:'+color+';padding:20px 28px"><h2 style="margin:0;color:#fff;font-size:18px">\uD83D\uDEA7 Kasimo leidimai &nbsp;&middot;&nbsp; '+title+'</h2></div><div style="padding:24px 28px">'+body+'</div><div style="padding:12px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF">EnergoLT &middot; Kasimo leid\u0173 valdymo sistema &middot; <a href="mailto:uzklausos@enrgolt.eu" style="color:#6B7280">uzklausos@enrgolt.eu</a></div></div></body></html>'}
+function emailWrap(title,color,body){return'<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,sans-serif"><div style="max-width:540px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)"><div style="background:'+color+';padding:20px 28px"><h2 style="margin:0;color:#fff;font-size:18px">\uD83D\uDEA7 Kasimo leidimai &nbsp;&middot;&nbsp; '+title+'</h2></div><div style="padding:24px 28px">'+body+'</div><div style="padding:12px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF">EnergoLT &middot; Kasimo leid\u0173 valdymo sistema &middot; <a href="mailto:uzklausos@energolt.eu" style="color:#6B7280">uzklausos@energolt.eu</a></div></div></body></html>'}
 // REVIEW_EMAIL — vidiniai paraiškų peržiūrai prieš išsiunčiant institucijoms.
 // Vėliau gali būti pakeistas į konfigūracinį lauką arba dinaminį admin/dok sąrašą.
-var REVIEW_EMAIL = "eimutis.simkus@energolt.eu";
+var REVIEW_EMAIL = "uzklausos@energolt.eu";
 
 async function sendEmail(toEmail,subject,html,attachments){
   if(!toEmail)return;
@@ -1017,7 +1017,7 @@ function PermitForm(p){
 // ESO AUTOMATIZAVIMO MYGTUKAS
 // Saugo užduotį į localStorage ir rodo instrukciją Cowork naudotojui
 // ═════════════════════════════════════════════════════════════
-var ESO_EMAIL = "eimutis.simkus@energolt.eu"; // TODO: pakeisti į galutinį paštą
+var ESO_EMAIL = "uzklausos@energolt.eu";
 var ESO_COMPANY = "EnergoLT";
 var ESO_URL = "https://www.eso.lt/aktualios-formos/kasimo-darbai/30";
 
@@ -1311,81 +1311,36 @@ async function preparePendingTeliaEmail(permit){
   }});
 }
 
-// Bendras review email administratoriui — vienas laiškas su VISŲ pasirinktų institucijų
-// (Telia, Kauno energija) preview'ais ir VISAIS PDF priedais. Pakeičia atskiras
-// sendTeliaReviewNotification + sendKauoenergijaReviewNotification funkcijas tame pačiame paraiškos kontekste.
+// Pranešimas apie pateiktą paraišką — siunčiamas į uzklausos@energolt.eu.
+// Tik pagrindinė info apie paraišką ir nuoroda į ją sistemoje.
 async function sendCombinedReviewNotification(permit){
   if(!REVIEW_EMAIL)return;
   var pe=permit.pendingEmail;
   var ke=permit.pendingKauoenergijaEmail;
   if(!pe&&!ke)return;
   var permitNo=permit.id?permit.id.slice(-5).toUpperCase():"?????";
-  function buildSection(label,color,em){
-    if(!em)return "";
-    var warnHtml="";
-    if(Array.isArray(em.warnings)&&em.warnings.length>0){
-      warnHtml='<div style="background:#FEF3C7;border:1px solid #F59E0B;padding:10px 12px;border-radius:6px;margin:10px 0">'
-        +'<p style="margin:0 0 6px;color:#92400E;font-size:12px;font-weight:600">⚠️ Įspejimai:</p>'
-        +'<ul style="margin:0;padding-left:18px;color:#78350F;font-size:12px;line-height:1.5">'
-        +em.warnings.map(function(w){return '<li>'+w+'</li>'}).join('')
-        +'</ul></div>';
-    }
-    var attHtml=Array.isArray(em.attachmentSources)&&em.attachmentSources.length>0
-      ?'<p style="margin:6px 0 4px;font-size:12px;color:#374151"><strong>Priedai:</strong></p><ul style="margin:0;padding-left:18px;font-size:12px;color:#374151">'
-        +em.attachmentSources.map(function(a){
-          var pages=getAttachmentPages(a);
-          return '<li>'+a.filename+' <span style="color:#6B7280">(psl. '+pages.join(", ")+' iš '+a.sourceFileName+')</span></li>';
-        }).join('')
-        +'</ul>'
-      :'<p style="margin:6px 0 0;font-size:12px;color:#EF4444"><strong>⚠️ Priedų nera!</strong></p>';
-    var di=em.detectionInfo||{};
-    var diHtml=di.usedMethod
-      ?'<p style="margin:6px 0 0;font-size:11px;color:#6B7280">Aptikimo metodas: <strong>'+di.usedMethod+'</strong>'
-        +(di.approvalsTablePage?' &middot; Pritarimų lentelė: p. '+di.approvalsTablePage:'')
-        +(di.teliaApproverName?' &middot; Derintojas: '+di.teliaApproverName:'')
-        +(di.keApproverName?' &middot; Derintojas: '+di.keApproverName:'')
-        +'</p>'
-      :'';
-    var content=extractTeliaEmailBodyContent(em.html||"");
-    return '<div style="background:#fff;border:2px solid '+color+';border-radius:6px;padding:14px;margin:14px 0">'
-      +'<p style="margin:0 0 10px;color:'+color+';font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600">📧 '+label+' laiškas</p>'
-      +'<p style="margin:0 0 4px;font-size:12px;color:#374151"><strong>Kam:</strong> '+(em.to||"-")+'</p>'
-      +'<p style="margin:0 0 4px;font-size:12px;color:#374151"><strong>Tema:</strong> '+(em.subject||"-")+'</p>'
-      +attHtml
-      +diHtml
-      +warnHtml
-      +'<div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:4px;padding:12px;margin-top:10px">'
-      +(content||"<p style=\"color:#EF4444\">⚠️ Turinys nepasiektas</p>")
-      +'</div></div>';
-  }
-  var sections=[];
-  if(pe)sections.push(buildSection("Telia","#0066CC",pe));
-  if(ke)sections.push(buildSection("Kauno energija","#DC2626",ke));
-  var instCount=(pe?1:0)+(ke?1:0);
-  // Nuoroda į paraišką Digpoint sistemoje (hash-based routing — App.useEffect aptiks ir atvers detalę)
+  var orgs=[];
+  if(pe)orgs.push("Telia, Kaunas");
+  if(ke)orgs.push("Kauno energija");
   var permitUrl=(typeof window!=="undefined"&&window.location)
     ?(window.location.origin+window.location.pathname+"#permit="+encodeURIComponent(permit.id))
     :"";
   var linkBtn=permitUrl
-    ?'<p style="margin:14px 0;text-align:center"><a href="'+permitUrl+'" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">🔍 Atidaryti paraišką sistemoje</a></p>'
+    ?'<p style="margin:16px 0;text-align:center"><a href="'+permitUrl+'" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">Atidaryti paraišką sistemoje</a></p>'
     :"";
-  var body=emailWrap("Paraiska laukia patikros","#CA8A04",
-    "<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Laba diena,</p>"
-    +"<p style=\"color:#374151;font-size:14px;margin:0 0 14px\">Sistema paruošė paraišką <strong>#"+permitNo+"</strong> "
-    +(instCount===1?"vienai institucijai":"dviem institucijoms")
-    +". Prašome peržiūrėti ir patvirtinti prieš siunčiant.</p>"
-    +linkBtn
-    +"<table style=\"border-collapse:collapse;width:100%;margin:14px 0\">"
+  var body=emailWrap("Pateikta nauja paraiska","#3B82F6",
+    "<p style=\"color:#374151;font-size:14px;margin:0 0 16px\">Pateikta nauja kasimo leidimo paraiška.</p>"
+    +"<table style=\"border-collapse:collapse;width:100%;margin:0 0 16px\">"
+    +emailRow("Paraiška Nr.:",permitNo)
     +emailRow("Pareiškėjas:",permit.manager||"-")
-    +emailRow("Trasa:",(permit.teliaRouteFrom||"-")+" – "+(permit.teliaRouteTo||"-"))
-    +emailRow("Investicinis Nr.:",permit.investNo||"-")
+    +emailRow("Tel. nr.:",permit.managerPhone||"-")
+    +emailRow("Vieta:",permit.location||((permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||""))||"-")
+    +emailRow("Institucijos:",orgs.join(", "))
+    +(permit.investNo?emailRow("Investicinis Nr.:",permit.investNo):"")
     +emailRow("Laikotarpis:",(permit.startDate||"-")+" – "+(permit.endDate||"-"))
     +"</table>"
-    +sections.join('')
-    +"<p style=\"color:#374151;font-size:13px;margin:14px 0 0\">Patvirtinkite arba pataisykite paraišką Digpoint sistemoje. Originalų projekto PDF galite atidaryti tiesiai iš paraiškos lango.</p>");
-  // Review email NEBESIUNČIA PDF priedų — admin gali atidaryti paraišką sistemoje
-  // ir matyti / atsisiųsti PDF iš ten.
-  sendEmail(REVIEW_EMAIL,"[REVIEW] Paraiska #"+permitNo+" laukia patvirtinimo",body);
+    +linkBtn);
+  sendEmail(REVIEW_EMAIL,"Nauja paraiška #"+permitNo+" — "+orgs.join(", "),body);
 }
 
 // Iš Telia laiško HTML (`buildExternalEmailWrapper` rezultato) ištraukia tik vidinį turinį
@@ -2843,7 +2798,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.81</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.82</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2885,7 +2840,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.81</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.82</div>
         </div>
       </div>
     </div>
@@ -2938,7 +2893,7 @@ function checkExpired(arr){
     var rows=emailRow("Organizacija:",permit.organization)+emailRow("Paraiskas:",permit.id.slice(-5).toUpperCase())+emailRow("Galioja iki:",permit.permitValidUntil);
     var body=emailWrap("Leidimo terminas baigiasi","#EAB308","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Leidimas baigia galioti "+permit.permitValidUntil+" &mdash; liko 5 darbo dienos.</p><table style=\"border-collapse:collapse;width:100%\">"+rows+"</table>");
     if(permit.email)sendEmail(permit.email,subj,body);
-    sendEmail("uzklausos@enrgolt.eu",subj,body);
+    sendEmail("uzklausos@energolt.eu",subj,body);
   });
   return changed?result:arr;
 }
@@ -3103,7 +3058,7 @@ function App(){
         var clRows=emailRow("Paraiskas:",updated.id.slice(-5).toUpperCase())+emailRow("Organizacija:",updated.organization);
         var clBody=emailWrap("Leidimo uzdarymas","#10B981","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Uzsakovas pateike dokumentus leidimo uzdarymui.</p><table style=\"border-collapse:collapse;width:100%\">"+clRows+"</table>");
         if(asgn&&asgn.email)sendEmail(asgn.email,clSubj,clBody);
-        sendEmail("uzklausos@enrgolt.eu",clSubj,clBody);
+        sendEmail("uzklausos@energolt.eu",clSubj,clBody);
       }
     }
     // Kauno m. sav. notifikacija kai gauti ESO ir Telia leidimai
@@ -3117,7 +3072,7 @@ function App(){
           lsSet(notifKey,true);
           var kRows2=emailRow("Paraiskas:",updated.id.slice(-5).toUpperCase())+emailRow("Darbu vadovas:",updated.manager)+emailRow("Laikotarpis:",updated.startDate+" – "+updated.endDate);
           var kBody2=emailWrap("Galima pateikti Kauno m. sav.","#10B981","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Gauti visi reikalingi leidimai. Galima pateikti Kauno m. sav. leidimo paraiskas.</p><table style=\"border-collapse:collapse;width:100%\">"+kRows2+"</table>");
-          sendEmail("uzklausos@enrgolt.eu","Galima pateikti Kauno m. sav. - "+updated.organization,kBody2);
+          sendEmail("uzklausos@energolt.eu","Galima pateikti Kauno m. sav. - "+updated.organization,kBody2);
         }
       }
     }

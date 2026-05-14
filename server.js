@@ -435,13 +435,14 @@ const mailer = nodemailer.createTransport({
   tls: { rejectUnauthorized: false },
 });
 
-const MAIL_FROM = 'digpoint@energolt.eu';
+const MAIL_FROM_INTERNAL = 'digpoint@energolt.eu';   // perspėjimai, uždarymas
+const MAIL_FROM_EXTERNAL = 'uzklausos@energolt.eu';  // Telia, KE, ESO, review
 
 app.post('/api/notify/email', async (req, res) => {
-  const { to, subject, html, attachments } = req.body || {};
+  const { to, subject, html, attachments, from } = req.body || {};
   if (!to || !subject || !html) return res.status(400).json({ error: 'Trūksta duomenų.' });
   try {
-    const mailOptions = { from: MAIL_FROM, to, subject, html };
+    const mailOptions = { from: from||MAIL_FROM_EXTERNAL, to, subject, html };
     // Optional attachments: [{ filename: 'x.pdf', content: 'base64string' }]
     if (Array.isArray(attachments) && attachments.length > 0) {
       mailOptions.attachments = attachments
@@ -548,7 +549,7 @@ app.post('/api/notify/eso-submitted', async (req, res) => {
 </html>`;
 
   try {
-    const info = await mailer.sendMail({ from: MAIL_FROM, to: permit.email, subject, html });
+    const info = await mailer.sendMail({ from: MAIL_FROM_EXTERNAL, to: permit.email, subject, html });
     console.log(`  📨 ESO pateikimo patvirtinimas → ${permit.email} | #${permitNo} | ${info.messageId}`);
     res.json({ ok: true });
   } catch (e) {
