@@ -75,9 +75,17 @@ Stored in `uploads/` dir. Max 500 MB, max 70-char filename. Served via `/uploads
 
 ## Email / SMTP
 
-- **SMTP:** `10.2.1.103:25` (no auth, internal relay)
-- **From:** `geopoint@energolt.eu`
-- Dedicated endpoint for ESO submission confirmation: `POST /api/notify/eso-submitted`
+- **SMTP:** `mail.energolt.eu:465` (SSL, auth)
+- **User:** `uzklausos@energolt.eu`
+- **Pass:** PM2 env `SMTP_PASS`
+- **MAIL_FROM_EXTERNAL:** `uzklausos@energolt.eu` — Telia, KE, ESO, review/pranešimai
+- **MAIL_FROM_INTERNAL:** `digpoint@energolt.eu` — perspėjimai, uždarymo info
+
+## Email / IMAP (ateičiai — automatinis laiškų gavimas)
+
+- **IMAP:** `mail.energolt.eu:993` (SSL)
+- **User:** `uzklausos@energolt.eu`
+- **Pass:** PM2 env `SMTP_PASS` (tas pats)
 
 ## Env variables (PM2)
 
@@ -85,6 +93,7 @@ Stored in `uploads/` dir. Max 500 MB, max 70-char filename. Served via `/uploads
 pm2 set digpoint LDAP_SVC_PASS <password>
 pm2 set digpoint LDAP_SVC_DN "CN=svc_jira,OU=Service Accounts,DC=hata,DC=local"
 pm2 set digpoint LDAP_USERS_BASE "OU=Users,DC=hata,DC=local"
+pm2 set digpoint SMTP_PASS Uzkl2026TR
 ```
 
 ## Relationship with Geopoint
