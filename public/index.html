@@ -1187,15 +1187,20 @@ function buildExternalEmailWrapper(body){
   return '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#1F2937;font-size:14px;line-height:1.6">'
     +'<div style="max-width:620px;margin:24px auto;padding:8px 24px">'
     +body
-    +'<div style="margin-top:28px;padding-top:14px;border-top:1px solid #E5E7EB;font-size:12px;color:#374151;line-height:1.8">'
-    +signerBlock
-    +logoHtml
-    +'<strong style="font-size:13px">UAB „EnergoLT"</strong><br>'
+    +'<div style="margin-top:28px;padding-top:14px;border-top:1px solid #E5E7EB;font-size:13px;color:#1F2937;line-height:1.7">'
+    +'Pagarbiai<br>'
+    +signerName+'<br>'
+    +'<span style="color:#555">Inžinierius</span>'
+    +'<br><br>'
+    +'UAB „EnergoLT"<br>'
     +'V. Krėvės pr. 120, Kaunas<br>'
-    +'LT-51119 Kaunas<br>'
-    +(signerPhone?'Mob. Tel. '+signerPhone+'<br>':'')
-    +'<a href="mailto:uzklausos@energolt.eu" style="color:#374151">uzklausos@energolt.eu</a><br>'
-    +'<a href="http://www.energolt.eu" style="color:#374151">www.energolt.eu</a>'
+    +'LT-51119 Kaunas'
+    +'<br><br>'
+    +'Mob. Tel. '+signerPhone+'<br>'
+    +'<a href="mailto:uzklausos@energolt.eu" style="color:#1155CC;text-decoration:none">uzklausos@energolt.eu</a><br>'
+    +'<a href="http://www.energolt.eu" style="color:#1155CC;text-decoration:none">www.energolt.eu</a>'
+    +'<br><br>'
+    +logoHtml
     +'</div>'
     +'</div></body></html>';
 }
@@ -2885,7 +2890,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.91</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.92</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2927,7 +2932,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.91</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.92</div>
         </div>
       </div>
     </div>
