@@ -1315,8 +1315,8 @@ async function preparePendingTeliaEmail(permit){
 // Tik pagrindinė info apie paraišką ir nuoroda į ją sistemoje.
 async function sendCombinedReviewNotification(permit){
   if(!REVIEW_EMAIL)return;
-  var pe=permit.pendingEmail;
-  var ke=permit.pendingKauoenergijaEmail;
+  var pe=permit.pendingEmail&&!permit.pendingEmail.cancelled?permit.pendingEmail:null;
+  var ke=permit.pendingKauoenergijaEmail&&!permit.pendingKauoenergijaEmail.cancelled?permit.pendingKauoenergijaEmail:null;
   if(!pe&&!ke)return;
   var permitNo=permit.id?permit.id.slice(-5).toUpperCase():"?????";
   var orgs=[];
@@ -1788,7 +1788,25 @@ function PermitDetail(p){
       })()}
 
       {/* Telia review/patvirtinimo blokas */}
-      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&(function(){
+      {/* Susiskleidusi Telia juostelė kai atmesta */}
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&o.pendingEmail.cancelled&&
+        <div style={{borderTop:"1px solid "+C.b1,paddingTop:10}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.rdD,border:"1px solid "+C.rd+"44",borderRadius:8,padding:"8px 12px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:11,fontWeight:700,color:C.rd,fontFamily:F}}>✗ Telia, Kaunas — atmesta</span>
+              {o.pendingEmail.cancelNote&&<span style={{fontSize:10,color:C.t2,fontFamily:F}}>({o.pendingEmail.cancelNote})</span>}
+            </div>
+            <Btn v="secondary" sm onClick={function(){
+              var restored=Object.assign({},o.pendingEmail);
+              delete restored.cancelled;delete restored.cancelNote;
+              p.onUpdate(Object.assign({},o,{pendingEmail:restored,
+                history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia atstatyta ("+(p.user.name||"-")+")"}])}));
+            }}>↩ Atstatyti</Btn>
+          </div>
+        </div>}
+
+      {/* Telia review blokas */}
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&!o.pendingEmail.cancelled&&(function(){
         var pe=o.pendingEmail||{};
         var hasWarn=Array.isArray(pe.warnings)&&pe.warnings.length>0;
         var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
@@ -1903,11 +1921,11 @@ function PermitDetail(p){
               {o.pendingKauoenergijaEmail&&<Btn v="danger" sm disabled={aprvBusy} onClick={function(){
                 var priezastis=window.prompt("Atmetimo priežastis (Telia):","Inžinerinių komunikacijų trasoje nėra");
                 if(priezastis===null)return;
+                var cancelledEmail=Object.assign({},o.pendingEmail,{cancelled:true,cancelNote:priezastis||""});
                 var updated=Object.assign({},o,{
-                  pendingEmail:null,
+                  pendingEmail:cancelledEmail,
                   history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia atmesta: "+(priezastis||"-")+" ("+(p.user.name||"-")+")"}])
                 });
-                if(!updated.pendingKauoenergijaEmail){updated.status="Atmestas";updated.history=updated.history.concat([{status:"Atmestas",date:fmtDate(new Date()),note:"Visos institucijos atmestos"}]);}
                 p.onUpdate(updated);sAprvSt("✓ Telia atmesta.");
               }}>✗ Atmesti Telia</Btn>}
               <Btn sm onClick={approve} disabled={aprvBusy} style={{background:"#CA8A04",color:"#fff",border:"none"}}>✓ Patvirtinti ir siusti Telia</Btn>
@@ -1916,8 +1934,25 @@ function PermitDetail(p){
         </div>;
       })()}
 
+      {/* Susiskleidusi KE juostelė kai atmesta */}
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail&&o.pendingKauoenergijaEmail.cancelled&&
+        <div style={{borderTop:"1px solid "+C.b1,paddingTop:10}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.rdD,border:"1px solid "+C.rd+"44",borderRadius:8,padding:"8px 12px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:11,fontWeight:700,color:C.rd,fontFamily:F}}>✗ Kauno energija — atmesta</span>
+              {o.pendingKauoenergijaEmail.cancelNote&&<span style={{fontSize:10,color:C.t2,fontFamily:F}}>({o.pendingKauoenergijaEmail.cancelNote})</span>}
+            </div>
+            <Btn v="secondary" sm onClick={function(){
+              var restored=Object.assign({},o.pendingKauoenergijaEmail);
+              delete restored.cancelled;delete restored.cancelNote;
+              p.onUpdate(Object.assign({},o,{pendingKauoenergijaEmail:restored,
+                history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"KE atstatyta ("+(p.user.name||"-")+")"}])}));
+            }}>↩ Atstatyti</Btn>
+          </div>
+        </div>}
+
       {/* Kauno energija review/patvirtinimo blokas */}
-      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail&&(function(){
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail&&!o.pendingKauoenergijaEmail.cancelled&&(function(){
         var ke=o.pendingKauoenergijaEmail||{};
         var hasWarn=Array.isArray(ke.warnings)&&ke.warnings.length>0;
         var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
@@ -2028,11 +2063,11 @@ function PermitDetail(p){
               {o.pendingEmail&&<Btn v="danger" sm disabled={keAprvBusy} onClick={function(){
                 var priezastis=window.prompt("Atmetimo priežastis (Kauno energija):","Inžinerinių komunikacijų trasoje nėra");
                 if(priezastis===null)return;
+                var cancelledKE=Object.assign({},o.pendingKauoenergijaEmail,{cancelled:true,cancelNote:priezastis||""});
                 var updated=Object.assign({},o,{
-                  pendingKauoenergijaEmail:null,
+                  pendingKauoenergijaEmail:cancelledKE,
                   history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"KE atmesta: "+(priezastis||"-")+" ("+(p.user.name||"-")+")"}])
                 });
-                if(!updated.pendingEmail){updated.status="Atmestas";updated.history=updated.history.concat([{status:"Atmestas",date:fmtDate(new Date()),note:"Visos institucijos atmestos"}]);}
                 p.onUpdate(updated);sKEAprvSt("✓ KE atmesta.");
               }}>✗ Atmesti KE</Btn>}
               <Btn sm onClick={approveKE} disabled={keAprvBusy} style={{background:"#DC2626",color:"#fff",border:"none"}}>✓ Patvirtinti ir siusti Kauno energija</Btn>
@@ -2836,7 +2871,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.85-test</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.86-test</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2878,7 +2913,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.85-test</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.86-test</div>
         </div>
       </div>
     </div>
