@@ -344,12 +344,43 @@ function hasTeliaMarkers(text){
   return markers.some(function(re){return re.test(text)});
 }
 
+// Ieško „BRĖŽINIAI" turinio lapo — pvz. "8. BRĖŽINIAI" su sąrašu "8.1 Inžinerinių tinklų planas"
+// Grąžina puslapio numerį arba null
+function findDrawingsIndexPage(pageTexts){
+  for(var i=0;i<pageTexts.length;i++){
+    var t=pageTexts[i];
+    // Puslapis turi turėti "BRĖŽINIAI" antraštę ir bent vieną numeruotą įrašą
+    if(/\bBR[ĖE][ŽZ]INIAI\b/i.test(t)&&/\b\d+[\.,]\d+\s+In[žz]/i.test(t)){
+      return i+1; // 1-indexed
+    }
+  }
+  return null;
+}
+
 // Projekto brėžinio aptikimas — daugiapakopis algoritmas:
+//   0) NAUJAS: Jei rastas „BRĖŽINIAI" turinys — iš karto ieškome pirmo tinklų plano PO jo
 //   1) Surenkam VISUS „švarius" brėžinio puslapius (be jokio derintojo vardo)
 //   2) PIRMENYBĖ — puslapiai su „1 dalis" (trasos planas, jį Telia kasimo paraiškai reikia)
 //   3) ATMETAM puslapius su „2 dalis", „3 dalis" ir t.t. (montavimo schemos, ne trasos)
 //   4) Jei yra keli kandidatai — paimam paskutinį (galutinė BRĖŽINIAI skyriaus versija)
 function findProjectDrawingPage(pageTexts){
+  // 0) PIRMA: ieškome „BRĖŽINIAI" turinio lapo
+  // Po jo pirmas tinklų planas (ne schema, ne vizualizacija) yra mūsų tikslas
+  var drawingsIndexPage=findDrawingsIndexPage(pageTexts);
+  if(drawingsIndexPage){
+    for(var di=drawingsIndexPage;di<pageTexts.length;di++){
+      var dt=pageTexts[di];
+      if(isDrawingPageText(dt)&&/IN[ŽZ]INERINI[UŲ]\s+TINK[LŲU]/i.test(dt)){
+        return di+1;
+      }
+    }
+    // Jei tikslaus titulo nerado — pirmasis brėžinys po turinio
+    for(var di2=drawingsIndexPage;di2<pageTexts.length;di2++){
+      if(isDrawingPageText(pageTexts[di2])){
+        return di2+1;
+      }
+    }
+  }
   var tablePage=findProjectApprovalsTablePage(pageTexts);
   var allNames=tablePage?extractAllApproverNames(pageTexts[tablePage-1]):[];
   var allRes=allNames.map(buildApproverNameRegex).filter(function(re){return re!==null});
@@ -2897,7 +2928,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.98</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.99</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2939,7 +2970,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.98</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.99</div>
         </div>
       </div>
     </div>
