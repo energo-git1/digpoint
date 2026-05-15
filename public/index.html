@@ -3044,7 +3044,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.12</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.13</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3086,7 +3086,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.12</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.13</div>
         </div>
       </div>
     </div>
@@ -3356,16 +3356,22 @@ function App(){
       if(!wasGautas){
         var permitNo=updated.id?updated.id.slice(-5).toUpperCase():"?????";
         var gSubj="Kasimo leidimas gautas — "+updated.organization+" #"+permitNo;
+        var permitUrl=(typeof window!=="undefined"&&window.location)
+          ?(window.location.origin+window.location.pathname+"#permit="+encodeURIComponent(updated.id)):"";
+        var gLinkBtn=permitUrl
+          ?'<p style="margin:16px 0"><a href="'+permitUrl+'" style="color:#1155CC">Atidaryti paraišką sistemoje</a></p>':"";
         var gRows=emailRow("Paraiška Nr.:",permitNo)
           +emailRow("Organizacija:",updated.organization)
           +emailRow("Vieta:",updated.location||"-")
           +(updated.permitValidFrom?emailRow("Galioja nuo:",updated.permitValidFrom):"")
           +(updated.permitValidUntil?emailRow("Galioja iki:",updated.permitValidUntil):"");
-        var gBody=emailWrap("Leidimas gautas","#10B981",
-          "<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Gerb. <strong>"+(updated.manager||"")+"</strong>,</p>"
-          +"<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">informuojame, kad Jūsų kasimo leidimo paraiška <strong>#"+permitNo+"</strong> ("+updated.organization+") yra patvirtinta ir leidimas gautas.</p>"
+        var gBody='<!DOCTYPE html><html><body style="margin:0;padding:0;background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1F2937;line-height:1.6">'
+          +'<div style="max-width:600px;margin:20px auto;padding:0 16px">'
+          +"<p style=\"margin:0 0 12px\">Gerb. "+(updated.manager||"")+"</p>"
+          +"<p style=\"margin:0 0 12px\">informuojame, kad Jūsų kasimo leidimo paraiška <strong>#"+permitNo+"</strong> ("+updated.organization+") yra patvirtinta ir leidimas gautas.</p>"
           +"<table style=\"border-collapse:collapse;width:100%;margin:12px 0\">"+gRows+"</table>"
-          +"<p style=\"color:#6B7280;font-size:12px;margin-top:12px\">Pagarbiai, EnergoLT dokumentacijos skyrius.</p>");
+          +gLinkBtn
+          +'</div></body></html>';
         sendEmail(updated.email,gSubj,gBody);
       }
     }
