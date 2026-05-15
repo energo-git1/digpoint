@@ -3028,7 +3028,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.2</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.3</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3070,7 +3070,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.2</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.3</div>
         </div>
       </div>
     </div>
@@ -3214,15 +3214,45 @@ function App(){
   // Failai jau įkelti į serverį per /api/upload — DB reikia tik metaduomenų ir serverio URL.
   function stripPermitsForDb(arr){
     return arr.map(function(permit){
-      if(!permit.files||permit.files.length===0)return permit;
-      var strippedFiles=permit.files.map(function(f){
-        if(!f.data)return f;
-        var copy=Object.assign({},f);
-        delete copy.data;
-        return copy;
-      });
-      return Object.assign({},permit,{files:strippedFiles});
+      var result=permit;
+      // Pašaliname data iš files
+      if(permit.files&&permit.files.length>0){
+        var strippedFiles=permit.files.map(function(f){
+          if(!f.data)return f;
+          var copy=Object.assign({},f);delete copy.data;return copy;
+        });
+        result=Object.assign({},result,{files:strippedFiles});
+      }
+      // Pašaliname data iš permitPdfs
+      if(permit.permitPdfs){
+        var strippedPdfs={};
+        Object.keys(permit.permitPdfs).forEach(function(k){
+          var pf=permit.permitPdfs[k];
+          if(!pf)return;
+          var copy=Object.assign({},pf);delete copy.data;
+          strippedPdfs[k]=copy;
+        });
+        result=Object.assign({},result,{permitPdfs:strippedPdfs});
+      }
+      return result;
     });
+  }
+  // Perskaičiuoja paraiškos leidimo statusą pagal gautus PDF
+  function calcPermitStatus(permit){
+    var orgs=(permit.organizations||[]).filter(function(o){return o==="Telia, Kaunas"||o==="Kauno energija";});
+    if(orgs.length===0)return permit.status;
+    var pdfs=permit.permitPdfs||{};
+    var allHave=orgs.every(function(org){
+      var key=org==="Telia, Kaunas"?"telia":"ke";
+      return pdfs[key]&&pdfs[key].name;
+    });
+    var someHave=orgs.some(function(org){
+      var key=org==="Telia, Kaunas"?"telia":"ke";
+      return pdfs[key]&&pdfs[key].name;
+    });
+    if(allHave)return "Gautas leidimas";
+    if(someHave)return "Gautas dalinai";
+    return permit.status;
   }
   function savePermits(arr){var checked=checkExpired(arr);setPermits(checked);}
   function clearPermits(){_clearIntent.current=true;setPermits([]);}
@@ -3293,6 +3323,14 @@ function App(){
         var clBody=emailWrap("Leidimo uzdarymas","#10B981","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Uzsakovas pateike dokumentus leidimo uzdarymui.</p><table style=\"border-collapse:collapse;width:100%\">"+clRows+"</table>");
         if(asgn&&asgn.email)sendEmail(asgn.email,clSubj,clBody);
         sendEmail("uzklausos@energolt.eu",clSubj,clBody);
+      }
+    }
+    // Automatinis statuso perskaičiavimas pagal permitPdfs
+    if(updated.permitPdfs&&(updated.status==="Pateikta"||updated.status==="Gautas dalinai"||updated.status==="Laukia patvirtinimo leidimo")){
+      var calcSt=calcPermitStatus(updated);
+      if(calcSt!==updated.status){
+        updated=Object.assign({},updated,{status:calcSt,
+          history:(updated.history||[]).concat([{status:calcSt,date:fmtDate(new Date()),note:"Statusas atnaujintas automatiškai"}])});
       }
     }
     // Pranešimas užsakovui kai gautas leidimas
