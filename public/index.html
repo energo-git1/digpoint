@@ -2332,43 +2332,64 @@ function PermitRow(p){
   var _h=useState(false);var h=_h[0],sH=_h[1];
   var o=p.permit;
   var cr=p.users.find(function(u){return u.id===o.createdBy});
-  var asgn=o.assignedTo?p.users.find(function(u){return u.id===o.assignedTo}):null;
   var loc=o.location&&o.location!=="[Bus nustatyta is PDF]"?o.location:"";
-  var rowBg=C.s2;var rowBorder=C.b1;var rowBorderW="1px";var warnLabel=null;
-  if(o.status==="Nebegalioja"){
-    rowBg=C.rdD;rowBorder=C.rd;rowBorderW="1.5px";
-    warnLabel=<span style={{fontSize:9,fontWeight:700,color:C.rd,fontFamily:FM}}>Nebegalioja</span>;
-  } else if((o.status==="Gautas leidimas"||o.status==="Gautas")&&o.permitValidUntil){
-    var wd=workDaysUntil(o.permitValidUntil);
-    if(wd>=0&&wd<=5){
-      rowBg=C.ylD;rowBorder=C.yl;rowBorderW="1.5px";
-      warnLabel=<span style={{fontSize:9,fontWeight:700,color:C.yl,fontFamily:FM}}>Baigiasi: {wd} d.d.</span>;
-    } else {
-      rowBg=C.gnD;rowBorder=C.gn;rowBorderW="1.5px";
+  var isPermits=p.viewMode==="permits";
+  var rowBg=C.s2;var rowBorder=C.b1;var rowBorderW="1px";
+  if(o.status==="Nebegalioja"){rowBg=C.rdD;rowBorder=C.rd;rowBorderW="1.5px";}
+  else if(o.status==="Gautas leidimas"||o.status==="Gautas"){rowBg=C.gnD;rowBorder=C.gn;rowBorderW="1.5px";}
+  else if(o.status==="Gautas dalinai"||o.status==="Laukia patvirtinimo leidimo"){rowBg=C.ylD;rowBorder=C.yl;rowBorderW="1.5px";}
+
+  // PDF mygtukų generavimas (tik "Leidimai" lange)
+  function openPdf(file){
+    if(!file)return;
+    if(file.url){window.open(file.url,'_blank');return;}
+    if(file.data){
+      var arr=file.data.split(',');var bin=atob(arr[1]);var u8=new Uint8Array(bin.length);
+      for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+      window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'})),'_blank');
     }
   }
+  var orgs=o.organizations||[];
+  var pdfBtns=null;
+  if(isPermits){
+    var btns=[];
+    orgs.forEach(function(org){
+      var key=org==="Telia, Kaunas"?"telia":org==="Kauno energija"?"ke":null;
+      if(!key)return;
+      var permitFile=(o.permitPdfs||{})[key];
+      var label=org==="Telia, Kaunas"?"Telia":"KE";
+      var color=org==="Telia, Kaunas"?"#1D4ED8":"#C2410C";
+      var bg=org==="Telia, Kaunas"?"#EFF6FF":"#FFF7ED";
+      var border=org==="Telia, Kaunas"?"#BFDBFE":"#FED7AA";
+      if(permitFile){
+        btns.push(<button key={key} onClick={function(e){e.stopPropagation();openPdf(permitFile);}}
+          style={{display:"flex",alignItems:"center",gap:3,padding:"3px 8px",borderRadius:6,fontSize:10,fontWeight:500,border:"0.5px solid "+border,background:bg,color:color,cursor:"pointer"}}>
+          📄 {label}
+        </button>);
+      } else if(o.status==="Laukia patvirtinimo leidimo"){
+        btns.push(<button key={key} onClick={function(e){e.stopPropagation();p.onClick();}}
+          style={{display:"flex",alignItems:"center",gap:3,padding:"3px 8px",borderRadius:6,fontSize:10,fontWeight:500,border:"0.5px solid #F59E0B",background:"#FFFBEB",color:"#92400E",cursor:"pointer"}}>
+          ✓ Patvirtinti
+        </button>);
+      } else {
+        btns.push(<button key={key} onClick={function(e){e.stopPropagation();p.onClick();}}
+          style={{display:"flex",alignItems:"center",gap:3,padding:"3px 8px",borderRadius:6,fontSize:10,fontWeight:500,border:"0.5px solid "+C.b1,background:C.s2,color:C.t2,cursor:"pointer"}}>
+          ⬆ {label}
+        </button>);
+      }
+    });
+    pdfBtns=<div style={{display:"flex",gap:5,flexShrink:0}}>{btns}</div>;
+  }
+
   return <div onClick={p.onClick} onMouseEnter={function(){sH(true)}} onMouseLeave={function(){sH(false)}}
     style={{padding:"10px 14px",background:h?C.s3:rowBg,border:rowBorderW+" solid "+(h?C.b2:rowBorder),borderRadius:10,cursor:"pointer",transition:"all .15s",marginBottom:4}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
-      <div style={{flex:1,minWidth:0,marginRight:8}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+      <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:13,fontWeight:700,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{loc||o.organization}</div>
-        {loc&&<div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:1}}>{o.organization}</div>}
+        <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:1}}>{loc?o.organization:""}{!isPermits&&cr?(" · "+cr.name):""}</div>
       </div>
-      <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
-        {warnLabel}
-        <StatusBadge status={o.status}/>
-      </div>
-    </div>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:4}}>
-      <div style={{display:"flex",alignItems:"center",gap:4}}>
-        <Av name={cr?cr.name:""} size={16}/>
-        <span style={{fontSize:10,color:C.t2,fontFamily:F}}>{cr?cr.name:"-"}</span>
-        {asgn&&<span style={{fontSize:10,color:C.or,fontFamily:F}}> / {asgn.name}</span>}
-      </div>
-      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        {o.status==="Gautas"&&o.permitValidUntil&&<span style={{fontSize:9,color:C.gn,fontFamily:FM,fontWeight:600}}>iki {o.permitValidUntil}</span>}
-        <span style={{fontSize:9,color:C.t3,fontFamily:FM}}>{o.startDate} — {o.endDate}</span>
-      </div>
+      {pdfBtns}
+      <StatusBadge status={o.status}/>
     </div>
   </div>
 }
@@ -2933,7 +2954,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.0</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.1</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2975,7 +2996,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.0</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.1</div>
         </div>
       </div>
     </div>
@@ -3302,7 +3323,7 @@ function App(){
   var pendingCount=users.filter(function(u){return u.role==="pending"}).length;
   var closingCount=permits.filter(function(p){return p.closingSubmitted&&!p.closingDone}).length;
   // Leidimų statusai
-  var permitStatuses=["Gautas leidimas","Gautas","Nebegalioja"];
+  var permitStatuses=["Gautas leidimas","Gautas dalinai","Laukia patvirtinimo leidimo","Gautas","Nebegalioja"];
   // Pateiktų paraiškų statusai
   var submittedStatuses=["Pateikta"];
 
@@ -3355,7 +3376,7 @@ function App(){
             <div style={{fontSize:9,color:C.t2,fontFamily:F,display:"flex",alignItems:"center",gap:3}}><span style={{width:4,height:4,borderRadius:"50%",background:STATUS_MAP[s].dot}}/>{SL[s]||s}</div>
           </div>})}
       </div>}
-      {visible.length===0?<Empty icon="&#128077;" title="Paraiškų nėra."/>:visible.map(function(permit){return <PermitRow key={permit.id} permit={permit} users={users} onClick={function(){setDetail(permit)}}/>})}
+      {visible.length===0?<Empty icon="&#128077;" title="Paraiškų nėra."/>:visible.map(function(permit){return <PermitRow key={permit.id} permit={permit} users={users} viewMode={view} onClick={function(){setDetail(permit)}}/>})}
     </div>;
   }
 
