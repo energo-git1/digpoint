@@ -1645,6 +1645,8 @@ function PermitDetail(p){
   var _cFiles=useState(o.closeFiles||[]);var cFiles=_cFiles[0],sCFiles=_cFiles[1];
   var _lbcFiles=useState(o.lbcFiles||[]);var lbcFiles=_lbcFiles[0],sLbcFiles=_lbcFiles[1];
   var _pvu=useState(o.permitValidUntil||"");var pvu=_pvu[0],sPvu=_pvu[1];
+  // Leidimo PDF failai — {telia: {name,url,filename}, ke: {name,url,filename}}
+  var _permitPdfs=useState(o.permitPdfs||{});var permitPdfs=_permitPdfs[0],sPermitPdfs=_permitPdfs[1];
   var _aprvSt=useState("");var aprvSt=_aprvSt[0],sAprvSt=_aprvSt[1];
   var _aprvBusy=useState(false);var aprvBusy=_aprvBusy[0],sAprvBusy=_aprvBusy[1];
   // Telia — pasirinkti puslapiai (vienas bendras PDF priedas)
@@ -1708,7 +1710,20 @@ function PermitDetail(p){
         u.history=(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Priskirta: "+(aw?aw.name:at)}]);
       }
       if(st&&st!==o.status){
+        // Rankiniam "Gautas leidimas" — reikalingas bent vienas leidimo PDF
+        if(st==="Gautas leidimas"){
+          var orgsToCheck=o.organizations||[];
+          var needsTelia=orgsToCheck.indexOf("Telia, Kaunas")!==-1;
+          var needsKE=orgsToCheck.indexOf("Kauno energija")!==-1;
+          var hasTeliaP=permitPdfs.telia&&permitPdfs.telia.name;
+          var hasKEP=permitPdfs.ke&&permitPdfs.ke.name;
+          if((needsTelia&&!hasTeliaP)||(needsKE&&!hasKEP)){
+            alert("Prieš keičiant statusą į „Gautas leidimas" reikia įkelti leidimo PDF kiekvienai institucijai.");
+            return;
+          }
+        }
         u.status=st;
+        u.permitPdfs=permitPdfs;
         if(st==="Gautas leidimas"||st==="Gautas"){
           if(pvf) u.permitValidFrom=pvf;
           if(pvu) u.permitValidUntil=pvu;
@@ -2235,6 +2250,65 @@ function PermitDetail(p){
             }} style={{background:"#10B981",color:"#fff",border:"none"}}>✉ Išsiųsti</Btn>}
         </div>
       </div>}
+
+      {/* Leidimo PDF įkėlimas — rodomas kai st==="Gautas leidimas" arba jau gautas */}
+      {(isA||isD)&&(st==="Gautas leidimas"||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Laukia patvirtinimo leidimo")&&(function(){
+        var orgsWithPermit=(o.organizations||[]).filter(function(org){return org==="Telia, Kaunas"||org==="Kauno energija";});
+        if(orgsWithPermit.length===0)return null;
+        function handlePdfUpload(key,f){
+          if(!f.name||!f.name.match(/\.pdf$/i)){alert("Tik PDF failai.");return;}
+          var reader=new FileReader();
+          reader.onload=function(e){
+            var fd=new FormData();fd.append("file",f);
+            fetch("/api/upload",{method:"POST",body:fd})
+              .then(function(r){return r.json()})
+              .then(function(d){
+                var updated=Object.assign({},permitPdfs);
+                updated[key]={name:f.name,url:d.url||null,filename:d.filename||null,data:e.target.result};
+                sPermitPdfs(updated);
+                // Iš karto išsaugoti prie paraiškos
+                p.onUpdate(Object.assign({},o,{permitPdfs:updated}));
+              }).catch(function(){
+                var updated=Object.assign({},permitPdfs);
+                updated[key]={name:f.name,data:e.target.result};
+                sPermitPdfs(updated);
+                p.onUpdate(Object.assign({},o,{permitPdfs:updated}));
+              });
+          };
+          reader.readAsDataURL(f);
+        }
+        function openPermitPdf(key){
+          var pf=permitPdfs[key];if(!pf)return;
+          if(pf.url){window.open(pf.url,'_blank');return;}
+          if(pf.data){var arr=pf.data.split(',');var bin=atob(arr[1]);var u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'})),'_blank');}
+        }
+        return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Gauti leidimai</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {orgsWithPermit.map(function(org){
+              var key=org==="Telia, Kaunas"?"telia":"ke";
+              var label=org==="Telia, Kaunas"?"Telia, Kaunas":"Kauno energija";
+              var color=org==="Telia, Kaunas"?"#1D4ED8":"#C2410C";
+              var pf=permitPdfs[key];
+              return <div key={key} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,border:"1px solid "+(pf?C.gn:C.b1),background:pf?C.gnD:C.s2}}>
+                <span style={{fontSize:11,fontWeight:600,color:color,minWidth:110,fontFamily:F}}>{label}</span>
+                {pf
+                  ?<div style={{flex:1,display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:11,color:C.gn,fontFamily:FM,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>✓ {pf.name}</span>
+                    <Btn v="secondary" sm onClick={function(){openPermitPdf(key);}}>Atidaryti</Btn>
+                    <Btn v="danger" sm onClick={function(){var u=Object.assign({},permitPdfs);delete u[key];sPermitPdfs(u);p.onUpdate(Object.assign({},o,{permitPdfs:u}));}}>✕</Btn>
+                  </div>
+                  :<label style={{flex:1,cursor:"pointer"}}>
+                    <div style={{border:"1.5px dashed "+C.b1,borderRadius:6,padding:"6px 10px",textAlign:"center",fontSize:11,color:C.t2,fontFamily:F}}>
+                      ⬆ Įkelti {label} leidimo PDF
+                    </div>
+                    <input type="file" accept=".pdf" style={{display:"none"}} onChange={function(e){if(e.target.files[0])handlePdfUpload(key,e.target.files[0]);e.target.value="";}}/>
+                  </label>}
+              </div>;
+            })}
+          </div>
+        </div>;
+      })()}
 
       {/* Dokumentacija veiksmai */}
       {isD&&o.assignedTo===p.user.id&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
@@ -2954,7 +3028,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.1</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.2</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2996,7 +3070,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.1</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.2</div>
         </div>
       </div>
     </div>
