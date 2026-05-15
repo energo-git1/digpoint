@@ -1724,9 +1724,10 @@ function PermitDetail(p){
         }
         u.status=st;
         u.permitPdfs=permitPdfs;
+        // Datos imamos iš paraiškos automatiškai
         if(st==="Gautas leidimas"||st==="Gautas"){
-          if(pvf) u.permitValidFrom=pvf;
-          if(pvu) u.permitValidUntil=pvu;
+          if(!u.permitValidFrom)u.permitValidFrom=o.startDate||"";
+          if(!u.permitValidUntil)u.permitValidUntil=o.endDate||"";
         }
         u.history=(u.history||o.history||[]).concat([{status:st,date:fmtDate(new Date()),note:note||((st==="Gautas leidimas"||st==="Gautas")&&pvu?"Leidimas gautas, galioja iki "+pvu:"")}]);
       } else if(pvf||pvu){
@@ -2197,14 +2198,6 @@ function PermitDetail(p){
             </div>}
         </div>
         <Sel label="Keisti busena" value={st} onChange={sSt} options={[{value:"Laukiama tvirtinimo",label:"Laukiama tvirtinimo"},{value:"Pateikta",label:"Pateikta"},{value:"Gautas leidimas",label:"Gautas leidimas (reikalingas PDF)"},{value:"Nebegalioja",label:"Nebegalioja"},{value:"Atmestas",label:"Atmestas"}]}/>
-        {(st==="Gautas leidimas"||st==="Gautas")&&<div style={{background:C.gnD,borderRadius:8,padding:"10px 12px",border:"1px solid "+C.gn+"33",marginBottom:8}}>
-          <div style={{fontSize:10,fontWeight:700,color:C.gn,fontFamily:F,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Leidimo galiojimo terminas</div>
-          <div style={{display:"flex",gap:10}}>
-            <div style={{flex:1}}><Inp label="Galioja nuo" type="date" value={pvf} onChange={sPvf}/></div>
-            <div style={{flex:1}}><Inp label="Galioja iki" type="date" value={pvu} onChange={sPvu}/></div>
-          </div>
-          {o.permitValidUntil&&<div style={{fontSize:10,color:C.gn,fontFamily:FM}}>Esama reiksme: {o.permitValidFrom||"?"} — {o.permitValidUntil}</div>}
-        </div>}
         {(st==="Gautas leidimas"||st==="Gautas"||st==="Atmestas")&&<Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>}
         <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:8}}>
           <Btn v="secondary" onClick={p.onClose} sm>Uždaryti</Btn>
@@ -3028,7 +3021,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.6</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.7</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3070,7 +3063,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.6</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.7</div>
         </div>
       </div>
     </div>
