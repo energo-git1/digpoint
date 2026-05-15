@@ -465,6 +465,26 @@ app.post('/api/notify/email', async (req, res) => {
   }
 });
 
+// ── Įspėjimas kai sistema aptinka leidimą bet negali pridėti PDF ──
+app.post('/api/notify/permit-pdf-missing', async (req, res) => {
+  const { permitNo, institution, location } = req.body || {};
+  if (!permitNo) return res.status(400).json({ error: 'Trūksta duomenų.' });
+  try {
+    const subject = `Nepavyko automatiškai atpažinti leidimo — reikalingas rankinis įkėlimas`;
+    const html = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;font-size:13px;color:#1F2937;padding:20px">
+      <p>Sistema aptiko gautą laišką iš <strong>${institution||'institucijos'}</strong>, tačiau nepavyko automatiškai atpažinti leidimo dokumento paraiškoje <strong>#${permitNo}</strong>${location?' ('+location+')':''}.</p>
+      <p>Paraiška lieka <strong>„Pateikta"</strong> statusu.</p>
+      <p>Reikalingas rankinis leidimo PDF įkėlimas sistemoje.</p>
+    </body></html>`;
+    const info = await mailer.sendMail({ from: MAIL_FROM_INTERNAL, to: 'uzklausos@energolt.eu', subject, html });
+    console.log(`  📨 Permit PDF missing warning → uzklausos | #${permitNo} | ${info.messageId}`);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(`  ❌ Permit PDF missing warning klaida: ${e.message}`);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── ESO paraiškos pateikimo patvirtinimas užsakovui ───────────
 app.post('/api/notify/eso-submitted', async (req, res) => {
   const { permit } = req.body || {};

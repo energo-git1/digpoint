@@ -2322,8 +2322,8 @@ function PermitDetail(p){
         </div>
       </div>}
 
-      {/* Dokumentacija — leidimo galiojimo datos (kai Gautas) */}
-      {isD&&o.assignedTo===p.user.id&&(o.status==="Gautas leidimas"||o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+      {/* Dokumentacija — leidimo galiojimo datos (kai Gautas ar dalinai) */}
+      {isD&&o.assignedTo===p.user.id&&(o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{background:C.gnD,borderRadius:8,padding:"10px 12px",border:"1px solid "+C.gn+"33",marginBottom:8}}>
           <div style={{fontSize:10,fontWeight:700,color:C.gn,fontFamily:F,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Leidimo galiojimo terminas</div>
           <div style={{display:"flex",gap:10}}>
@@ -2346,7 +2346,7 @@ function PermitDetail(p){
 
 
       {/* Leidimo uzdarymas — tik uzsakovas, tik kai gautas leidimas */}
-      {p.user.role==="orderer"&&(o.status==="Gautas leidimas"||o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+      {p.user.role==="orderer"&&(o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Kasimo leidimo uzdarymas</div>
         <div style={{background:C.s2,borderRadius:10,border:"1px solid "+(cFiles.length===0?C.rd:C.b1),padding:14,marginBottom:10}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -2375,7 +2375,7 @@ function PermitDetail(p){
       </div>}
 
       {/* Skaitymo rezimas — tik ne adminui */}
-      {!isA&&(p.user.role==="orderer"||(isD&&o.assignedTo!==p.user.id)||o.status==="Gautas leidimas"||o.status==="Gautas"||o.status==="Atmestas")&&
+      {!isA&&(p.user.role==="orderer"||(isD&&o.assignedTo!==p.user.id)||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja"||o.status==="Atmestas")&&
         <div style={{display:"flex",justifyContent:"flex-end"}}><Btn v="secondary" onClick={p.onClose} sm>Uzdaryti</Btn></div>}
     </div>
   </Modal>
@@ -3028,7 +3028,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.4</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.5</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3070,7 +3070,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.4</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.5</div>
         </div>
       </div>
     </div>
