@@ -648,7 +648,7 @@ function emailRow(label,value){return'<tr><td style="padding:4px 12px 4px 0;colo
 function emailWrap(title,color,body){return'<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,sans-serif"><div style="max-width:540px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)"><div style="background:'+color+';padding:20px 28px"><h2 style="margin:0;color:#fff;font-size:18px">\uD83D\uDEA7 Kasimo leidimai &nbsp;&middot;&nbsp; '+title+'</h2></div><div style="padding:24px 28px">'+body+'</div><div style="padding:12px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF">EnergoLT &middot; Kasimo leid\u0173 valdymo sistema &middot; <a href="mailto:uzklausos@energolt.eu" style="color:#6B7280">uzklausos@energolt.eu</a></div></div></body></html>'}
 // REVIEW_EMAIL — vidiniai paraiškų peržiūrai prieš išsiunčiant institucijoms.
 // Vėliau gali būti pakeistas į konfigūracinį lauką arba dinaminį admin/dok sąrašą.
-var REVIEW_EMAIL = "eimutis.simkus@energolt.eu"; // TEST — pakeisti atgal į uzklausos@energolt.eu
+var REVIEW_EMAIL = "uzklausos@energolt.eu";
 
 async function sendEmail(toEmail,subject,html,attachments){
   if(!toEmail)return;
@@ -1331,7 +1331,6 @@ async function preparePendingTeliaEmail(permit){
 }
 
 // Pranešimas apie pateiktą paraišką — siunčiamas į uzklausos@energolt.eu.
-// Tik pagrindinė info apie paraišką ir nuoroda į ją sistemoje.
 async function sendCombinedReviewNotification(permit){
   if(!REVIEW_EMAIL)return;
   var pe=permit.pendingEmail&&!permit.pendingEmail.cancelled?permit.pendingEmail:null;
@@ -1341,25 +1340,30 @@ async function sendCombinedReviewNotification(permit){
   var orgs=[];
   if(pe)orgs.push("Telia, Kaunas");
   if(ke)orgs.push("Kauno energija");
+  var vieta=permit.location||((permit.teliaRouteFrom||"")+(permit.teliaRouteTo?" – "+permit.teliaRouteTo:""))||"-";
   var permitUrl=(typeof window!=="undefined"&&window.location)
     ?(window.location.origin+window.location.pathname+"#permit="+encodeURIComponent(permit.id))
     :"";
   var linkBtn=permitUrl
-    ?'<p style="margin:16px 0;text-align:center"><a href="'+permitUrl+'" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">Atidaryti paraišką sistemoje</a></p>'
+    ?'<p style="margin:16px 0"><a href="'+permitUrl+'" style="color:#1155CC">Atidaryti paraišką sistemoje</a></p>'
     :"";
-  var body=emailWrap("Pateikta nauja paraiska","#3B82F6",
-    "<p style=\"color:#374151;font-size:14px;margin:0 0 16px\">Pateikta nauja kasimo leidimo paraiška.</p>"
-    +"<table style=\"border-collapse:collapse;width:100%;margin:0 0 16px\">"
+  var body='<!DOCTYPE html><html><body style="margin:0;padding:0;background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1F2937;line-height:1.6">'
+    +'<div style="max-width:600px;margin:20px auto;padding:0 16px">'
+    +'<p style="margin:0 0 12px">Pateikta nauja kasimo leidimo paraiška.</p>'
+    +'<table style="border-collapse:collapse;width:100%;margin:0 0 12px">'
     +emailRow("Paraiška Nr.:",permitNo)
     +emailRow("Pareiškėjas:",permit.manager||"-")
     +emailRow("Tel. nr.:",permit.managerPhone||"-")
-    +emailRow("Vieta:",permit.location||((permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||""))||"-")
+    +emailRow("El. paštas:",permit.email||"-")
+    +emailRow("Vieta:",vieta)
     +emailRow("Institucijos:",orgs.join(", "))
     +(permit.investNo?emailRow("Investicinis Nr.:",permit.investNo):"")
-    +emailRow("Laikotarpis:",(permit.startDate||"-")+" – "+(permit.endDate||"-"))
-    +"</table>"
-    +linkBtn);
-  sendEmail(REVIEW_EMAIL,"Nauja paraiška #"+permitNo+" — "+orgs.join(", "),body);
+    +(permit.projectNo?emailRow("Projekto Nr.:",permit.projectNo):"")
+    +emailRow("Laikotarpis:",(orgs[0]==="Telia, Kaunas"?(permit.teliaStartDate||permit.startDate||"-")+" – "+(permit.teliaEndDate||permit.endDate||"-"):(permit.keStartDate||permit.startDate||"-")+" – "+(permit.keEndDate||permit.endDate||"-")))
+    +'</table>'
+    +linkBtn
+    +'</div></body></html>';
+  sendEmail(REVIEW_EMAIL,"Nauja paraiška #"+permitNo+" — "+orgs.join(", ")+" | "+vieta,body);
 }
 
 // Iš Telia laiško HTML (`buildExternalEmailWrapper` rezultato) ištraukia tik vidinį turinį
@@ -2890,7 +2894,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.93</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.1.94</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -2932,7 +2936,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.93</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.1.94</div>
         </div>
       </div>
     </div>
