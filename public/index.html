@@ -2652,42 +2652,60 @@ function ScheduleView(p){
               </div>
             </div>
 
-            {/* Leidimų eilutės */}
-            {permits.map(function(permit,pIdx){
-              var bs=barStyle(permit);
-              var ps=permitBarStyle(permit);
-              var sm=STATUS_MAP[permit.status]||STATUS_MAP["Laukiama tvirtinimo"]||{bg:C.acD,c:C.ac,dot:C.ac};
-              var isLastRow=pIdx===permits.length-1;
-              return <div key={permit.id} onClick={function(){p.onSelect(permit)}}
-                style={{display:"flex",borderBottom:isLastRow?"none":"1px solid "+C.b1,cursor:"pointer",transition:"background .1s"}}
-                onMouseEnter={function(e){e.currentTarget.style.background=C.s3}}
-                onMouseLeave={function(e){e.currentTarget.style.background="transparent"}}>
+            {/* Leidimų eilutės — kiekviena institucija atskirai */}
+            {(function(){
+              // Išplečiame paraiškas su keliomis institucijomis į atskiras eilutes
+              var rows=[];
+              permits.forEach(function(permit){
+                var orgsInst=(permit.organizations||[]).filter(function(o){return o==="Telia, Kaunas"||o==="Kauno energija"||o==="AB ESO"||o==="Kauno miesto savivaldybe";});
+                if(orgsInst.length<=1){
+                  rows.push({permit:permit,org:permit.organization,startDate:permit.startDate,endDate:permit.endDate});
+                }else{
+                  orgsInst.forEach(function(org){
+                    var sd=org==="Telia, Kaunas"?(permit.teliaStartDate||permit.startDate):org==="Kauno energija"?(permit.keStartDate||permit.startDate):permit.startDate;
+                    var ed=org==="Telia, Kaunas"?(permit.teliaEndDate||permit.endDate):org==="Kauno energija"?(permit.keEndDate||permit.endDate):permit.endDate;
+                    rows.push({permit:permit,org:org,startDate:sd,endDate:ed});
+                  });
+                }
+              });
+              return rows.map(function(row,pIdx){
+                var permit=row.permit;
+                var rowPermit=Object.assign({},permit,{startDate:row.startDate,endDate:row.endDate});
+                var bs=barStyle(rowPermit);
+                var ps=permitBarStyle(permit);
+                var sm=STATUS_MAP[permit.status]||STATUS_MAP["Laukiama tvirtinimo"]||{bg:C.acD,c:C.ac,dot:C.ac};
+                var isLastRow=pIdx===rows.length-1;
+                return <div key={permit.id+"-"+row.org} onClick={function(){p.onSelect(permit)}}
+                  style={{display:"flex",borderBottom:isLastRow?"none":"1px solid "+C.b1,cursor:"pointer",transition:"background .1s"}}
+                  onMouseEnter={function(e){e.currentTarget.style.background=C.s3}}
+                  onMouseLeave={function(e){e.currentTarget.style.background="transparent"}}>
 
-                <div style={{width:LEFT_W,flexShrink:0,padding:"5px 12px 5px 24px",borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",justifyContent:"center",gap:2}}>
-                  <div style={{display:"flex",alignItems:"center",gap:5}}>
-                    <span style={{width:6,height:6,borderRadius:"50%",background:sm.dot,flexShrink:0}}/>
-                    <span style={{fontSize:10,fontWeight:700,color:C.tx,fontFamily:F}}>{permit.organization}</span>
-                    <span style={{fontSize:8,color:C.t3,fontFamily:FM,background:C.bg,padding:"1px 3px",borderRadius:2}}>#{permit.id.slice(-5).toUpperCase()}</span>
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:5,paddingLeft:11}}>
-                    <span style={{fontSize:9,color:C.t3,fontFamily:F}}>{SL[permit.status]||permit.status}</span>
-                    {permit.permitValidUntil&&<span style={{fontSize:8,color:ps?ps.color:C.t3,fontFamily:FM,fontWeight:600}}>iki {permit.permitValidUntil}</span>}
-                  </div>
-                </div>
-
-                <div style={{flex:1,position:"relative",height:ROW_H}}>
-                  {dayLabels.map(function(d,i){return <div key={i} style={{position:"absolute",left:d.offsetPct+"%",top:0,bottom:0,width:d.widthPct+"%",background:d.isNonWork?"rgba(239,68,68,.04)":"transparent",pointerEvents:"none"}}/>})}
-                  {dayLabels.map(function(d,i){return <div key={"l"+i} style={{position:"absolute",left:d.offsetPct+"%",top:0,bottom:0,width:1,background:d.isMonday?C.b2:C.b1,opacity:d.isMonday?.4:.15,pointerEvents:"none"}}/>})}
-                  {todayPct>=0&&<div style={{position:"absolute",left:todayPct+"%",top:0,bottom:0,width:2,background:C.ac,opacity:.4,zIndex:1}}/>}
-                  {bs&&<div style={Object.assign({position:"absolute",top:8,height:BAR_H,borderRadius:3,opacity:.85,zIndex:2,minWidth:3},bs)}>
-                    <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",paddingLeft:3,overflow:"hidden"}}>
-                      <span style={{fontSize:7,color:"#fff",fontFamily:FM,whiteSpace:"nowrap",textShadow:"0 1px 2px rgba(0,0,0,.5)"}}>{permit.startDate} — {permit.endDate}</span>
+                  <div style={{width:LEFT_W,flexShrink:0,padding:"5px 12px 5px 24px",borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",justifyContent:"center",gap:2}}>
+                    <div style={{display:"flex",alignItems:"center",gap:5}}>
+                      <span style={{width:6,height:6,borderRadius:"50%",background:sm.dot,flexShrink:0}}/>
+                      <span style={{fontSize:10,fontWeight:700,color:C.tx,fontFamily:F}}>{row.org}</span>
+                      <span style={{fontSize:8,color:C.t3,fontFamily:FM,background:C.bg,padding:"1px 3px",borderRadius:2}}>#{permit.id.slice(-5).toUpperCase()}</span>
                     </div>
-                  </div>}
-                  {ps&&<div style={{position:"absolute",left:ps.left,width:ps.width,top:30,height:PERMIT_H,borderRadius:2,background:ps.color,opacity:.9,zIndex:2,minWidth:3}}/>}
-                </div>
-              </div>;
-            })}
+                    <div style={{display:"flex",alignItems:"center",gap:5,paddingLeft:11}}>
+                      <span style={{fontSize:9,color:C.t3,fontFamily:F}}>{SL[permit.status]||permit.status}</span>
+                      {permit.permitValidUntil&&<span style={{fontSize:8,color:ps?ps.color:C.t3,fontFamily:FM,fontWeight:600}}>iki {permit.permitValidUntil}</span>}
+                    </div>
+                  </div>
+
+                  <div style={{flex:1,position:"relative",height:ROW_H}}>
+                    {dayLabels.map(function(d,i){return <div key={i} style={{position:"absolute",left:d.offsetPct+"%",top:0,bottom:0,width:d.widthPct+"%",background:d.isNonWork?"rgba(239,68,68,.04)":"transparent",pointerEvents:"none"}}/>})}
+                    {dayLabels.map(function(d,i){return <div key={"l"+i} style={{position:"absolute",left:d.offsetPct+"%",top:0,bottom:0,width:1,background:d.isMonday?C.b2:C.b1,opacity:d.isMonday?.4:.15,pointerEvents:"none"}}/>})}
+                    {todayPct>=0&&<div style={{position:"absolute",left:todayPct+"%",top:0,bottom:0,width:2,background:C.ac,opacity:.4,zIndex:1}}/>}
+                    {bs&&<div style={Object.assign({position:"absolute",top:8,height:BAR_H,borderRadius:3,opacity:.85,zIndex:2,minWidth:3},bs)}>
+                      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",paddingLeft:3,overflow:"hidden"}}>
+                        <span style={{fontSize:7,color:"#fff",fontFamily:FM,whiteSpace:"nowrap",textShadow:"0 1px 2px rgba(0,0,0,.5)"}}>{row.startDate} — {row.endDate}</span>
+                      </div>
+                    </div>}
+                    {ps&&<div style={{position:"absolute",left:ps.left,width:ps.width,top:30,height:PERMIT_H,borderRadius:2,background:ps.color,opacity:.9,zIndex:2,minWidth:3}}/>}
+                  </div>
+                </div>;
+              });
+            })()}
           </div>;
         })}
       </div>}
@@ -3032,7 +3050,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.8</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.9</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3074,7 +3092,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.8</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.9</div>
         </div>
       </div>
     </div>
