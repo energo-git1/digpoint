@@ -6,6 +6,7 @@ const Database = require('better-sqlite3');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
 const { ImapFlow } = require('imapflow');
+const pdfParse    = require('pdf-parse');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -701,46 +702,9 @@ async function checkImapMail() {
               continue;
             }
 
-            // Surasti tinkamą paraišką (statusas "Pateikta", ta pati institucija)
-            const permits    = dbGet('kl-permits') || [];
-            const candidates = permits.filter((p) =>
-              p.status === 'Pateikta' &&
-              Array.isArray(p.organizations) &&
-              p.organizations.includes(org)
-            );
-
-            let bestPermit = null;
-            let bestScore  = 0;
-            for (const p of candidates) {
-              const score = calcLocationScore(p.location, subject);
-              if (score > bestScore) { bestScore = score; bestPermit = p; }
-            }
-
-            const THRESHOLD = 0.4; // Bent 40 % adreso žodžių turi sutapti
-
-            if (!bestPermit || bestScore < THRESHOLD) {
-              console.log(`[IMAP] ${org}: nepavyko sugretinti paraiškos (score: ${bestScore.toFixed(2)}, tema: "${subject}")`);
-              try {
-                const warnHtml = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;font-size:13px;color:#1F2937;padding:20px">
-                  <p>Sistema aptiko gautą laišką iš <strong>${org}</strong> (${fromAddr}), tačiau nepavyko automatiškai sugretinti su jokia paraiška.</p>
-                  <p>Laiško tema: <em>${subject}</em></p>
-                  <p>Patikrinkite, ar yra atitinkama paraiška su statusu „Pateikta". Jei taip — pakeiskite statusą į „Gautas leidimas" ir įkelkite PDF rankiniu būdu.</p>
-                </body></html>`;
-                await mailer.sendMail({
-                  from: MAIL_FROM_INTERNAL,
-                  to: 'uzklausos@energolt.eu',
-                  subject: `Gautas leidimas iš ${org} — nepavyko automatiškai atpažinti paraiškos`,
-                  html: warnHtml,
-                });
-              } catch (mailErr) {
-                console.error(`[IMAP] Įspėjimo laiško klaida: ${mailErr.message}`);
-              }
-              await client.messageFlagsAdd(seq, ['\\Seen']);
-              continue;
-            }
-
-            // Parsisiųsti ir išsaugoti PDF priedus
+            // 1. Visada parsisiųsti ir išsaugoti PDF (prieš paiešką)
             const savedFiles = [];
+            const pdfTexts   = [];
             for (const pdfPart of pdfParts) {
               try {
                 const dl = await client.download(seq, pdfPart.part);
@@ -757,11 +721,64 @@ async function checkImapMail() {
                   url:      `/uploads/${fname}`,
                 });
                 console.log(`[IMAP] PDF išsaugotas: ${fname} (${(buf.length/1024).toFixed(1)} KB)`);
+                // 2. Ištraukti tekstą iš PDF sugretimiui
+                try {
+                  const parsed = await pdfParse(buf);
+                  if (parsed.text) pdfTexts.push(parsed.text);
+                } catch (parseErr) {
+                  console.log(`[IMAP] PDF tekstas neištrauktas (${pdfPart.filename}): ${parseErr.message}`);
+                }
               } catch (dlErr) {
                 console.error(`[IMAP] PDF parsisiuntimo klaida (part ${pdfPart.part}): ${dlErr.message}`);
               }
             }
 
+            // 3. Paieška: naudoti laiško temą + PDF tekstą kartu
+            const searchText = subject + ' ' + pdfTexts.join(' ');
+            const permits    = dbGet('kl-permits') || [];
+            const candidates = permits.filter((p) =>
+              p.status === 'Pateikta' &&
+              Array.isArray(p.organizations) &&
+              p.organizations.includes(org)
+            );
+
+            let bestPermit = null;
+            let bestScore  = 0;
+            for (const p of candidates) {
+              const score = calcLocationScore(p.location, searchText);
+              if (score > bestScore) { bestScore = score; bestPermit = p; }
+            }
+
+            const THRESHOLD = 0.4;
+
+            if (!bestPermit || bestScore < THRESHOLD) {
+              console.log(`[IMAP] ${org}: nepavyko sugretinti paraiškos (score: ${bestScore.toFixed(2)})`);
+              // PDF jau išsaugoti — įspėjimas su nuorodomis į failus
+              try {
+                const fileLinks = savedFiles.map((f) =>
+                  `<li><a href="https://digpoint.energolt.eu${f.url}">${f.name}</a> (${(f.size/1024).toFixed(0)} KB)</li>`
+                ).join('');
+                const warnHtml = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;font-size:13px;color:#1F2937;padding:20px">
+                  <p>Sistema aptiko gautą laišką iš <strong>${org}</strong> (${fromAddr}), tačiau nepavyko automatiškai sugretinti su jokia paraiška.</p>
+                  <p>Laiško tema: <em>${subject}</em></p>
+                  <p><strong>PDF failai išsaugoti</strong> — prisekite prie tinkamos paraiškos rankiniu būdu:</p>
+                  <ul>${fileLinks}</ul>
+                  <p>Paraiška turi turėti statusą „Pateikta" ir instituciją „${org}".</p>
+                </body></html>`;
+                await mailer.sendMail({
+                  from: MAIL_FROM_INTERNAL,
+                  to: 'uzklausos@energolt.eu',
+                  subject: `Gautas leidimas iš ${org} — reikalingas rankinis priskyrimas`,
+                  html: warnHtml,
+                });
+              } catch (mailErr) {
+                console.error(`[IMAP] Įspėjimo laiško klaida: ${mailErr.message}`);
+              }
+              await client.messageFlagsAdd(seq, ['\\Seen']);
+              continue;
+            }
+
+            // 4. Rasta paraiška — priskirti PDF ir pakeisti statusą
             if (savedFiles.length > 0) {
               const today      = fmtDateSrv(new Date());
               const allPermits = dbGet('kl-permits') || [];
@@ -769,9 +786,9 @@ async function checkImapMail() {
                 if (p.id !== bestPermit.id) return p;
                 return {
                   ...p,
-                  status:          'Gautas leidimas',
-                  files:           [...(p.files || []), ...savedFiles],
-                  permitValidFrom: p.permitValidFrom || p.startDate || today,
+                  status:           'Gautas leidimas',
+                  files:            [...(p.files || []), ...savedFiles],
+                  permitValidFrom:  p.permitValidFrom || p.startDate || today,
                   permitValidUntil: p.permitValidUntil || p.endDate || '',
                   history: [...(p.history || []), {
                     status: 'Gautas leidimas',
