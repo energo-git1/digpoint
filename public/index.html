@@ -1370,16 +1370,11 @@ async function preparePendingTeliaEmail(permit){
   }});
 }
 
-// Pranešimas apie pateiktą paraišką — siunčiamas į uzklausos@energolt.eu.
+// Pranešimas apie pateiktą paraišką — siunčiamas į uzklausos@energolt.eu (visoms paraiškoms).
 async function sendCombinedReviewNotification(permit){
   if(!REVIEW_EMAIL)return;
-  var pe=permit.pendingEmail&&!permit.pendingEmail.cancelled?permit.pendingEmail:null;
-  var ke=permit.pendingKauoenergijaEmail&&!permit.pendingKauoenergijaEmail.cancelled?permit.pendingKauoenergijaEmail:null;
-  if(!pe&&!ke)return;
   var permitNo=permit.id?permit.id.slice(-5).toUpperCase():"?????";
-  var orgs=[];
-  if(pe)orgs.push("Telia, Kaunas");
-  if(ke)orgs.push("Kauno energija");
+  var orgs=permit.organizations&&permit.organizations.length>0?permit.organizations:(permit.organization?[permit.organization]:[]);
   var vieta=permit.location||((permit.teliaRouteFrom||"")+(permit.teliaRouteTo?" – "+permit.teliaRouteTo:""))||"-";
   var permitUrl=(typeof window!=="undefined"&&window.location)
     ?(window.location.origin+window.location.pathname+"#permit="+encodeURIComponent(permit.id))
@@ -1389,7 +1384,7 @@ async function sendCombinedReviewNotification(permit){
     :"";
   var body='<!DOCTYPE html><html><body style="margin:0;padding:0;background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1F2937;line-height:1.6">'
     +'<div style="max-width:600px;margin:20px auto;padding:0 16px">'
-    +'<p style="margin:0 0 12px">Pateikta nauja kasimo leidimo paraiška.</p>'
+    +'<p style="margin:0 0 12px">Pateikta nauja kasimo leidimo paraiška, laukia peržiūros.</p>'
     +'<table style="border-collapse:collapse;width:100%;margin:0 0 12px">'
     +emailRow("Paraiška Nr.:",permitNo)
     +emailRow("Pareiškėjas:",permit.manager||"-")
@@ -1399,11 +1394,36 @@ async function sendCombinedReviewNotification(permit){
     +emailRow("Institucijos:",orgs.join(", "))
     +(permit.investNo?emailRow("Investicinis Nr.:",permit.investNo):"")
     +(permit.projectNo?emailRow("Projekto Nr.:",permit.projectNo):"")
-    +emailRow("Laikotarpis:",(orgs[0]==="Telia, Kaunas"?(permit.teliaStartDate||permit.startDate||"-")+" – "+(permit.teliaEndDate||permit.endDate||"-"):(permit.keStartDate||permit.startDate||"-")+" – "+(permit.keEndDate||permit.endDate||"-")))
+    +emailRow("Laikotarpis:",(permit.startDate||"-")+" – "+(permit.endDate||"-"))
     +'</table>'
     +linkBtn
     +'</div></body></html>';
   sendEmail(REVIEW_EMAIL,"Nauja paraiška #"+permitNo+" — "+orgs.join(", ")+" | "+vieta,body);
+}
+
+// Pranešimas užsakovui kai paraiška pateikta institucijai (Pateikta).
+function sendPateiktaNotification(permit){
+  if(!permit.email)return;
+  var permitNo=permit.id?permit.id.slice(-5).toUpperCase():"?????";
+  var orgs=permit.organizations&&permit.organizations.length>0?permit.organizations:(permit.organization?[permit.organization]:[]);
+  var vieta=permit.location||((permit.teliaRouteFrom||"")+(permit.teliaRouteTo?" – "+permit.teliaRouteTo:""))||"-";
+  var permitUrl=(typeof window!=="undefined"&&window.location)
+    ?(window.location.origin+window.location.pathname+"#permit="+encodeURIComponent(permit.id))
+    :"";
+  var linkBtn=permitUrl
+    ?'<p style="margin:16px 0"><a href="'+permitUrl+'" style="color:#1155CC">Atidaryti paraišką sistemoje</a></p>'
+    :"";
+  var body='<p style="color:#374151;font-size:14px;margin:0 0 12px">Gerb. '+(permit.manager||"")+',</p>'
+    +'<p style="color:#374151;font-size:14px;margin:0 0 12px">informuojame, kad Jūsų kasimo leidimo paraiška <strong>#'+permitNo+'</strong> buvo pateikta institucijai (-oms) ir laukiama atsakymo.</p>'
+    +'<table style="border-collapse:collapse;width:100%">'
+    +emailRow("Paraiška Nr.:",permitNo)
+    +emailRow("Institucija:",orgs.join(", "))
+    +emailRow("Vieta:",vieta)
+    +emailRow("Laikotarpis:",(permit.startDate||"-")+" – "+(permit.endDate||"-"))
+    +'</table>'
+    +linkBtn;
+  var html=emailWrap("Paraiška pateikta institucijai","#8B5CF6",body);
+  sendEmail(permit.email,"Kasimo leidimo paraiška #"+permitNo+" pateikta",html);
 }
 
 // Iš Telia laiško HTML (`buildExternalEmailWrapper` rezultato) ištraukia tik vidinį turinį
@@ -3108,7 +3128,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.24</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.25</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3150,7 +3170,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.24</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.25</div>
         </div>
       </div>
     </div>
@@ -3384,10 +3404,8 @@ function App(){
       var kePending=await preparePendingKauoenergijaEmail(finalPermit, pageTexts);
       finalPermit=Object.assign({},finalPermit,{pendingKauoenergijaEmail:kePending});
     }
-    // Pranešimas apie naują paraišką
-    if(hasTelia||hasKE){
-      await sendCombinedReviewNotification(finalPermit);
-    }
+    // Pranešimas apie naują paraišką — visoms paraiškoms
+    await sendCombinedReviewNotification(finalPermit);
     savePermits(permits.concat([finalPermit]));
     // Po pateikimo: orderer → mano paraiškos, kiti → inbox
     setView(user.role==="orderer"?"mine":"inbox");
@@ -3411,6 +3429,13 @@ function App(){
       if(calcSt!==updated.status){
         updated=Object.assign({},updated,{status:calcSt,
           history:(updated.history||[]).concat([{status:calcSt,date:fmtDate(new Date()),note:"Statusas atnaujintas automatiškai"}])});
+      }
+    }
+    // Pranešimas užsakovui kai paraiška pateikta institucijai
+    if(updated.status==="Pateikta"&&updated.email){
+      var prevPat=permits.find(function(x){return x.id===updated.id});
+      if(!prevPat||prevPat.status!=="Pateikta"){
+        sendPateiktaNotification(updated);
       }
     }
     // Pranešimas užsakovui kai gautas leidimas
