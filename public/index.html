@@ -1914,17 +1914,15 @@ function PermitDetail(p){
         var attPages=attSrc?getAttachmentPages(attSrc):[];
         async function regenerate(){
           if(aprvBusy)return;
-          sAprvBusy(true);sAprvSt("Išsaugoma trasa ir atnaujinama...");
+          sAprvBusy(true);sAprvSt("Atnaujinamas laiško turinys...");
           try{
             var newFrom=(trFromIn||"").trim();
             var newTo=(trToIn||"").trim();
             var base=Object.assign({},o,{teliaRouteFrom:newFrom,teliaRouteTo:newTo});
             var updated=await preparePendingTeliaEmail(base);
-            var newSrcs=(updated.pendingEmail||{}).attachmentSources||[];
-            var allPgs=[];newSrcs.forEach(function(s){allPgs=allPgs.concat(getAttachmentPages(s));});
-            sTeliaSel(allPgs.filter(function(v,i,a){return a.indexOf(v)===i;}).sort(function(a,b){return a-b;}));
+            // Atnaujinamas tik laiško turinys — pasirinkti puslapiai nekeičiami
             p.onUpdate(updated);
-            sAprvSt("✓ Atnaujinta");
+            sAprvSt("✓ Laiškas atnaujintas");
             setTimeout(function(){sAprvSt("")},2000);
           }catch(e){sAprvSt("✗ Klaida: "+e.message);}
           sAprvBusy(false);
@@ -1947,20 +1945,18 @@ function PermitDetail(p){
         async function approve(){
           if(aprvBusy)return;
           if(teliaSel.length===0){alert("Pasirinkite bent vieną puslapį priedui.");return;}
-          if(!window.confirm("Patvirtinti ir siusti laiska i Telia ("+(pe.to||"-")+")?"))return;
-          sAprvBusy(true);sAprvSt("Generuojami priedai ir siunčiama...");
+          sAprvBusy(true);sAprvSt("Siunčiama...");
           try{
-            // Suformuojame galutinį attachmentSources su pasirinktais puslapiais
             var addr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
             var fname=(addr?addr+" kasimo leidimui":"kasimo leidimui")+".pdf";
             var finalSrc=[{filename:fname,sourceFileName:pdfFile?pdfFile.name:"",pageNumbers:teliaSel}];
             var permitToSend=Object.assign({},o,{pendingEmail:Object.assign({},pe,{attachmentSources:finalSrc})});
             var attCount=await approveAndSendTelia(permitToSend);
-            var updated=Object.assign({},o,{pendingEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia laiškas issiustas ("+(p.user.name||"-")+", priedas: "+fname+", "+teliaSel.length+" psl.)"}])});
+            var updated=Object.assign({},o,{pendingEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia laiškas issiustas ("+(p.user.name||"-")+", "+teliaSel.length+" psl.)"}])});
             if(!updated.pendingKauoenergijaEmail){updated.status="Pateikta";updated.history=updated.history.concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Visi laiškai institucijoms išsiusti"}]);}
-            p.onUpdate(updated);sAprvSt("✓ Issiusta.");
-            setTimeout(function(){if(!updated.pendingKauoenergijaEmail)p.onClose();},1500);
-          }catch(e){sAprvSt("✗ Klaida siuncziant: "+e.message);sAprvBusy(false);}
+            p.onUpdate(updated);
+            p.onClose();
+          }catch(e){sAprvSt("✗ Klaida: "+e.message);sAprvBusy(false);}
         }
         return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
           <div style={{background:C.s2,border:"1.5px solid #CA8A0466",borderRadius:10,padding:14}}>
@@ -2057,17 +2053,15 @@ function PermitDetail(p){
         var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
         async function regenerateKE(){
           if(keAprvBusy)return;
-          sKEAprvBusy(true);sKEAprvSt("Išsaugoma trasa ir atnaujinama...");
+          sKEAprvBusy(true);sKEAprvSt("Atnaujinamas laiško turinys...");
           try{
             var newFrom=(keFromIn||"").trim();
             var newTo=(keToIn||"").trim();
             var base=Object.assign({},o,{teliaRouteFrom:newFrom,teliaRouteTo:newTo});
             var newKE=await preparePendingKauoenergijaEmail(base);
-            var newSrcs=(newKE||{}).attachmentSources||[];
-            var allPgs=[];newSrcs.forEach(function(s){allPgs=allPgs.concat(getAttachmentPages(s));});
-            sKESel(allPgs.filter(function(v,i,a){return a.indexOf(v)===i;}).sort(function(a,b){return a-b;}));
+            // Atnaujinamas tik laiško turinys — pasirinkti puslapiai nekeičiami
             p.onUpdate(Object.assign({},base,{pendingKauoenergijaEmail:newKE}));
-            sKEAprvSt("✓ Atnaujinta");
+            sKEAprvSt("✓ Laiškas atnaujintas");
             setTimeout(function(){sKEAprvSt("")},2000);
           }catch(e){sKEAprvSt("✗ Klaida: "+e.message);}
           sKEAprvBusy(false);
@@ -2090,19 +2084,18 @@ function PermitDetail(p){
         async function approveKE(){
           if(keAprvBusy)return;
           if(keSel.length===0){alert("Pasirinkite bent vieną puslapį priedui.");return;}
-          if(!window.confirm("Patvirtinti ir siusti laiska i Kauno energija ("+(ke.to||"-")+")?"))return;
-          sKEAprvBusy(true);sKEAprvSt("Generuojami priedai ir siunčiama...");
+          sKEAprvBusy(true);sKEAprvSt("Siunčiama...");
           try{
             var addr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
             var fname=(addr?addr+" kasimo leidimui":"kasimo leidimui")+".pdf";
             var finalSrc=[{filename:fname,sourceFileName:pdfFile?pdfFile.name:"",pageNumbers:keSel}];
             var permitToSend=Object.assign({},o,{pendingKauoenergijaEmail:Object.assign({},ke,{attachmentSources:finalSrc})});
             var attCount=await approveAndSendKauoenergija(permitToSend);
-            var updated=Object.assign({},o,{pendingKauoenergijaEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Kauno energija laiškas issiustas ("+(p.user.name||"-")+", priedas: "+fname+", "+keSel.length+" psl.)"}])});
+            var updated=Object.assign({},o,{pendingKauoenergijaEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Kauno energija laiškas issiustas ("+(p.user.name||"-")+", "+keSel.length+" psl.)"}])});
             if(!updated.pendingEmail){updated.status="Pateikta";updated.history=updated.history.concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Visi laiškai institucijoms išsiusti"}]);}
-            p.onUpdate(updated);sKEAprvSt("✓ Issiusta.");
-            setTimeout(function(){if(!updated.pendingEmail)p.onClose();},1500);
-          }catch(e){sKEAprvSt("✗ Klaida siuncziant: "+e.message);sKEAprvBusy(false);}
+            p.onUpdate(updated);
+            p.onClose();
+          }catch(e){sKEAprvSt("✗ Klaida: "+e.message);sKEAprvBusy(false);}
         }
         return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
           <div style={{background:C.s2,border:"1.5px solid #DC262666",borderRadius:10,padding:14}}>
@@ -3128,7 +3121,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.25</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.26</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3170,7 +3163,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.25</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.26</div>
         </div>
       </div>
     </div>
