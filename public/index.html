@@ -2727,6 +2727,15 @@ function UserMgmt(p){
   var _ar=useState(null);var assignId=_ar[0],sAR=_ar[1];
   var _arole=useState("");var aRole=_arole[0],sARole=_arole[1];
   var _add=useState(false);var showAdd=_add[0],sAdd=_add[1];
+  var _mailBusy=useState(false);var mailBusy=_mailBusy[0],sMailBusy=_mailBusy[1];
+  var _mailRes=useState(null);var mailRes=_mailRes[0],sMailRes=_mailRes[1];
+  function checkMail(){
+    sMailBusy(true);sMailRes(null);
+    fetch("/api/admin/check-mail",{method:"POST"})
+      .then(function(r){return r.json()})
+      .then(function(d){sMailRes(d);sMailBusy(false)})
+      .catch(function(e){sMailRes({error:e.message});sMailBusy(false)});
+  }
   var _nn=useState("");var nn=_nn[0],sNN=_nn[1];
   var _nu=useState("");var nu=_nu[0],sNU=_nu[1];
   var _ne=useState("");var ne=_ne[0],sNE=_ne[1];
@@ -2793,6 +2802,21 @@ function UserMgmt(p){
       <Btn sm onClick={function(){openUser(u)}}>Role</Btn>
       {u.role!=="admin"&&<Btn v="danger" sm onClick={function(){sDel(u.id)}}>Istrinti</Btn>}
     </div>})}
+
+    <div style={{marginTop:28,padding:"16px 18px",background:C.s2,border:"1px solid "+C.b1,borderRadius:10}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Sistemos įrankiai</div>
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <Btn sm onClick={checkMail} disabled={mailBusy}>
+          {mailBusy?"⏳ Tikrinama...":"📬 Tikrinti el. paštą dabar"}
+        </Btn>
+        {mailRes&&!mailRes.error&&<span style={{fontSize:11,color:mailRes.processed>0?C.gn:C.t2,fontFamily:F}}>
+          {mailRes.processed>0
+            ?"✅ Apdorota laiškų: "+mailRes.processed+" (iš "+mailRes.checked+" naujų)"
+            :(mailRes.checked===0?"📭 Naujų laiškų nerasta":"📨 Rasta "+mailRes.checked+" naujų, leidimai neatpažinti")}
+        </span>}
+        {mailRes&&mailRes.error&&<span style={{fontSize:11,color:C.rd,fontFamily:F}}>❌ Klaida: {mailRes.error}</span>}
+      </div>
+    </div>
 
     <Modal open={assignId!==null} onClose={closeUser} title="Pakeisti role" w={420}>
       {(function(){var u=p.users.find(function(x){return x.id===assignId});if(!u)return null;
@@ -3044,7 +3068,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.15</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.16</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3086,7 +3110,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.15</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.16</div>
         </div>
       </div>
     </div>
