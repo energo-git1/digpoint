@@ -445,6 +445,37 @@ const MAIL_FROM_EXTERNAL = 'uzklausos@energolt.eu';  // Telia, KE, ESO, review
 const ESO_EMAIL   = 'leidimai@energolt.eu';
 const TELIA_EMAIL = 'ligita.rutkauskiene@telia.lt';
 
+// Siųsti laišką ir automatiškai išsaugoti kopiją į Sent aplanką per IMAP
+// (Zimbra nepasaugo SMTP išsiųstų laiškų automatiškai, reikia append rankiniu būdu)
+async function sendAndSave(opts) {
+  const info = await mailer.sendMail(opts);
+  const PASS = process.env.SMTP_PASS;
+  if (PASS) {
+    try {
+      const tmpT = nodemailer.createTransport({ streamTransport: true, newline: 'unix' });
+      const si   = await tmpT.sendMail(opts);
+      const chunks = [];
+      await new Promise((resolve, reject) => {
+        si.message.on('data', (d) => chunks.push(d));
+        si.message.on('end', resolve);
+        si.message.on('error', reject);
+      });
+      const raw = Buffer.concat(chunks);
+      const ic  = new ImapFlow({
+        host: IMAP_HOST, port: IMAP_PORT, secure: true,
+        auth: { user: IMAP_USER, pass: PASS },
+        logger: false, tls: { rejectUnauthorized: false },
+      });
+      await ic.connect();
+      await ic.append('Sent', raw, ['\\Seen'], new Date());
+      await ic.logout();
+    } catch (saveErr) {
+      console.error('[IMAP] Sent išsaugojimo klaida:', saveErr.message);
+    }
+  }
+  return info;
+}
+
 app.post('/api/notify/email', async (req, res) => {
   const { to, subject, html, attachments, from } = req.body || {};
   if (!to || !subject || !html) return res.status(400).json({ error: 'Trūksta duomenų.' });
@@ -461,7 +492,7 @@ app.post('/api/notify/email', async (req, res) => {
           contentType: a.contentType || 'application/pdf',
         }));
     }
-    const info = await mailer.sendMail(mailOptions);
+    const info = await sendAndSave(mailOptions);
     const attachInfo = mailOptions.attachments ? ` | ${mailOptions.attachments.length} priedas(-ai)` : '';
     console.log(`  📨 El. laiškas išsiųstas → ${to} | ${subject} | ${info.messageId}${attachInfo}`);
     res.json({ ok: true });
@@ -482,7 +513,7 @@ app.post('/api/notify/permit-pdf-missing', async (req, res) => {
       <p>Paraiška lieka <strong>„Pateikta"</strong> statusu.</p>
       <p>Reikalingas rankinis leidimo PDF įkėlimas sistemoje.</p>
     </body></html>`;
-    const info = await mailer.sendMail({ from: MAIL_FROM_INTERNAL, to: 'uzklausos@energolt.eu', subject, html });
+    const info = await sendAndSave({ from: MAIL_FROM_INTERNAL, to: 'uzklausos@energolt.eu', subject, html });
     console.log(`  📨 Permit PDF missing warning → uzklausos | #${permitNo} | ${info.messageId}`);
     res.json({ ok: true });
   } catch (e) {
@@ -576,7 +607,7 @@ app.post('/api/notify/eso-submitted', async (req, res) => {
 </html>`;
 
   try {
-    const info = await mailer.sendMail({ from: MAIL_FROM_EXTERNAL, to: permit.email, subject, html });
+    const info = await sendAndSave({ from: MAIL_FROM_EXTERNAL, to: permit.email, subject, html });
     console.log(`  📨 ESO pateikimo patvirtinimas → ${permit.email} | #${permitNo} | ${info.messageId}`);
     res.json({ ok: true });
   } catch (e) {
@@ -817,7 +848,7 @@ async function checkImapMail() {
                   <ul>${fileLinks}</ul>
                   <p>Paraiška turi turėti statusą „Pateikta" ir instituciją „${org}".</p>
                 </body></html>`;
-                await mailer.sendMail({
+                await sendAndSave({
                   from: MAIL_FROM_INTERNAL,
                   to: 'uzklausos@energolt.eu',
                   subject: `Gautas leidimas iš ${org} — reikalingas rankinis priskyrimas`,
