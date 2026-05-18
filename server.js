@@ -435,7 +435,7 @@ const mailer = nodemailer.createTransport({
   secure: true,
   auth: {
     user: 'uzklausos@energolt.eu',
-    pass: process.env.SMTP_PASS || '',
+    pass: process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS || 'Uzkl2026TR',
   },
   tls: { rejectUnauthorized: false },
 });
@@ -449,7 +449,7 @@ const TELIA_EMAIL = 'ligita.rutkauskiene@telia.lt';
 // (Zimbra nepasaugo SMTP išsiųstų laiškų automatiškai, reikia append rankiniu būdu)
 async function sendAndSave(opts) {
   const info = await mailer.sendMail(opts);
-  const PASS = process.env.SMTP_PASS;
+  const PASS = process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS || 'Uzkl2026TR';
   if (PASS) {
     try {
       const tmpT = nodemailer.createTransport({ streamTransport: true, newline: 'unix' });
