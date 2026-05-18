@@ -75,7 +75,7 @@ Stored in `uploads/` dir. Max 500 MB, max 70-char filename. Served via `/uploads
 
 ## Email / SMTP
 
-- **SMTP:** `192.168.1.100:465` (SSL, auth, vidinis mail serveris)
+- **SMTP:** `mail.energolt.eu:465` (SSL, auth)
 - **User:** `uzklausos@energolt.eu`
 - **Pass:** PM2 env `SMTP_PASS`
 - **MAIL_FROM_EXTERNAL:** `uzklausos@energolt.eu` — Telia, KE, ESO, review/pranešimai
