@@ -1633,7 +1633,6 @@ function PdfPagePickerModal(p){
 function PermitDetail(p){
   var o=p.permit;
   var _st=useState(o.status);var st=_st[0],sSt=_st[1];
-  var _at=useState(o.assignedTo||"");var at=_at[0],sAt=_at[1];
   var _note=useState("");var note=_note[0],sNote=_note[1];
   var _pvf=useState(o.permitValidFrom||"");var pvf=_pvf[0],sPvf=_pvf[1];
   var _cFiles=useState(o.closeFiles||[]);var cFiles=_cFiles[0],sCFiles=_cFiles[1];
@@ -1674,8 +1673,6 @@ function PermitDetail(p){
   var isA=p.user.role==="admin";
   var isD=p.user.role==="dokumentacija";
   var cr=p.users.find(function(u){return u.id===o.createdBy});
-  var asgnUser=at?p.users.find(function(u){return u.id===at}):null;
-  var docsWorkers=p.users.filter(function(u){return u.role==="dokumentacija"});
 
   // Jei ESO paraiška neturi adreso/inv.nr. — nuskaitome iš PDF automatiškai
   useEffect(function(){
@@ -1698,11 +1695,6 @@ function PermitDetail(p){
   function save(){
     var u=Object.assign({},o);
     if(isA){
-      if(at&&at!==o.assignedTo){
-        var aw=p.users.find(function(u){return u.id===at});
-        u.assignedTo=at;
-        u.history=(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Priskirta: "+(aw?aw.name:at)}]);
-      }
       if(st&&st!==o.status){
         // Rankiniam "Gautas leidimas" — reikalingas bent vienas leidimo PDF
         if(st==="Gautas leidimas"){
@@ -1731,7 +1723,7 @@ function PermitDetail(p){
         u.history=(u.history||o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Datos atnaujintos"+(pvu?" galioja iki "+pvu:"")}]);
       }
     }
-    if(isD&&(o.assignedTo===p.user.id||!o.assignedTo)&&st!==o.status){
+    if(isD&&st!==o.status){
       u.status=st;
       if((st==="Gautas leidimas"||st==="Gautas")&&pvf)u.permitValidFrom=pvf;
       if((st==="Gautas leidimas"||st==="Gautas")&&pvu)u.permitValidUntil=pvu;
@@ -1802,13 +1794,6 @@ function PermitDetail(p){
           </div>
         </div>
       })()}
-      {asgnUser&&<div style={{background:C.acD,borderRadius:8,padding:"8px 12px",border:"1px solid "+C.ac+"33",display:"flex",alignItems:"center",gap:8}}>
-        <Av name={asgnUser.name} size={24}/>
-        <div>
-          <div style={{fontSize:10,fontWeight:700,color:C.ac,fontFamily:F}}>Priskirta</div>
-          <div style={{fontSize:12,color:C.tx,fontFamily:F}}>{asgnUser.name}</div>
-        </div>
-      </div>}
       <div>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Istorija</div>
         <div style={{background:C.bg,borderRadius:8,padding:12,border:"1px solid "+C.b1}}>
@@ -2181,16 +2166,6 @@ function PermitDetail(p){
       {isA&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Administravimas</div>
         {o.organization==="AB ESO"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
-        <div style={{marginBottom:12}}>
-          <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:6,fontFamily:F}}>Priskirti dokumentacijos darbuotojui:</div>
-          {docsWorkers.length===0
-            ?<div style={{fontSize:11,color:C.t3,fontFamily:F}}>Nera dokumentacijos darbuotoju. Pridekite juos vartotoju valdyme.</div>
-            :<div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {docsWorkers.map(function(u){var checked=at===u.id;return <label key={u.id} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 9px",borderRadius:7,border:"1px solid "+(checked?C.ac:C.b1),background:checked?C.acD:C.s2,cursor:"pointer",fontSize:11,color:checked?C.ac:C.tx,fontFamily:F,fontWeight:checked?700:400,transition:"all .15s"}}>
-                <input type="radio" name="docWorker" checked={checked} onChange={function(){sAt(u.id)}} style={{accentColor:C.ac,margin:0}}/>{u.name}
-              </label>})}
-            </div>}
-        </div>
         {(function(){
           var orgsNeedPdf=(o.organizations||[]).filter(function(org){return org==="Telia, Kaunas"||org==="Kauno energija";});
           var allPdfsReady=orgsNeedPdf.length>0&&orgsNeedPdf.every(function(org){
@@ -2309,7 +2284,7 @@ function PermitDetail(p){
       })()}
 
       {/* Dokumentacija veiksmai */}
-      {isD&&(o.assignedTo===p.user.id||!o.assignedTo)&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+      {isD&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Veiksmai</div>
         {o.organization==="AB ESO"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
         <Sel label="Busena" value={st} onChange={sSt} options={[{value:"Pateikta",label:"Pateikta"},{value:"Gautas leidimas",label:"Gautas leidimas"},{value:"Atmestas",label:"Atmestas"}]}/>
@@ -2321,7 +2296,7 @@ function PermitDetail(p){
       </div>}
 
       {/* Dokumentacija — leidimo galiojimo datos (kai Gautas ar dalinai) */}
-      {isD&&(o.assignedTo===p.user.id||!o.assignedTo)&&(o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+      {isD&&(o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{background:C.gnD,borderRadius:8,padding:"10px 12px",border:"1px solid "+C.gn+"33",marginBottom:8}}>
           <div style={{fontSize:10,fontWeight:700,color:C.gn,fontFamily:F,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Leidimo galiojimo terminas</div>
           <div style={{display:"flex",gap:10}}>
@@ -2373,7 +2348,7 @@ function PermitDetail(p){
       </div>}
 
       {/* Skaitymo rezimas — tik ne adminui */}
-      {!isA&&(p.user.role==="orderer"||(isD&&o.assignedTo&&o.assignedTo!==p.user.id)||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja"||o.status==="Atmestas")&&
+      {!isA&&(p.user.role==="orderer"||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja"||o.status==="Atmestas")&&
         <div style={{display:"flex",justifyContent:"flex-end"}}><Btn v="secondary" onClick={p.onClose} sm>Uzdaryti</Btn></div>}
     </div>
   </Modal>
@@ -3044,7 +3019,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.16</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.17</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3086,7 +3061,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.16</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.17</div>
         </div>
       </div>
     </div>
@@ -3296,15 +3271,7 @@ function App(){
     var hasKE=orgs.indexOf("Kauno energija")!==-1;
     var hasESO=orgs.indexOf("AB ESO")!==-1;
     var orgLabel=permit.organization||orgs.join(", ");
-    // Automatinis priskyrimas — pirmam dokumentacijos darbuotojui
-    var docWorkers=users.filter(function(u){return u.role==="dokumentacija";});
-    var autoAssign=docWorkers.length>0?docWorkers[0]:null;
-    var finalPermit=autoAssign
-      ?Object.assign({},permit,{
-          assignedTo:autoAssign.id,
-          history:(permit.history||[]).concat([{status:permit.status,date:fmtDate(new Date()),note:"Automatiškai priskirta: "+autoAssign.name}])
-        })
-      :permit;
+    var finalPermit=permit;
     // Vieną kartą iškoduojame visus PDF puslapius — perduodam tiek Telia, tiek KE paruošimui
     var pageTexts=null;
     if(hasTelia||hasKE){
