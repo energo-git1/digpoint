@@ -1,10 +1,6 @@
 {
   "name": "kasimo-leidimai",
-<<<<<<< HEAD
   "version": "1.2.20",
-=======
-  "version": "1.2.12",
->>>>>>> parent of 234e880 (laiškai)
   "description": "Žemės kasimo leidimų užsakymų valdymo sistema",
   "main": "server.js",
   "scripts": {
