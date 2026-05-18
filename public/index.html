@@ -827,7 +827,7 @@ function HistoryTimeline(p){
 
 
 var PERMIT_ORGS=["AB ESO","Kauno miesto savivaldybe","Telia, Kaunas","Kauno energija"];
-var TELIA_EMAIL="eimutis.simkus@energolt.eu"; // TEST — pakeisti atgal į ligita.rutkauskiene@telia.lt
+var TELIA_EMAIL="ligita.rutkauskiene@telia.lt";
 function FileDropZone(p){
   var _drag=useState(false);var drag=_drag[0],sDrag=_drag[1];
   var _uploading=useState(false);var uploading=_uploading[0],sUploading=_uploading[1];
@@ -1213,7 +1213,7 @@ function EsoSubmitBtn(p){
 
 // Švarus išorinių laiškų wrapper'is — naudojamas Telia, Kauno energija ir kt. išoriniams gavėjams.
 // Be Digpoint sistemos branding'o, tik EnergoLT įmonės kontaktai pėdoje.
-function buildExternalEmailWrapper(body,signerPhone){
+function buildExternalEmailWrapper(body){
   var logoHtml='<img src="https://cvbankas-img.dgn.lt/companylogo_4_24215941/energolt.jpg" alt="EnergoLT" style="height:40px;margin-top:10px;display:block">';
   return '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#1F2937;font-size:14px;line-height:1.6">'
     +'<div style="max-width:620px;margin:24px auto;padding:8px 24px">'
@@ -1229,7 +1229,7 @@ function buildExternalEmailWrapper(body,signerPhone){
     +'V. Krėvės pr. 120, Kaunas<br>'
     +'LT-51119 Kaunas'
     +'<br><br>'
-    +(signerPhone?'Mob. Tel. '+signerPhone+'<br>':'')
+    +'Mob. Tel. +370 620 64619<br>'
     +'<a href="mailto:uzklausos@energolt.eu" style="color:#1155CC;text-decoration:none">uzklausos@energolt.eu</a><br>'
     +'<a href="http://www.energolt.eu" style="color:#1155CC;text-decoration:none">www.energolt.eu</a>'
     +'<br><br>'
@@ -1257,8 +1257,8 @@ function buildKauoenergijaEmailHtml(permit){
     +"<p style=\"margin:0 0 14px\">Reikia kasimo leidimo bei kontaktų inžinieriaus su kuriuo būtų galima prieš darbų pradžią nustatyti ŠT gylius.</p>"
     +"<p style=\"margin:0 0 14px\">Prisegam failus: projekto brėžiniai; suderinimas su UAB &quot;Kauno Energija&quot;.</p>"
     +"<p style=\"margin:0 0 14px\">Darbus atliks įmonė UAB &quot;EnergoLT&quot;, &quot;Energijos skirstymo operatorius&quot; rangovas.</p>"
-    +"<p style=\"margin:0 0 14px\">Laikotarpis: "+keFrom+"-"+keTo+"</p>",
-  permit.managerPhone||"");
+    +"<p style=\"margin:0 0 14px\">Laikotarpis: "+keFrom+"-"+keTo+"</p>"
+  );
 }
 
 // Datas YYYY-MM-DD pakeičia į YYYY.MM.DD formatą (kabamasis intervalas su brūkšniu)
@@ -1283,8 +1283,8 @@ function buildTeliaEmailHtml(permit){
     +"<p style=\"margin:0 0 12px\">Darbus atliks: UAB „EnergoLT\"</p>"
     +"<p style=\"margin:0 0 12px\">Darbų vadovas: "+(permit.manager||"")+", tel.: "+(permit.managerPhone||"")+"</p>"
     +"<p style=\"margin:0 0 14px\">Laikotarpis: "+fmtDateRangeDots(permit.teliaStartDate||permit.startDate,permit.teliaEndDate||permit.endDate)+"</p>"
-    +"<p style=\"margin:0\">Pridedu projekto dokumentus.</p>",
-  permit.managerPhone||"");
+    +"<p style=\"margin:0\">Pridedu projekto dokumentus.</p>"
+  );
 }
 
 // Telia paraiškos paruošimas review'ui — aptinka PDF puslapius ir įspėja apie trūkumus.
@@ -1461,7 +1461,7 @@ async function preparePendingKauoenergijaEmail(permit, pageTexts){
   }
   var addr=permit.teliaRouteTo||permit.location||"";
   return {
-    to:"eimutis.simkus@energolt.eu", // TEST — pakeisti atgal į info@kaunoenergija.lt
+    to:"info@kaunoenergija.lt",
     subject:"Dėl kasimo leidimo "+addr,
     html:buildKauoenergijaEmailHtml(permit),
     attachmentSources:attachmentSources,
@@ -3019,7 +3019,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.20</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.19</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3061,7 +3061,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.20</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.19</div>
         </div>
       </div>
     </div>
@@ -3421,7 +3421,7 @@ function App(){
 
   var docsWorkers=users.filter(function(u){return u.role==="dokumentacija"});
   // Inbox = paraiškos laukiančios patvirtinimo (visos rolės mato visas)
-  var inboxStatuses=["Laukiama tvirtinimo","Naujas"];
+  var inboxStatuses=["Laukiama tvirtinimo"];
   var newCount=permits.filter(function(p){return inboxStatuses.indexOf(p.status)!==-1}).length;
   var pendingCount=users.filter(function(u){return u.role==="pending"}).length;
   var closingCount=permits.filter(function(p){return p.closingSubmitted&&!p.closingDone}).length;
