@@ -1731,7 +1731,7 @@ function PermitDetail(p){
         u.history=(u.history||o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Datos atnaujintos"+(pvu?" galioja iki "+pvu:"")}]);
       }
     }
-    if(isD&&o.assignedTo===p.user.id&&st!==o.status){
+    if(isD&&(o.assignedTo===p.user.id||!o.assignedTo)&&st!==o.status){
       u.status=st;
       if((st==="Gautas leidimas"||st==="Gautas")&&pvf)u.permitValidFrom=pvf;
       if((st==="Gautas leidimas"||st==="Gautas")&&pvu)u.permitValidUntil=pvu;
@@ -2309,7 +2309,7 @@ function PermitDetail(p){
       })()}
 
       {/* Dokumentacija veiksmai */}
-      {isD&&o.assignedTo===p.user.id&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+      {isD&&(o.assignedTo===p.user.id||!o.assignedTo)&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Veiksmai</div>
         {o.organization==="AB ESO"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
         <Sel label="Busena" value={st} onChange={sSt} options={[{value:"Pateikta",label:"Pateikta"},{value:"Gautas leidimas",label:"Gautas leidimas"},{value:"Atmestas",label:"Atmestas"}]}/>
@@ -2321,7 +2321,7 @@ function PermitDetail(p){
       </div>}
 
       {/* Dokumentacija — leidimo galiojimo datos (kai Gautas ar dalinai) */}
-      {isD&&o.assignedTo===p.user.id&&(o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
+      {isD&&(o.assignedTo===p.user.id||!o.assignedTo)&&(o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{background:C.gnD,borderRadius:8,padding:"10px 12px",border:"1px solid "+C.gn+"33",marginBottom:8}}>
           <div style={{fontSize:10,fontWeight:700,color:C.gn,fontFamily:F,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Leidimo galiojimo terminas</div>
           <div style={{display:"flex",gap:10}}>
@@ -2373,7 +2373,7 @@ function PermitDetail(p){
       </div>}
 
       {/* Skaitymo rezimas — tik ne adminui */}
-      {!isA&&(p.user.role==="orderer"||(isD&&o.assignedTo!==p.user.id)||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja"||o.status==="Atmestas")&&
+      {!isA&&(p.user.role==="orderer"||(isD&&o.assignedTo&&o.assignedTo!==p.user.id)||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja"||o.status==="Atmestas")&&
         <div style={{display:"flex",justifyContent:"flex-end"}}><Btn v="secondary" onClick={p.onClose} sm>Uzdaryti</Btn></div>}
     </div>
   </Modal>
@@ -3044,7 +3044,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.15</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.16</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3086,7 +3086,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.15</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.16</div>
         </div>
       </div>
     </div>
