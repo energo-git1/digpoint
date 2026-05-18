@@ -5,6 +5,7 @@ const ldap = require('ldapjs');
 const Database = require('better-sqlite3');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
+const { ImapFlow } = require('imapflow');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -438,6 +439,8 @@ const mailer = nodemailer.createTransport({
 
 const MAIL_FROM_INTERNAL = 'digpoint@energolt.eu';   // perspėjimai, uždarymas
 const MAIL_FROM_EXTERNAL = 'uzklausos@energolt.eu';  // Telia, KE, ESO, review
+const ESO_EMAIL   = 'leidimai@energolt.eu';
+const TELIA_EMAIL = 'ligita.rutkauskiene@telia.lt';
 
 app.post('/api/notify/email', async (req, res) => {
   const { to, subject, html, attachments, from } = req.body || {};
@@ -579,6 +582,236 @@ app.post('/api/notify/eso-submitted', async (req, res) => {
   }
 });
 
+// ── IMAP el. pašto tikrinimas ─────────────────────────────────
+const IMAP_HOST = 'mail.energolt.eu';
+const IMAP_PORT = 993;
+const IMAP_USER = 'uzklausos@energolt.eu';
+
+// Siuntėjų domenai → institucijų pavadinimai (kaip saugomi kl-permits)
+const IMAP_ORG_DOMAINS = [
+  { org: 'AB ESO',                   domains: ['eso.lt'] },
+  { org: 'Kauno miesto savivaldybė', domains: ['kaunas.lt'] },
+  { org: 'Telia, Kaunas',            domains: ['telia.lt', 'telia.com'] },
+  { org: 'Kauno energija',           domains: ['kaunoenergeija.lt', 'kaunoenergia.lt'] },
+];
+
+function detectOrgFromEmail(fromAddr) {
+  if (!fromAddr) return null;
+  const addr = fromAddr.toLowerCase();
+  for (const { org, domains } of IMAP_ORG_DOMAINS) {
+    if (domains.some((d) => addr.includes('@' + d))) return org;
+  }
+  return null;
+}
+
+function fmtDateSrv(d) {
+  const dt = (d instanceof Date) ? d : new Date();
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function normalizeForMatch(s) {
+  return (s || '').toLowerCase()
+    .replace(/ą/g,'a').replace(/č/g,'c').replace(/ę/g,'e').replace(/ė/g,'e')
+    .replace(/į/g,'i').replace(/š/g,'s').replace(/ų/g,'u').replace(/ū/g,'u').replace(/ž/g,'z')
+    .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Kiek leidimo adreso žodžių sutampa su laiško tema (0–1)
+function calcLocationScore(permitLocation, emailSubject) {
+  const loc  = normalizeForMatch(permitLocation);
+  const subj = normalizeForMatch(emailSubject);
+  const words = loc.split(' ').filter((w) => w.length >= 4);
+  if (!words.length) return 0;
+  return words.filter((w) => subj.includes(w)).length / words.length;
+}
+
+// Rekursyviai suranda visus PDF priedus bodyStructure medyje
+function findPdfParts(struct, acc = []) {
+  if (!struct) return acc;
+  if (Array.isArray(struct.childNodes) && struct.childNodes.length) {
+    for (const child of struct.childNodes) findPdfParts(child, acc);
+    return acc;
+  }
+  const type     = ((struct.type || '') + '/' + (struct.subtype || '')).toLowerCase().replace(/\/$/, '');
+  const dispP    = (struct.disposition && struct.disposition.parameters) || {};
+  const params   = struct.parameters || {};
+  const filename = dispP.filename || dispP['filename*'] || params.name || '';
+  if ((type.includes('pdf') || filename.toLowerCase().endsWith('.pdf')) && struct.part) {
+    acc.push({ part: struct.part, filename: filename || 'leidimas.pdf' });
+  }
+  return acc;
+}
+
+async function checkImapMail() {
+  const IMAP_PASS = process.env.SMTP_PASS;
+  if (!IMAP_PASS) {
+    console.log('[IMAP] SMTP_PASS nenurodytas — tikrinimas praleidžiamas.');
+    return { checked: 0, processed: 0 };
+  }
+
+  const client = new ImapFlow({
+    host: IMAP_HOST,
+    port: IMAP_PORT,
+    secure: true,
+    auth: { user: IMAP_USER, pass: IMAP_PASS },
+    logger: false,
+    tls: { rejectUnauthorized: false },
+  });
+
+  let checked = 0;
+  let processed = 0;
+
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+    try {
+      const msgList = await client.search({ unseen: true });
+      checked = msgList.length;
+
+      if (!msgList.length) {
+        console.log('[IMAP] Naujų laiškų nerasta.');
+      } else {
+        console.log(`[IMAP] Rasta ${msgList.length} naujų laiškų.`);
+
+        for (const seq of msgList) {
+          try {
+            const msg = await client.fetchOne(seq, { envelope: true, bodyStructure: true });
+            const fromList = msg.envelope.from || [];
+            const fromAddr = fromList[0] ? (fromList[0].address || '') : '';
+            const org      = detectOrgFromEmail(fromAddr);
+
+            if (!org) {
+              // Neatpažinta institucija — neliečiama (nežymima kaip skaityta)
+              continue;
+            }
+
+            const subject = msg.envelope.subject || '';
+            console.log(`[IMAP] ${org} | "${subject}" | ${fromAddr}`);
+
+            const pdfParts = findPdfParts(msg.bodyStructure);
+
+            if (!pdfParts.length) {
+              console.log(`[IMAP] ${org}: laiškas be PDF priedo, praleidžiama.`);
+              await client.messageFlagsAdd(seq, ['\\Seen']);
+              continue;
+            }
+
+            // Surasti tinkamą paraišką (statusas "Pateikta", ta pati institucija)
+            const permits    = dbGet('kl-permits') || [];
+            const candidates = permits.filter((p) =>
+              p.status === 'Pateikta' &&
+              Array.isArray(p.organizations) &&
+              p.organizations.includes(org)
+            );
+
+            let bestPermit = null;
+            let bestScore  = 0;
+            for (const p of candidates) {
+              const score = calcLocationScore(p.location, subject);
+              if (score > bestScore) { bestScore = score; bestPermit = p; }
+            }
+
+            const THRESHOLD = 0.4; // Bent 40 % adreso žodžių turi sutapti
+
+            if (!bestPermit || bestScore < THRESHOLD) {
+              console.log(`[IMAP] ${org}: nepavyko sugretinti paraiškos (score: ${bestScore.toFixed(2)}, tema: "${subject}")`);
+              try {
+                const warnHtml = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;font-size:13px;color:#1F2937;padding:20px">
+                  <p>Sistema aptiko gautą laišką iš <strong>${org}</strong> (${fromAddr}), tačiau nepavyko automatiškai sugretinti su jokia paraiška.</p>
+                  <p>Laiško tema: <em>${subject}</em></p>
+                  <p>Patikrinkite, ar yra atitinkama paraiška su statusu „Pateikta". Jei taip — pakeiskite statusą į „Gautas leidimas" ir įkelkite PDF rankiniu būdu.</p>
+                </body></html>`;
+                await mailer.sendMail({
+                  from: MAIL_FROM_INTERNAL,
+                  to: 'uzklausos@energolt.eu',
+                  subject: `Gautas leidimas iš ${org} — nepavyko automatiškai atpažinti paraiškos`,
+                  html: warnHtml,
+                });
+              } catch (mailErr) {
+                console.error(`[IMAP] Įspėjimo laiško klaida: ${mailErr.message}`);
+              }
+              await client.messageFlagsAdd(seq, ['\\Seen']);
+              continue;
+            }
+
+            // Parsisiųsti ir išsaugoti PDF priedus
+            const savedFiles = [];
+            for (const pdfPart of pdfParts) {
+              try {
+                const dl = await client.download(seq, pdfPart.part);
+                const chunks = [];
+                for await (const chunk of dl.content) chunks.push(chunk);
+                const buf   = Buffer.concat(chunks);
+                const fname = `${srvUid()}_${safeName(pdfPart.filename)}`;
+                fs.writeFileSync(path.join(UPLOAD_DIR, fname), buf);
+                savedFiles.push({
+                  id:       srvUid(),
+                  name:     pdfPart.filename,
+                  filename: fname,
+                  size:     buf.length,
+                  url:      `/uploads/${fname}`,
+                });
+                console.log(`[IMAP] PDF išsaugotas: ${fname} (${(buf.length/1024).toFixed(1)} KB)`);
+              } catch (dlErr) {
+                console.error(`[IMAP] PDF parsisiuntimo klaida (part ${pdfPart.part}): ${dlErr.message}`);
+              }
+            }
+
+            if (savedFiles.length > 0) {
+              const today      = fmtDateSrv(new Date());
+              const allPermits = dbGet('kl-permits') || [];
+              const updated    = allPermits.map((p) => {
+                if (p.id !== bestPermit.id) return p;
+                return {
+                  ...p,
+                  status:          'Gautas leidimas',
+                  files:           [...(p.files || []), ...savedFiles],
+                  permitValidFrom: p.permitValidFrom || p.startDate || today,
+                  permitValidUntil: p.permitValidUntil || p.endDate || '',
+                  history: [...(p.history || []), {
+                    status: 'Gautas leidimas',
+                    date:   today,
+                    note:   `Leidimas gautas automatiškai iš ${org} (${fromAddr})`,
+                  }],
+                };
+              });
+              dbSet('kl-permits', updated);
+              const shortId = bestPermit.id.slice(-5).toUpperCase();
+              console.log(`[IMAP] ✅ Paraiška #${shortId} → "Gautas leidimas" | ${org} | ${savedFiles.length} PDF`);
+              processed++;
+            }
+
+            await client.messageFlagsAdd(seq, ['\\Seen']);
+          } catch (msgErr) {
+            console.error(`[IMAP] Klaida apdorojant laišką seq=${seq}: ${msgErr.message}`);
+          }
+        }
+      }
+    } finally {
+      lock.release();
+    }
+    await client.logout();
+  } catch (connErr) {
+    console.error('[IMAP] Prisijungimo klaida:', connErr.message);
+    try { await client.logout(); } catch (_) {}
+  }
+
+  return { checked, processed };
+}
+
+// Rankinis IMAP tikrinimo paleidimas per API
+app.post('/api/admin/check-mail', async (req, res) => {
+  try {
+    const result = await checkImapMail();
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── AD email sync ─────────────────────────────────────────────
 async function syncAdEmailsPromise(emailDomain) {
   const users = dbGet('kl-users') || [];
@@ -679,4 +912,16 @@ app.listen(PORT, () => {
       console.log('[SYNC] El. pašto sinchronizacija:', r.log.join('\n       '));
     });
   }, 3000);
+
+  // IMAP tikrinimas: iš karto po 10 sek., tada kas 15 min.
+  setTimeout(() => {
+    checkImapMail().then((r) => {
+      if (r.checked > 0) console.log(`[IMAP] Pradinis tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
+    });
+    setInterval(() => {
+      checkImapMail().then((r) => {
+        if (r.checked > 0) console.log(`[IMAP] Tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
+      });
+    }, 15 * 60 * 1000); // kas 15 minučių
+  }, 10000);
 });

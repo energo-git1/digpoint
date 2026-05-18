@@ -8,7 +8,7 @@ Increment the minor version (`1.X.x`) with every change. Update the version stri
 
 ## Tech stack
 
-- **Backend:** Node.js, Express, better-sqlite3 (WAL mode), ldapjs v3, multer, nodemailer
+- **Backend:** Node.js, Express, better-sqlite3 (WAL mode), ldapjs v3, multer, nodemailer, imapflow
 - **Frontend:** React 18 UMD + Babel standalone, single HTML file
 - **Process manager:** PM2. Env vars set via `pm2 set digpoint VAR value`
 - **Deployment:** GitHub → server polls via cron + `deploy.sh` every minute
@@ -81,11 +81,17 @@ Stored in `uploads/` dir. Max 500 MB, max 70-char filename. Served via `/uploads
 - **MAIL_FROM_EXTERNAL:** `uzklausos@energolt.eu` — Telia, KE, ESO, review/pranešimai
 - **MAIL_FROM_INTERNAL:** `digpoint@energolt.eu` — perspėjimai, uždarymo info
 
-## Email / IMAP (ateičiai — automatinis laiškų gavimas)
+## Email / IMAP (automatinis leidimų gavimas — įgyvendinta v1.2.14)
 
 - **IMAP:** `mail.energolt.eu:993` (SSL)
 - **User:** `uzklausos@energolt.eu`
 - **Pass:** PM2 env `SMTP_PASS` (tas pats)
+- Tikrinama kas **15 minučių** (pirmą kartą po 10 sek. nuo paleidimo)
+- Rankinis paleidimas: `POST /api/admin/check-mail`
+- Atpažįstamos institucijos pagal siuntėjo domeną: `eso.lt`, `kaunas.lt`, `telia.lt`, `telia.com`, `kaunoenergeija.lt`, `kaunoenergia.lt`
+- Paraiška surandama pagal adreso žodžių sutapimą laiško temoje (threshold 40 %)
+- Jei PDF prisegtas ir paraiška rasta → statusas → „Gautas leidimas", PDF išsaugomas
+- Jei nepavyksta sugretinti → įspėjimo laiškas į `uzklausos@energolt.eu`
 
 ## Env variables (PM2)
 
