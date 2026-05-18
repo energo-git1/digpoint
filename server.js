@@ -607,6 +607,16 @@ function detectOrgFromEmail(fromAddr) {
   return null;
 }
 
+// Aptikti instituciją pagal raktažodžius laiško tekste (testiniam naudojimui / neatpažintiems domenams)
+function detectOrgFromText(text) {
+  const t = (text || '').toLowerCase();
+  if (t.includes('telia')) return 'Telia, Kaunas';
+  if (t.includes('kauno energija') || t.includes('kaunoenergia') || t.includes('kauno energ')) return 'Kauno energija';
+  if (t.includes('savivaldyb') || t.includes('kauno miesto')) return 'Kauno miesto savivaldybė';
+  if (/\beso\b/.test(t)) return 'AB ESO';
+  return null;
+}
+
 function fmtDateSrv(d) {
   const dt = (d instanceof Date) ? d : new Date();
   const y = dt.getFullYear();
@@ -629,6 +639,20 @@ function calcLocationScore(permitLocation, emailSubject) {
   const words = loc.split(' ').filter((w) => w.length >= 4);
   if (!words.length) return 0;
   return words.filter((w) => subj.includes(w)).length / words.length;
+}
+
+// Rekursyviai suranda teksto dalis (text/plain arba text/html) bodyStructure medyje
+function findTextPart(struct, acc = []) {
+  if (!struct) return acc;
+  if (Array.isArray(struct.childNodes) && struct.childNodes.length) {
+    for (const child of struct.childNodes) findTextPart(child, acc);
+    return acc;
+  }
+  const type = ((struct.type || '') + '/' + (struct.subtype || '')).toLowerCase().replace(/\/$/, '');
+  if ((type === 'text/plain' || type === 'text/html') && struct.part) {
+    acc.push({ part: struct.part, type });
+  }
+  return acc;
 }
 
 // Rekursyviai suranda visus PDF priedus bodyStructure medyje
@@ -695,7 +719,24 @@ async function checkImapMail() {
 
             const fromList = msg.envelope.from || [];
             const fromAddr = fromList[0] ? (fromList[0].address || '') : '';
-            const org      = detectOrgFromEmail(fromAddr);
+            let org        = detectOrgFromEmail(fromAddr);
+            const subject  = msg.envelope.subject || '';
+
+            if (!org) {
+              // Neatpažintas domenas — bandyti aptikti instituciją iš laiško teksto
+              const textParts = findTextPart(msg.bodyStructure);
+              let bodyText = subject;
+              for (const tp of textParts.slice(0, 3)) {
+                try {
+                  const dl = await client.download(seq, tp.part);
+                  const chunks = [];
+                  for await (const chunk of dl.content) chunks.push(chunk);
+                  bodyText += ' ' + Buffer.concat(chunks).toString('utf8');
+                } catch (_) {}
+              }
+              org = detectOrgFromText(bodyText);
+              if (org) console.log(`[IMAP] Aptikta iš teksto: ${org} | "${subject}" | ${fromAddr}`);
+            }
 
             if (!org) {
               // Neatpažinta institucija — žymime kaip matytą, kad nerodyti kiekvieną kartą
@@ -703,7 +744,6 @@ async function checkImapMail() {
               continue;
             }
 
-            const subject = msg.envelope.subject || '';
             console.log(`[IMAP] ${org} | "${subject}" | ${fromAddr}`);
 
             const pdfParts = findPdfParts(msg.bodyStructure);
@@ -845,6 +885,13 @@ app.post('/api/admin/check-mail', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// Išvalyti apdorotų laiškų sąrašą (kad perprocessintų iš naujo — testavimui)
+app.post('/api/admin/clear-imap-done', (req, res) => {
+  dbSet('kl-imap-done', []);
+  console.log('[IMAP] kl-imap-done išvalytas rankiniu būdu.');
+  res.json({ ok: true, message: 'kl-imap-done išvalytas.' });
 });
 
 // Diagnostika: parodo kas pašte yra, nieko nekeičia
