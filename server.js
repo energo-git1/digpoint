@@ -427,12 +427,16 @@ app.delete('/api/files/:filename', (req, res) => {
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 // ── Email / SMTP ──────────────────────────────────────────────
-// Laikinas: vidinis relay testavimui. Vėliau: mail.energolt.eu:465 su SMTP_PASS
+const SMTP_PASS = process.env.npm_package_config_SMTP_PASS || '';
+
 const mailer = nodemailer.createTransport({
-  host: '10.2.1.103',
-  port: 25,
-  secure: false,
-  auth: false,
+  host: '192.168.1.100',
+  port: 465,
+  secure: true,
+  auth: {
+    user: 'uzklausos@energolt.eu',
+    pass: SMTP_PASS,
+  },
   tls: { rejectUnauthorized: false },
 });
 
