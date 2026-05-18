@@ -667,27 +667,39 @@ async function checkImapMail() {
   let checked = 0;
   let processed = 0;
 
+  // Apdorotų laiškų ID saugomi DB, kad nekartotume
+  const doneIds = new Set(dbGet('kl-imap-done') || []);
+
   try {
     await client.connect();
     const lock = await client.getMailboxLock('INBOX');
     try {
-      const msgList = await client.search({ unseen: true });
+      // Ieškoti visų laiškų iš paskutinių 30 dienų (ne tik neskaitytų)
+      const since = new Date();
+      since.setDate(since.getDate() - 30);
+      const msgList = await client.search({ since });
       checked = msgList.length;
 
       if (!msgList.length) {
-        console.log('[IMAP] Naujų laiškų nerasta.');
+        console.log('[IMAP] Laiškų paskutinėse 30 dienų nerasta.');
       } else {
-        console.log(`[IMAP] Rasta ${msgList.length} naujų laiškų.`);
+        console.log(`[IMAP] Rasta ${msgList.length} laiškų (30 d.). Jau apdorota: ${doneIds.size}.`);
 
         for (const seq of msgList) {
           try {
             const msg = await client.fetchOne(seq, { envelope: true, bodyStructure: true });
+            const msgId = msg.envelope.messageId || `seq-${seq}`;
+
+            // Praleisti jau apdorotus laiškus
+            if (doneIds.has(msgId)) continue;
+
             const fromList = msg.envelope.from || [];
             const fromAddr = fromList[0] ? (fromList[0].address || '') : '';
             const org      = detectOrgFromEmail(fromAddr);
 
             if (!org) {
-              // Neatpažinta institucija — neliečiama (nežymima kaip skaityta)
+              // Neatpažinta institucija — žymime kaip matytą, kad nerodyti kiekvieną kartą
+              doneIds.add(msgId);
               continue;
             }
 
@@ -774,6 +786,8 @@ async function checkImapMail() {
               } catch (mailErr) {
                 console.error(`[IMAP] Įspėjimo laiško klaida: ${mailErr.message}`);
               }
+              doneIds.add(msgId);
+              dbSet('kl-imap-done', [...doneIds]);
               await client.messageFlagsAdd(seq, ['\\Seen']);
               continue;
             }
@@ -803,6 +817,8 @@ async function checkImapMail() {
               processed++;
             }
 
+            doneIds.add(msgId);
+            dbSet('kl-imap-done', [...doneIds]);
             await client.messageFlagsAdd(seq, ['\\Seen']);
           } catch (msgErr) {
             console.error(`[IMAP] Klaida apdorojant laišką seq=${seq}: ${msgErr.message}`);
