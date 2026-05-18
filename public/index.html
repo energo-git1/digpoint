@@ -2729,12 +2729,21 @@ function UserMgmt(p){
   var _add=useState(false);var showAdd=_add[0],sAdd=_add[1];
   var _mailBusy=useState(false);var mailBusy=_mailBusy[0],sMailBusy=_mailBusy[1];
   var _mailRes=useState(null);var mailRes=_mailRes[0],sMailRes=_mailRes[1];
+  var _dbgRes=useState(null);var dbgRes=_dbgRes[0],sDbgRes=_dbgRes[1];
+  var _dbgBusy=useState(false);var dbgBusy=_dbgBusy[0],sDbgBusy=_dbgBusy[1];
   function checkMail(){
     sMailBusy(true);sMailRes(null);
     fetch("/api/admin/check-mail",{method:"POST"})
       .then(function(r){return r.json()})
       .then(function(d){sMailRes(d);sMailBusy(false)})
       .catch(function(e){sMailRes({error:e.message});sMailBusy(false)});
+  }
+  function debugMail(){
+    sDbgBusy(true);sDbgRes(null);
+    fetch("/api/admin/check-mail-debug")
+      .then(function(r){return r.json()})
+      .then(function(d){sDbgRes(d);sDbgBusy(false)})
+      .catch(function(e){sDbgRes({error:e.message});sDbgBusy(false)});
   }
   var _nn=useState("");var nn=_nn[0],sNN=_nn[1];
   var _nu=useState("");var nu=_nu[0],sNU=_nu[1];
@@ -2805,17 +2814,41 @@ function UserMgmt(p){
 
     <div style={{marginTop:28,padding:"16px 18px",background:C.s2,border:"1px solid "+C.b1,borderRadius:10}}>
       <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Sistemos įrankiai</div>
-      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
         <Btn sm onClick={checkMail} disabled={mailBusy}>
           {mailBusy?"⏳ Tikrinama...":"📬 Tikrinti el. paštą dabar"}
         </Btn>
+        <Btn sm onClick={debugMail} disabled={dbgBusy}>
+          {dbgBusy?"⏳ Kraunama...":"🔍 Rodyti pašto turinį"}
+        </Btn>
         {mailRes&&!mailRes.error&&<span style={{fontSize:11,color:mailRes.processed>0?C.gn:C.t2,fontFamily:F}}>
           {mailRes.processed>0
-            ?"✅ Apdorota laiškų: "+mailRes.processed+" (iš "+mailRes.checked+" naujų)"
-            :(mailRes.checked===0?"📭 Naujų laiškų nerasta":"📨 Rasta "+mailRes.checked+" naujų, leidimai neatpažinti")}
+            ?"✅ Apdorota: "+mailRes.processed+" (iš "+mailRes.checked+")"
+            :(mailRes.checked===0?"📭 Laiškų nerasta":"📨 Rasta "+mailRes.checked+", leidimai neatpažinti")}
         </span>}
-        {mailRes&&mailRes.error&&<span style={{fontSize:11,color:C.rd,fontFamily:F}}>❌ Klaida: {mailRes.error}</span>}
+        {mailRes&&mailRes.error&&<span style={{fontSize:11,color:C.rd,fontFamily:F}}>❌ {mailRes.error}</span>}
       </div>
+      {dbgRes&&<div style={{marginTop:8,fontSize:11,fontFamily:FM}}>
+        {dbgRes.error
+          ?<span style={{color:C.rd}}>❌ Prisijungimo klaida: {dbgRes.error}</span>
+          :<div>
+            <div style={{color:C.t2,marginBottom:6}}>
+              {dbgRes.connected?"✅ Prisijungta":"❌ Neprisijungta"} · Rasta laiškų (30 d.): <strong>{dbgRes.found}</strong>
+            </div>
+            {(dbgRes.emails||[]).map(function(m,i){
+              return <div key={i} style={{padding:"6px 8px",background:C.bg,borderRadius:6,border:"1px solid "+C.b1,marginBottom:4}}>
+                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                  <span style={{color:m.orgMatch!=="—"?C.gn:C.rd,fontWeight:700}}>{m.orgMatch!=="—"?"✅":"❌"} {m.orgMatch}</span>
+                  <span style={{color:C.t3}}>{m.from}</span>
+                  <span style={{color:m.pdfCount>0?C.tx:C.t3}}>📎 {m.pdfCount} PDF</span>
+                  {m.alreadyDone&&<span style={{color:C.t3}}>(jau apdorotas)</span>}
+                </div>
+                <div style={{color:C.t2,marginTop:2,fontSize:10}}>{m.subject}</div>
+              </div>
+            })}
+          </div>
+        }
+      </div>}
     </div>
 
     <Modal open={assignId!==null} onClose={closeUser} title="Pakeisti role" w={420}>
@@ -3068,7 +3101,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.18</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.19</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3110,7 +3143,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.18</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.19</div>
         </div>
       </div>
     </div>

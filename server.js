@@ -847,6 +847,51 @@ app.post('/api/admin/check-mail', async (req, res) => {
   }
 });
 
+// Diagnostika: parodo kas pašte yra, nieko nekeičia
+app.get('/api/admin/check-mail-debug', async (req, res) => {
+  const IMAP_PASS = process.env.SMTP_PASS;
+  if (!IMAP_PASS) return res.status(500).json({ error: 'SMTP_PASS nenustatytas' });
+
+  const client = new ImapFlow({
+    host: IMAP_HOST, port: IMAP_PORT, secure: true,
+    auth: { user: IMAP_USER, pass: IMAP_PASS },
+    logger: false,
+    tls: { rejectUnauthorized: false },
+  });
+
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+    const emails = [];
+    try {
+      const since = new Date();
+      since.setDate(since.getDate() - 30);
+      const msgList = await client.search({ since });
+      for (const seq of msgList.slice(0, 20)) { // max 20
+        const msg = await client.fetchOne(seq, { envelope: true, bodyStructure: true });
+        const from = (msg.envelope.from || [])[0];
+        const fromAddr = from ? (from.address || '') : '';
+        const pdfParts = findPdfParts(msg.bodyStructure);
+        emails.push({
+          seq,
+          messageId: msg.envelope.messageId,
+          date:      msg.envelope.date,
+          from:      fromAddr,
+          subject:   msg.envelope.subject,
+          orgMatch:  detectOrgFromEmail(fromAddr) || '—',
+          pdfCount:  pdfParts.length,
+          alreadyDone: (dbGet('kl-imap-done') || []).includes(msg.envelope.messageId),
+        });
+      }
+    } finally { lock.release(); }
+    await client.logout();
+    res.json({ connected: true, found: emails.length, emails });
+  } catch (e) {
+    try { await client.logout(); } catch (_) {}
+    res.status(500).json({ connected: false, error: e.message });
+  }
+});
+
 // ── AD email sync ─────────────────────────────────────────────
 async function syncAdEmailsPromise(emailDomain) {
   const users = dbGet('kl-users') || [];
