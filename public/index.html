@@ -827,7 +827,7 @@ function HistoryTimeline(p){
 
 
 var PERMIT_ORGS=["AB ESO","Kauno miesto savivaldybe","Telia, Kaunas","Kauno energija"];
-var TELIA_EMAIL="eimutis.simkus@energolt.eu"; // TEST — pakeisti atgal į ligita.rutkauskiene@telia.lt
+var TELIA_EMAIL="ligita.rutkauskiene@telia.lt";
 function FileDropZone(p){
   var _drag=useState(false);var drag=_drag[0],sDrag=_drag[1];
   var _uploading=useState(false);var uploading=_uploading[0],sUploading=_uploading[1];
@@ -1229,7 +1229,7 @@ function buildExternalEmailWrapper(body){
     +'V. Krėvės pr. 120, Kaunas<br>'
     +'LT-51119 Kaunas'
     +'<br><br>'
-    +'Mob. Tel. '+signerPhone+'<br>'
+    +'Mob. Tel. +370 620 64619<br>'
     +'<a href="mailto:uzklausos@energolt.eu" style="color:#1155CC;text-decoration:none">uzklausos@energolt.eu</a><br>'
     +'<a href="http://www.energolt.eu" style="color:#1155CC;text-decoration:none">www.energolt.eu</a>'
     +'<br><br>'
@@ -1241,7 +1241,7 @@ function buildExternalEmailWrapper(body){
 // Kauno energija laiško HTML šablonas — Tomo originalus turinys + švarus išorinis wrapper'is.
 // Skirtumai nuo originalo: pakeistas wrapper'is, projekto nr. iš PDF įterpiamas jei rastas.
 function buildKauoenergijaEmailHtml(permit){
-  var projNo=permit.projectNo?permit.projectNo:"[proj. nr. iš pdf]";
+  var projNo=permit.projectNo?permit.projectNo:"";
   // Laikotarpis: iš paraiškos (keStartDate/keEndDate) arba šiandien + 1 mėnuo
   var keFrom,keTo;
   if(permit.keStartDate&&permit.keEndDate){
@@ -1461,7 +1461,7 @@ async function preparePendingKauoenergijaEmail(permit, pageTexts){
   }
   var addr=permit.teliaRouteTo||permit.location||"";
   return {
-    to:"eimutis.simkus@energolt.eu", // TEST — pakeisti atgal į info@kaunoenergija.lt
+    to:"info@kaunoenergija.lt",
     subject:"Dėl kasimo leidimo "+addr,
     html:buildKauoenergijaEmailHtml(permit),
     attachmentSources:attachmentSources,
@@ -1676,7 +1676,7 @@ function PermitDetail(p){
 
   // Jei ESO paraiška neturi adreso/inv.nr. — nuskaitome iš PDF automatiškai
   useEffect(function(){
-    if(o.organization!=="AB ESO")return;
+    if(o.organization!=="AB ESO"&&(o.organizations||[]).indexOf("AB ESO")===-1)return;
     var needLoc=!o.location;
     var needInv=!o.investNo;
     if(!needLoc&&!needInv)return;
@@ -2165,7 +2165,7 @@ function PermitDetail(p){
       {/* Admin veiksmai */}
       {isA&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Administravimas</div>
-        {o.organization==="AB ESO"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
+        {(o.organization==="AB ESO"||(o.organizations||[]).indexOf("AB ESO")!==-1)&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
         {(function(){
           var orgsNeedPdf=(o.organizations||[]).filter(function(org){return org==="Telia, Kaunas"||org==="Kauno energija";});
           var allPdfsReady=orgsNeedPdf.length>0&&orgsNeedPdf.every(function(org){
@@ -2286,7 +2286,7 @@ function PermitDetail(p){
       {/* Dokumentacija veiksmai */}
       {isD&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Veiksmai</div>
-        {o.organization==="AB ESO"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
+        {(o.organization==="AB ESO"||(o.organizations||[]).indexOf("AB ESO")!==-1)&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
         <Sel label="Busena" value={st} onChange={sSt} options={[{value:"Pateikta",label:"Pateikta"},{value:"Gautas leidimas",label:"Gautas leidimas"},{value:"Atmestas",label:"Atmestas"}]}/>
         <Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>
         <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:8}}>
@@ -3019,7 +3019,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.18</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.19</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3061,7 +3061,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.18</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.19</div>
         </div>
       </div>
     </div>
@@ -3104,7 +3104,7 @@ function checkExpired(arr){
     return permit;
   });
   result.forEach(function(permit){
-    if(permit.status!=="Gautas"||!permit.permitValidUntil)return;
+    if((permit.status!=="Gautas"&&permit.status!=="Gautas leidimas")||!permit.permitValidUntil)return;
     var wd=workDaysUntil(permit.permitValidUntil);
     if(wd!==5)return;
     var nKey="kl-notif-"+permit.id+"-5dd";
@@ -3346,9 +3346,9 @@ function App(){
     }
     // Kauno m. sav. notifikacija kai gauti ESO ir Telia leidimai
     var updOrgs=updated.organizations||[];
-    if(updOrgs.indexOf("Kauno miesto savivaldybe")!==-1&&updated.status==="Gautas"){
+    if(updOrgs.indexOf("Kauno miesto savivaldybe")!==-1&&(updated.status==="Gautas"||updated.status==="Gautas leidimas")){
       var prevForKauno=permits.find(function(x){return x.id===updated.id});
-      var wasGautas=prevForKauno&&prevForKauno.status==="Gautas";
+      var wasGautas=prevForKauno&&(prevForKauno.status==="Gautas"||prevForKauno.status==="Gautas leidimas");
       if(!wasGautas){
         var notifKey="kl-notif-"+updated.id+"-kauno";
         if(!lsGet(notifKey)){
@@ -3421,7 +3421,7 @@ function App(){
 
   var docsWorkers=users.filter(function(u){return u.role==="dokumentacija"});
   // Inbox = paraiškos laukiančios patvirtinimo (visos rolės mato visas)
-  var inboxStatuses=["Laukiama tvirtinimo","Naujas"];
+  var inboxStatuses=["Laukiama tvirtinimo"];
   var newCount=permits.filter(function(p){return inboxStatuses.indexOf(p.status)!==-1}).length;
   var pendingCount=users.filter(function(u){return u.role==="pending"}).length;
   var closingCount=permits.filter(function(p){return p.closingSubmitted&&!p.closingDone}).length;
