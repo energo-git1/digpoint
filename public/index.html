@@ -2856,6 +2856,8 @@ function UserMgmt(p){
   var _mailRes=useState(null);var mailRes=_mailRes[0],sMailRes=_mailRes[1];
   var _dbgRes=useState(null);var dbgRes=_dbgRes[0],sDbgRes=_dbgRes[1];
   var _dbgBusy=useState(false);var dbgBusy=_dbgBusy[0],sDbgBusy=_dbgBusy[1];
+  var _smtpRes=useState(null);var smtpRes=_smtpRes[0],sSmtpRes=_smtpRes[1];
+  var _smtpBusy=useState(false);var smtpBusy=_smtpBusy[0],sSmtpBusy=_smtpBusy[1];
   function checkMail(){
     sMailBusy(true);sMailRes(null);
     fetch("/api/admin/check-mail",{method:"POST"})
@@ -2869,6 +2871,13 @@ function UserMgmt(p){
       .then(function(r){return r.json()})
       .then(function(d){sDbgRes(d);sDbgBusy(false)})
       .catch(function(e){sDbgRes({error:e.message});sDbgBusy(false)});
+  }
+  function testSmtp(){
+    sSmtpBusy(true);sSmtpRes(null);
+    fetch("/api/admin/smtp-test")
+      .then(function(r){return r.json()})
+      .then(function(d){sSmtpRes(d);sSmtpBusy(false)})
+      .catch(function(e){sSmtpRes({ok:false,error:e.message});sSmtpBusy(false)});
   }
   var _nn=useState("");var nn=_nn[0],sNN=_nn[1];
   var _nu=useState("");var nu=_nu[0],sNU=_nu[1];
@@ -2940,6 +2949,9 @@ function UserMgmt(p){
     <div style={{marginTop:28,padding:"16px 18px",background:C.s2,border:"1px solid "+C.b1,borderRadius:10}}>
       <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Sistemos įrankiai</div>
       <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
+        <Btn sm onClick={testSmtp} disabled={smtpBusy}>
+          {smtpBusy?"⏳ Jungiamasi...":"🔌 Testuoti SMTP"}
+        </Btn>
         <Btn sm onClick={checkMail} disabled={mailBusy}>
           {mailBusy?"⏳ Tikrinama...":"📬 Tikrinti el. paštą dabar"}
         </Btn>
@@ -2953,6 +2965,19 @@ function UserMgmt(p){
         </span>}
         {mailRes&&mailRes.error&&<span style={{fontSize:11,color:C.rd,fontFamily:F}}>❌ {mailRes.error}</span>}
       </div>
+      {smtpRes&&<div style={{marginTop:4,marginBottom:8,padding:"10px 12px",borderRadius:8,background:smtpRes.ok?C.gnD:C.rdD,border:"1px solid "+(smtpRes.ok?C.gn:C.rd)+"44",fontSize:11,fontFamily:FM}}>
+        <div style={{fontWeight:700,color:smtpRes.ok?C.gn:C.rd,marginBottom:6}}>{smtpRes.ok?"✅ SMTP prisijungta":"❌ SMTP klaida"}</div>
+        <div style={{display:"grid",gridTemplateColumns:"120px 1fr",gap:"3px 8px",color:C.tx}}>
+          <span style={{color:C.t3}}>Serveris:</span><span>192.168.1.101:465 ({smtpRes.secure||"SSL/TLS"})</span>
+          <span style={{color:C.t3}}>Vartotojas:</span><span>{smtpRes.user||"uzklausos@energolt.eu"}</span>
+          <span style={{color:C.t3}}>Slaptažodis:</span><span>{smtpRes.passSet?"✓ nustatytas":"⚠️ nenustatytas"}</span>
+          <span style={{color:C.t3}}>Laikas:</span><span>{smtpRes.time?new Date(smtpRes.time).toLocaleString("lt-LT"):"-"}</span>
+          {smtpRes.result&&<><span style={{color:C.t3}}>Rezultatas:</span><span style={{color:C.gn}}>{smtpRes.result}</span></>}
+          {smtpRes.error&&<><span style={{color:C.t3}}>Klaida:</span><span style={{color:C.rd,wordBreak:"break-all"}}>{smtpRes.error}</span></>}
+          {smtpRes.code&&<><span style={{color:C.t3}}>Kodas:</span><span>{smtpRes.code}</span></>}
+          {smtpRes.command&&<><span style={{color:C.t3}}>Komanda:</span><span>{smtpRes.command}</span></>}
+        </div>
+      </div>}
       {dbgRes&&<div style={{marginTop:8,fontSize:11,fontFamily:FM}}>
         {dbgRes.error
           ?<span style={{color:C.rd}}>❌ Prisijungimo klaida: {dbgRes.error}</span>
@@ -3226,7 +3251,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.46</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.47</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3268,7 +3293,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.46</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.47</div>
         </div>
       </div>
     </div>

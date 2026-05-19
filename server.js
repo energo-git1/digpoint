@@ -932,6 +932,24 @@ app.post('/api/admin/clear-imap-done', (req, res) => {
   res.json({ ok: true, message: 'kl-imap-done išvalytas.' });
 });
 
+// SMTP ryšio testas — grąžina detalų rezultatą be laiško siuntimo
+app.get('/api/admin/smtp-test', async (req, res) => {
+  const info = {
+    server:  '192.168.1.101',
+    port:    465,
+    secure:  'SSL/TLS',
+    user:    'uzklausos@energolt.eu',
+    passSet: !!SMTP_PASS,
+    time:    new Date().toISOString(),
+  };
+  try {
+    await mailer.verify();
+    res.json({ ok: true, ...info, result: 'Prisijungta sėkmingai' });
+  } catch (e) {
+    res.status(500).json({ ok: false, ...info, error: e.message, code: e.code || null, command: e.command || null });
+  }
+});
+
 // Diagnostika: parodo kas pašte yra, nieko nekeičia
 app.get('/api/admin/check-mail-debug', async (req, res) => {
   const IMAP_PASS = SMTP_PASS;
