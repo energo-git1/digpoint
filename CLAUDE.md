@@ -88,7 +88,7 @@ Stored in `uploads/` dir. Max 500 MB, max 70-char filename. Served via `/uploads
 - **Pass:** PM2 env `SMTP_PASS` (tas pats)
 - Tikrinama kas **15 minučių** (pirmą kartą po 10 sek. nuo paleidimo)
 - Rankinis paleidimas: `POST /api/admin/check-mail`
-- Atpažįstamos institucijos pagal siuntėjo domeną: `eso.lt`, `kaunas.lt`, `telia.lt`, `telia.com`, `kaunoenergeija.lt`, `kaunoenergia.lt`
+- Atpažįstamos institucijos pagal siuntėjo domeną: `eso.lt`, `kaunas.lt`, `telia.lt`, `kaunoenergeija.lt`, `kaunoenergia.lt`
 - Paraiška surandama pagal adreso žodžių sutapimą laiško temoje (threshold 40 %)
 - Jei PDF prisegtas ir paraiška rasta → statusas → „Gautas leidimas", PDF išsaugomas
 - Jei nepavyksta sugretinti → įspėjimo laiškas į `uzklausos@energolt.eu`
