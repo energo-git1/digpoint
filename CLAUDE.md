@@ -75,15 +75,16 @@ Stored in `uploads/` dir. Max 500 MB, max 70-char filename. Served via `/uploads
 
 ## Email / SMTP
 
-- **SMTP:** `mail.energolt.eu:465` (SSL, auth)
+- **SMTP išorinis:** `192.168.1.100:465` (SSL, auth) — Telia, KE, ESO, užsakovams
+- **SMTP vidinis:** `10.2.1.103:25` (relay, be auth) — sisteminiai perspėjimai
 - **User:** `uzklausos@energolt.eu`
 - **Pass:** PM2 env `SMTP_PASS`
-- **MAIL_FROM_EXTERNAL:** `uzklausos@energolt.eu` — Telia, KE, ESO, review/pranešimai
-- **MAIL_FROM_INTERNAL:** `digpoint@energolt.eu` — perspėjimai, uždarymo info
+- **MAIL_FROM_EXTERNAL:** `"EnergoLT užklausos" <uzklausos@energolt.eu>` — Telia, KE, ESO, review
+- **MAIL_FROM_INTERNAL:** `"Digpoint" <uzklausos@energolt.eu>` — sisteminiai perspėjimai
 
 ## Email / IMAP (automatinis leidimų gavimas — įgyvendinta v1.2.14)
 
-- **IMAP:** `mail.energolt.eu:993` (SSL)
+- **IMAP:** `192.168.1.100:993` (SSL)
 - **User:** `uzklausos@energolt.eu`
 - **Pass:** PM2 env `SMTP_PASS` (tas pats)
 - Tikrinama kas **15 minučių** (pirmą kartą po 10 sek. nuo paleidimo)
