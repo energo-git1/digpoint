@@ -429,19 +429,31 @@ app.delete('/api/files/:filename', (req, res) => {
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 // ── Email / SMTP ──────────────────────────────────────────────
-const mailer = nodemailer.createTransport({
-  host: 'mail.energolt.eu',
-  port: 465,
-  secure: true,
-  auth: {
-    user: 'uzklausos@energolt.eu',
-    pass: process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS || '',
-  },
+// Konfigūruojama per PM2:
+//   pm2 set digpoint SMTP_HOST mail.energolt.eu
+//   pm2 set digpoint SMTP_PORT 465
+//   pm2 set digpoint SMTP_SECURE true
+//   pm2 set digpoint SMTP_USER uzklausos@energolt.eu
+//   pm2 set digpoint SMTP_PASS Uzkl2026TR
+// Numatytoji reikšmė — vidinis relay 10.2.1.103:25 (be autentikacijos)
+const SMTP_HOST   = process.env.SMTP_HOST   || '10.2.1.103';
+const SMTP_PORT   = parseInt(process.env.SMTP_PORT   || '25', 10);
+const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
+const SMTP_USER   = process.env.SMTP_USER   || '';
+const SMTP_PASS   = process.env.SMTP_PASS   || process.env.npm_package_config_SMTP_PASS || '';
+
+const _mailerOpts = {
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_SECURE,
   tls: { rejectUnauthorized: false },
   connectionTimeout: 10000,
   greetingTimeout:   10000,
   socketTimeout:     15000,
-});
+};
+if (SMTP_USER && SMTP_PASS) _mailerOpts.auth = { user: SMTP_USER, pass: SMTP_PASS };
+const mailer = nodemailer.createTransport(_mailerOpts);
+console.log(`[SMTP] ${SMTP_HOST}:${SMTP_PORT} secure=${SMTP_SECURE} auth=${!!SMTP_USER}`);
 
 const MAIL_FROM_INTERNAL = 'digpoint@energolt.eu';   // perspėjimai, uždarymas
 const MAIL_FROM_EXTERNAL = 'uzklausos@energolt.eu';  // Telia, KE, ESO, review
