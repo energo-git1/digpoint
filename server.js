@@ -429,36 +429,25 @@ app.delete('/api/files/:filename', (req, res) => {
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 // ── Email / SMTP ──────────────────────────────────────────────
-// Išoriniai laiškai (Telia, KE, ESO, užsakovams) — tikrasis Zimbra 192.168.1.101:465
-// Vidiniai laiškai (perspėjimai, sistemos pranešimai) — vidinis relay 10.2.1.103:25
-// PM2 konfigūracija:
-//   pm2 set digpoint SMTP_PASS Uzkl2026TR
+// Visi laiškai per mail.energolt.eu (192.168.1.101:465) SSL/TLS su autentikacija
+// PM2: pm2 set digpoint SMTP_PASS Uzkl2026TR
 const SMTP_PASS = process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS || '';
 
-// Išorinis mailer — Zimbra 192.168.1.101:465 su autentikacija
-const mailer = nodemailer.createTransport({
+const _smtpOpts = {
   host: '192.168.1.101',
   port: 465,
-  secure: true,
+  secure: true,                           // SSL/TLS (ne STARTTLS)
   auth: { user: 'uzklausos@energolt.eu', pass: SMTP_PASS },
   tls: { rejectUnauthorized: false },
   connectionTimeout: 10000,
   greetingTimeout:   10000,
   socketTimeout:     15000,
-});
+};
 
-// Vidinis mailer — relay 10.2.1.103:25 be autentikacijos
-const mailerInternal = nodemailer.createTransport({
-  host: '10.2.1.103',
-  port: 25,
-  secure: false,
-  tls: { rejectUnauthorized: false },
-  connectionTimeout: 10000,
-  greetingTimeout:   10000,
-  socketTimeout:     15000,
-});
+const mailer         = nodemailer.createTransport(_smtpOpts);
+const mailerInternal = nodemailer.createTransport(_smtpOpts); // tas pats serveris
 
-console.log(`[SMTP] Išorinis: 192.168.1.101:465 auth=${!!SMTP_PASS} | Vidinis: 10.2.1.103:25`);
+console.log(`[SMTP] mail.energolt.eu (192.168.1.101:465) SSL auth=${!!SMTP_PASS}`);
 
 const MAIL_FROM_INTERNAL = '"Digpoint" <uzklausos@energolt.eu>';   // perspėjimai, uždarymas
 const MAIL_FROM_EXTERNAL = '"EnergoLT užklausos" <uzklausos@energolt.eu>';  // Telia, KE, ESO, review
