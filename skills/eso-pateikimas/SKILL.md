@@ -1,117 +1,105 @@
 ---
 name: eso-pateikimas
-description: Automatiškai užpildo AB ESO kasimo darbų leidimo paraišką svetainėje eso.lt naudodamas duomenis iš Digpoint sistemos. Naudoti VISADA kai vartotojas sako: "pateik ESO", "užpildyk ESO formą", "pateik paraišką ESO", "eso pateikimas", "paleisk ESO agentą". Skill paima užduotį iš Digpoint serverio, atidaro ESO svetainę, užpildo visus laukus automatiškai ir sustoja prieš galutinį siuntimą — kad vartotojas galėtų patikrinti prieš patvirtindamas.
+description: Automatiškai užpildo AB ESO kasimo darbų leidimo paraišką svetainėje eso.lt naudodamas duomenis iš Digpoint sistemos. Naudoti VISADA kai vartotojas sako: "pateik ESO", "užpildyk ESO formą", "pateik paraišką ESO", "eso pateikimas", "paleisk ESO agentą". Skill paima VISAS laukiančias užduotis iš Digpoint serverio, atidaro ESO svetainę kiekvienai paraiškai ir užpildo automatiškai. Viena komanda = visos paraiškos.
 ---
 
 # ESO Kasimo Darbų Paraiškos Pateikimas
 
 Šis skill automatizuoja AB ESO kasimo leidimo paraiškos pildymą svetainėje `https://www.eso.lt/aktualios-formos/kasimo-darbai/30`.
 
-## 1. Gauk užduoties duomenis iš Digpoint serverio
-
-Pirmas žingsnis — paimk užduotį iš Digpoint serverio:
+## 1. Gauk VISAS laukiančias užduotis iš Digpoint serverio
 
 ```
-GET http://localhost:3001/api/store/kl-eso-task
+GET http://10.2.1.115:3001/api/store/kl-eso-tasks
 ```
 
-Atsakymas bus JSON su `value` lauku. Jei `value` yra `null` arba `status !== "pending"` — informuok vartotoją kad nėra aktyvios ESO užduoties ir prašyk pirmiausia ją sukurti Digpoint sistemoje (mygtuku „Pateikti ESO automatiškai").
+Atsakymas bus JSON su `value` lauku — tai **masyvas** užduočių.
 
-Iš `value` objekto ištrauk šiuos laukus:
+Jei `value` yra `null` arba tuščias masyvas — informuok vartotoją kad nėra aktyvių ESO užduočių ir prašyk pirmiausia jas sukurti Digpoint sistemoje (mygtuku „Pateikti ESO automatiškai").
+
+Filtruok tik `status === "pending"` užduotis.
+
+Iš kiekvieno objekto ištrauk:
+- `permitId` — paraiškos ID (reikės žymint kaip atliktą)
 - `manager` — darbų vadovo vardas pavardė
-- `managerPhone` — telefono numeris (formatas: +370XXXXXXXX)
+- `managerPhone` — telefono numeris
 - `email` — ESO sutikimo gavimo el. paštas
-- `location` — darbų vieta (adresas)
+- `location` — darbų vieta
 - `startDate` — darbų pradžia (YYYY-MM-DD)
 - `endDate` — darbų pabaiga (YYYY-MM-DD)
-- `company` — įmonės pavadinimas (EnergoLT)
-- `description` — darbų aprašas (jei tuščias, naudok "Kasimo darbai pagal projektą")
-- `files` — PDF failų sąrašas (masyvas su `name` laukais)
-- `investNo` — investicinis numeris (gali būti tuščias)
+- `company` — įmonės pavadinimas
+- `investNo` — investicinis numeris
+- `files` — PDF failų sąrašas
 
-## 2. Rasti ESO formą naršyklėje
+## 2. Kiekvienai užduočiai — atidaryti naują ESO skirtuką ir užpildyti
 
-Digpoint sistema jau atidarė `https://www.eso.lt/aktualios-formos/kasimo-darbai/30` naujame skirtuke.
-
-Naudok `tabs_context_mcp` kad rastum tą skirtuką. Jei jo nėra — atidaryк patį su `navigate`.
-
-## 3. Užpildyti formą žingsnis po žingsnio
+Kiekvienai pending užduočiai atlik žemiau nurodytus žingsnius A–D **viename skirtuke** (arba naujame jei jau yra):
 
 ### Žingsnis A — ESO rangovas blokas
 
-Surask bloką su tekstu „Prašymą pildo ESO (sub)rangovo organizacija..." arba mygtuką „Toliau" ties ESO rangovas sekcija. Spausk „Toliau".
+Naviguok į `https://www.eso.lt/aktualios-formos/kasimo-darbai/30`.
+Surask ir spausk „Toliau" ties „ESO rangovas" sekcija.
 
-### Žingsnis B — Formos laukai
+### Žingsnis B — Formos laukai (JavaScript pagalba greičiausiai)
 
-Užpildyk šiuos laukus tiksliai tokia tvarka:
+Užpildyk naudodamas `javascript_tool`:
 
-| Laukas (HTML name) | Reikšmė |
-|--------|----------|
-| `legal_company_name` | `company` iš užduoties |
-| `legal_manager_name` | `manager` iš užduoties |
-| `legal_manager_phone` | `managerPhone` iš užduoties |
-| `acceptance_email` | `email` iš užduoties |
-| `obj_municipality` (select) | „Kauno miesto savivaldybė" — visada šis pasirinkimas |
-| `obj_address` | `location` iš užduoties |
-| `excavation_purpose` | **"Elektros tinklų įrengimas"** — visada šis tekstas |
-| `excavation_start` | `startDate` iš užduoties — YYYY-MM-DD formatas |
-| `excavation_end` | `endDate` iš užduoties — YYYY-MM-DD formatas |
-| `excavation_link` | **PALIKTI TUŠČIĄ** |
-| `technical_eso_investment_nr` | `investNo` jei yra, kitu atveju tuščia |
-| Žinutė | **PALIKTI TUŠČIĄ** |
-| `agree_to_terms` (checkbox) | **Pažymėti** |
-
-### Žingsnis C — Brėžiniai (PDF failai)
-
-Jei `files` masyve yra PDF failų — pridėk **visą projekto PDF** per failo įkėlimo lauką.
-
-**Žingsniai:**
-
-1. Kiekvienas failas turi `url` lauką (pvz. `/uploads/abc123_projektas.pdf`). Pilnas URL: `http://10.2.1.115:3001` + `url` reikšmė.
-
-2. Parsisiunčia failą į laikiną aplanką naudodamas bash:
-```bash
-curl -o /tmp/eso_projektas.pdf "http://10.2.1.115:3001/uploads/FILENAME"
+```javascript
+function set(name, val) {
+  const el = document.querySelector('input[name="'+name+'"], textarea[name="'+name+'"]');
+  if(!el) return;
+  el.value = val;
+  el.dispatchEvent(new Event('input', {bubbles:true}));
+  el.dispatchEvent(new Event('change', {bubbles:true}));
+}
+set('legal_company_name', 'EnergoLT');
+set('legal_manager_name', '{manager}');
+set('legal_manager_phone', '{managerPhone be +370}');
+set('acceptance_email', '{email}');
+set('obj_address', '{location}');
+set('excavation_purpose', 'Elektros tinklų įrengimas');
+set('excavation_start', '{startDate}');
+set('excavation_end', '{endDate}');
+set('excavation_link', '');
+set('technical_eso_investment_nr', '{investNo}');
+// Savivaldybė
+const sel = document.querySelector('select');
+const kauno = sel && Array.from(sel.options).find(o => o.text.includes('Kauno m. sav'));
+if(kauno) { sel.value = kauno.value; sel.dispatchEvent(new Event('change',{bubbles:true})); }
+// Varnelė
+const cb = document.querySelector('input[type="checkbox"]');
+if(cb && !cb.checked) cb.click();
 ```
 
-3. Surask failo įkėlimo lauką ESO formoje naudodamas `find` įrankį (ieško `input[type="file"]`).
+### Žingsnis C — PDF failai
 
-4. Naudok `file_upload` įrankį su:
-   - `paths: ["/tmp/eso_projektas.pdf"]`
-   - `ref`: elementas rastas 3 žingsnyje
+Jei `location` tuščias — pabandyk iš PDF nuskaityti adresą:
+- Atidaryk `http://10.2.1.115:3001{file.url}` naujame skirtuke
+- Pirmame puslapyje rask „OBJEKTO VIETA:" eilutę
+- Įrašyk rastą adresą į `obj_address`
 
-5. Jei automatinis pridėjimas nepavyksta — pranešk vartotojui kad pridėtų rankiniu būdu prieš spausdamas „Siųsti".
+### Žingsnis D — Pranešimas ir kitas
 
-### Žingsnis D — Sutikimo varnelė
+Pranešk: „✅ Paraiška #{permitId} užpildyta — patikrinkite ir spauskite Siųsti"
 
-Surask ir pažymėk varnelę: „Patvirtinu, kad susipažinau su darbų atlikimo taisyklėmis..."
-
-## 4. SUSTOTI — NESPAUSTI „Siųsti"
-
-**SVARBU:** Baigus pildyti formą — **NESPAUSK „Siųsti" mygtuko**. 
-
-Pranešk vartotojui:
-- ✅ Forma užpildyta
-- 📋 Parodyk trumpą suvestinę kas buvo užpildyta
-- ⚠️ Jei kas nors nepavyko (pvz. PDF nepridėtas) — aiškiai nurodyk
-- 👉 Prašyk vartotojo **patikrinti formą** ir tik tada rankiniu būdu paspausti „Siųsti"
-
-Forma lieka atidaryta naršyklėje.
-
-## 5. Po vartotojo patvirtinimo (jei paprašo)
-
-Jei vartotojas sako „siųsk", „patvirtinu", „submit" — tik tada spausk „Siųsti" mygtuką.
-
-Po sėkmingo išsiuntimo — pranešk apie tai ir pažymėk užduotį kaip atliktą serveryje:
-
+Pažymėk užduotį kaip atliktą:
 ```
-PUT http://localhost:3001/api/store/kl-eso-task
-Body: {"value": null}
+PUT http://10.2.1.115:3001/api/store/kl-eso-tasks
+Body: {"value": [/* masyvas be šios užduoties */]}
 ```
+
+Jei liko daugiau pending užduočių — tęsk su kita.
+
+## 3. Galutinė suvestinė
+
+Kai visos paraiškos užpildytos, pranešk:
+- Kiek formų užpildyta
+- Kurioms reikia rankinių veiksmų (PDF įkėlimas, adresas)
+- Prašyk vartotojo patikrinti kiekvieną skirtuką ir spausti „Siųsti"
 
 ## Klaidos atvejai
 
-- **Puslapis neatsidaro** — pranešk vartotojui ir pateik nuorodą rankiniam atidarymui
-- **Laukas nerandamas** — ESO gali būti atnaujinę formą; pranešk vartotojui ir parodyk ką pavyko užpildyti
-- **PDF nepridedamas automatiškai** — tęsk be failų, pranešk vartotojui kad pridėtų rankiniu būdu
-- **Serveris nepasiekiamas** — gali būti kad Digpoint neveikia; paprašyk patikrinti `http://localhost:3001`
+- **Puslapis neatsidaro** — pranešk vartotojui
+- **Laukas nerandamas** — ESO gali būti atnaujinę formą; pranešk
+- **PDF adresas nerastas** — palik tuščią, pranešk vartotojui
+- **Serveris nepasiekiamas** — paprašyk patikrinti `http://10.2.1.115:3001`
