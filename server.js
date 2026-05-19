@@ -40,7 +40,7 @@ const upload = multer({
 });
 
 // ── Active Directory config ───────────────────────────────────
-const LDAP_URL        = 'ldap://192.168.1.100:389';
+const LDAP_URL        = 'ldap://192.168.1.101:389';
 const LDAP_BASE_DN    = 'DC=hata,DC=local';
 const LDAP_USERS_BASE = process.env.LDAP_USERS_BASE || LDAP_BASE_DN;
 const LDAP_SVC_DN     = process.env.LDAP_SVC_DN   || 'CN=svc_jira,OU=Service Accounts,DC=hata,DC=local';
@@ -429,15 +429,15 @@ app.delete('/api/files/:filename', (req, res) => {
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 // ── Email / SMTP ──────────────────────────────────────────────
-// Išoriniai laiškai (Telia, KE, ESO, užsakovams) — tikrasis Zimbra 192.168.1.100:465
+// Išoriniai laiškai (Telia, KE, ESO, užsakovams) — tikrasis Zimbra 192.168.1.101:465
 // Vidiniai laiškai (perspėjimai, sistemos pranešimai) — vidinis relay 10.2.1.103:25
 // PM2 konfigūracija:
 //   pm2 set digpoint SMTP_PASS Uzkl2026TR
 const SMTP_PASS = process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS || '';
 
-// Išorinis mailer — Zimbra 192.168.1.100:465 su autentikacija
+// Išorinis mailer — Zimbra 192.168.1.101:465 su autentikacija
 const mailer = nodemailer.createTransport({
-  host: '192.168.1.100',
+  host: '192.168.1.101',
   port: 465,
   secure: true,
   auth: { user: 'uzklausos@energolt.eu', pass: SMTP_PASS },
@@ -458,7 +458,7 @@ const mailerInternal = nodemailer.createTransport({
   socketTimeout:     15000,
 });
 
-console.log(`[SMTP] Išorinis: 192.168.1.100:465 auth=${!!SMTP_PASS} | Vidinis: 10.2.1.103:25`);
+console.log(`[SMTP] Išorinis: 192.168.1.101:465 auth=${!!SMTP_PASS} | Vidinis: 10.2.1.103:25`);
 
 const MAIL_FROM_INTERNAL = '"Digpoint" <uzklausos@energolt.eu>';   // perspėjimai, uždarymas
 const MAIL_FROM_EXTERNAL = '"EnergoLT užklausos" <uzklausos@energolt.eu>';  // Telia, KE, ESO, review
@@ -635,7 +635,7 @@ app.post('/api/notify/eso-submitted', async (req, res) => {
 });
 
 // ── IMAP el. pašto tikrinimas ─────────────────────────────────
-const IMAP_HOST = '192.168.1.100';
+const IMAP_HOST = '192.168.1.101';
 const IMAP_PORT = 993;
 const IMAP_USER = 'uzklausos@energolt.eu';
 
