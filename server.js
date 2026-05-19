@@ -460,12 +460,13 @@ const MAIL_FROM_EXTERNAL = '"EnergoLT užklausos" <uzklausos@energolt.eu>';  // 
 const ESO_EMAIL   = 'leidimai@energolt.eu';
 const TELIA_EMAIL = 'ligita.rutkauskiene@telia.lt';
 
-// Siųsti laišką ir automatiškai išsaugoti kopiją į Sent aplanką per IMAP
-// (Zimbra nepasaugo SMTP išsiųstų laiškų automatiškai, reikia append rankiniu būdu)
+// Siųsti laišką. IMAP append į Sent daromas tik kai naudojamas tikrasis Zimbra SMTP
+// (vidinis relay 10.2.1.103 pats saugo į Sent — append sukeltų dublikatus)
 async function sendAndSave(opts) {
   const info = await mailer.sendMail(opts);
-  const PASS = SMTP_PASS; // process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS
-  if (PASS) {
+  const useRealSmtp = SMTP_HOST !== '10.2.1.103';
+  const PASS = SMTP_PASS;
+  if (useRealSmtp && PASS) {
     try {
       const tmpT = nodemailer.createTransport({ streamTransport: true, newline: 'unix' });
       const si   = await tmpT.sendMail(opts);
