@@ -633,8 +633,10 @@ app.post('/api/notify/eso-submitted', async (req, res) => {
 });
 
 // ── IMAP el. pašto tikrinimas ─────────────────────────────────
-const IMAP_HOST = 'mail.energolt.eu';
-const IMAP_PORT = 993;
+// pm2 set digpoint IMAP_HOST 192.168.1.100
+// pm2 set digpoint IMAP_PORT 993
+const IMAP_HOST = process.env.IMAP_HOST || 'mail.energolt.eu';
+const IMAP_PORT = parseInt(process.env.IMAP_PORT || '993', 10);
 const IMAP_USER = 'uzklausos@energolt.eu';
 
 // Siuntėjų domenai → institucijų pavadinimai (kaip saugomi kl-permits)
