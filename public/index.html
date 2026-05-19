@@ -2362,44 +2362,6 @@ function PermitDetail(p){
               }
               p.onClose();
             }} style={{background:"#10B981",color:"#fff",border:"none"}}>✉ Išsiųsti</Btn>}
-          {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.pendingEmail||o.pendingKauoenergijaEmail)&&
-            <Btn sm onClick={async function(){
-              if(!window.confirm("Išsiųsti visas laukiančias paraiškas?"))return;
-              var anyError=false;
-              // Siunčiame Telia jei yra ir neатшaukta
-              if(o.pendingEmail){
-                try{
-                  var teliaAddr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-                  var teliaFname=(teliaAddr?teliaAddr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-                  var pdfFileTelia=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-                  var teliaFinalSrc=[{filename:teliaFname,sourceFileName:pdfFileTelia?pdfFileTelia.name:"",pageNumbers:teliaSel}];
-                  var teliaToSend=Object.assign({},o,{pendingEmail:Object.assign({},o.pendingEmail,{attachmentSources:teliaFinalSrc})});
-                  await approveAndSendTelia(teliaToSend);
-                }catch(e){anyError=true;alert("Telia siuntimo klaida: "+e.message);}
-              }
-              // Siunčiame KE jei yra ir neатшaukta
-              if(o.pendingKauoenergijaEmail){
-                try{
-                  var keAddr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-                  var keFname=(keAddr?keAddr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-                  var pdfFileKE=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-                  var keFinalSrc=[{filename:keFname,sourceFileName:pdfFileKE?pdfFileKE.name:"",pageNumbers:keSel}];
-                  var keToSend=Object.assign({},o,{pendingKauoenergijaEmail:Object.assign({},o.pendingKauoenergijaEmail,{attachmentSources:keFinalSrc})});
-                  await approveAndSendKauoenergija(keToSend);
-                }catch(e){anyError=true;alert("KE siuntimo klaida: "+e.message);}
-              }
-              if(!anyError){
-                // Atnaujinti statusą automatiškai
-                var updSent=Object.assign({},o,{
-                  pendingEmail:null,
-                  pendingKauoenergijaEmail:null,
-                  status:"Pateikta",
-                  history:(o.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Išsiųsta: "+(p.user.name||"-")}])
-                });
-                p.onUpdate(updSent);
-              }
-              p.onClose();
-            }} style={{background:"#10B981",color:"#fff",border:"none"}}>✉ Išsiųsti</Btn>}
         </div>
       </div>}
 
@@ -3284,7 +3246,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.51</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.52</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3326,7 +3288,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.51</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.52</div>
         </div>
       </div>
     </div>
