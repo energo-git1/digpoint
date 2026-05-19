@@ -438,6 +438,9 @@ const mailer = nodemailer.createTransport({
     pass: process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS || 'Uzkl2026TR',
   },
   tls: { rejectUnauthorized: false },
+  connectionTimeout: 8000,   // 8 sek — nepalauk amžinai
+  greetingTimeout:   8000,
+  socketTimeout:     10000,
 });
 
 const MAIL_FROM_INTERNAL = 'digpoint@energolt.eu';   // perspėjimai, uždarymas
