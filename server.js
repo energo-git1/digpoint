@@ -460,9 +460,8 @@ const mailerInternal = nodemailer.createTransport({
 
 console.log(`[SMTP] Išorinis: 192.168.1.100:465 auth=${!!SMTP_PASS} | Vidinis: 10.2.1.103:25`);
 
-const MAIL_FROM_INTERNAL = '"Digpoint" <uzklausos@energolt.eu>';  // perspėjimai, uždarymas
-const MAIL_FROM_EXTERNAL = '"EnergoLT užklausos" <uzklausos@energolt.eu>';  // Telia, KE, ESO, review
-const ESO_EMAIL   = 'leidimai@energolt.eu';
+const MAIL_FROM_INTERNAL = '"Digpoint" <digpoint@energolt.eu>';  // perspėjimai, uždarymas, review
+const MAIL_FROM_EXTERNAL = '"EnergoLT užklausos" <uzklausos@energolt.eu>';  // Telia, KE, ESO
 const TELIA_EMAIL = 'ligita.rutkauskiene@telia.lt';
 
 // Siųsti išorinį laišką per Zimbra + IMAP append į Sent
@@ -481,7 +480,7 @@ async function sendAndSave(opts) {
       const raw = Buffer.concat(chunks);
       const ic  = new ImapFlow({
         host: IMAP_HOST, port: IMAP_PORT, secure: true,
-        auth: { user: IMAP_USER, pass: PASS },
+        auth: { user: IMAP_USER, pass: SMTP_PASS  },
         logger: false, tls: { rejectUnauthorized: false },
       });
       await ic.connect();
