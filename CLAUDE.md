@@ -99,7 +99,7 @@ Stored in `uploads/` dir. Max 500 MB, max 70-char filename. Served via `/uploads
 pm2 set digpoint LDAP_SVC_PASS <password>
 pm2 set digpoint LDAP_SVC_DN "CN=svc_jira,OU=Service Accounts,DC=hata,DC=local"
 pm2 set digpoint LDAP_USERS_BASE "OU=Users,DC=hata,DC=local"
-pm2 set digpoint SMTP_PASS Uzkl2026TR
+pm2 set digpoint SMTP_PASS "Uzkl2026TR"
 ```
 
 ## Relationship with Geopoint
