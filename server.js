@@ -460,8 +460,9 @@ const mailerInternal = nodemailer.createTransport({
 
 console.log(`[SMTP] Išorinis: 192.168.1.100:465 auth=${!!SMTP_PASS} | Vidinis: 10.2.1.103:25`);
 
-const MAIL_FROM_INTERNAL = '"Digpoint" <digpoint@energolt.eu>';  // perspėjimai, uždarymas, review
-const MAIL_FROM_EXTERNAL = '"EnergoLT užklausos" <uzklausos@energolt.eu>';  // Telia, KE, ESO
+const MAIL_FROM_INTERNAL = '"Digpoint" <uzklausos@energolt.eu>';   // perspėjimai, uždarymas
+const MAIL_FROM_EXTERNAL = '"EnergoLT užklausos" <uzklausos@energolt.eu>';  // Telia, KE, ESO, review
+const ESO_EMAIL   = 'leidimai@energolt.eu';
 const TELIA_EMAIL = 'ligita.rutkauskiene@telia.lt';
 
 // Siųsti išorinį laišką per Zimbra + IMAP append į Sent
@@ -944,7 +945,7 @@ app.post('/api/admin/clear-imap-done', (req, res) => {
 
 // Diagnostika: parodo kas pašte yra, nieko nekeičia
 app.get('/api/admin/check-mail-debug', async (req, res) => {
-  const IMAP_PASS = process.env.SMTP_PASS;
+  const IMAP_PASS = SMTP_PASS;
   if (!IMAP_PASS) return res.status(500).json({ error: 'SMTP_PASS nenustatytas' });
 
   const client = new ImapFlow({
