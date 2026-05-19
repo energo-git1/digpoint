@@ -464,7 +464,7 @@ const TELIA_EMAIL = 'ligita.rutkauskiene@telia.lt';
 // (Zimbra nepasaugo SMTP išsiųstų laiškų automatiškai, reikia append rankiniu būdu)
 async function sendAndSave(opts) {
   const info = await mailer.sendMail(opts);
-  const PASS = process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS || 'Uzkl2026TR';
+  const PASS = SMTP_PASS; // process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS
   if (PASS) {
     try {
       const tmpT = nodemailer.createTransport({ streamTransport: true, newline: 'unix' });
@@ -719,7 +719,7 @@ function findPdfParts(struct, acc = []) {
 }
 
 async function checkImapMail() {
-  const IMAP_PASS = process.env.SMTP_PASS;
+  const IMAP_PASS = SMTP_PASS; // process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS
   if (!IMAP_PASS) {
     console.log('[IMAP] SMTP_PASS nenurodytas — tikrinimas praleidžiamas.');
     return { checked: 0, processed: 0 };
