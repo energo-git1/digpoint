@@ -99,11 +99,11 @@ Stored in `uploads/` dir. Max 500 MB, max 70-char filename. Served via `/uploads
 pm2 set digpoint LDAP_SVC_PASS <password>
 pm2 set digpoint LDAP_SVC_DN "CN=svc_jira,OU=Service Accounts,DC=hata,DC=local"
 pm2 set digpoint LDAP_USERS_BASE "OU=Users,DC=hata,DC=local"
-pm2 set digpoint SMTP_HOST mail.energolt.eu
-pm2 set digpoint SMTP_PORT 465
-pm2 set digpoint SMTP_SECURE true
-pm2 set digpoint SMTP_USER uzklausos@energolt.eu
-pm2 set digpoint SMTP_PASS Uzkl2026TR
+pm2 set digpoint SMTP_HOST "mail.energolt.eu"
+pm2 set digpoint SMTP_PORT "465"
+pm2 set digpoint SMTP_SECURE "true"
+pm2 set digpoint SMTP_USER "uzklausos@energolt.eu"
+pm2 set digpoint SMTP_PASS "Uzkl2026TR"
 pm2 restart digpoint --update-env
 ```
 
