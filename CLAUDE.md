@@ -75,7 +75,7 @@ Stored in `uploads/` dir. Max 500 MB, max 70-char filename. Served via `/uploads
 
 ## Email / SMTP
 
-- **SMTP išorinis:** `192.168.1.100:465` (SSL, auth) — Telia, KE, ESO, užsakovams
+- **SMTP išorinis:** `192.168.1.101:465` (SSL, auth) — Telia, KE, ESO, užsakovams
 - **SMTP vidinis:** `10.2.1.103:25` (relay, be auth) — sisteminiai perspėjimai
 - **User:** `uzklausos@energolt.eu`
 - **Pass:** PM2 env `SMTP_PASS`
@@ -84,7 +84,7 @@ Stored in `uploads/` dir. Max 500 MB, max 70-char filename. Served via `/uploads
 
 ## Email / IMAP (automatinis leidimų gavimas — įgyvendinta v1.2.14)
 
-- **IMAP:** `192.168.1.100:993` (SSL)
+- **IMAP:** `192.168.1.101:993` (SSL)
 - **User:** `uzklausos@energolt.eu`
 - **Pass:** PM2 env `SMTP_PASS` (tas pats)
 - Tikrinama kas **15 minučių** (pirmą kartą po 10 sek. nuo paleidimo)
