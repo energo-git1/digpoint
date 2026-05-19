@@ -1691,7 +1691,7 @@ function PdfPagePickerModal(p){
         for(var pg=1;pg<=pdf.numPages;pg++){
           if(cancelled)return;
           var page=await pdf.getPage(pg);
-          var vp=page.getViewport({scale:0.3});
+          var vp=page.getViewport({scale:0.75});
           var canvas=document.createElement('canvas');
           canvas.width=vp.width;canvas.height=vp.height;
           await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
@@ -1713,7 +1713,7 @@ function PdfPagePickerModal(p){
 
 
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-    <div style={{background:C.s1,borderRadius:14,width:"100%",maxWidth:700,maxHeight:"90vh",display:"flex",flexDirection:"column",border:"1px solid "+C.b1}}>
+    <div style={{background:C.s1,borderRadius:14,width:"100%",maxWidth:960,maxHeight:"92vh",display:"flex",flexDirection:"column",border:"1px solid "+C.b1}}>
       {/* Antraštė */}
       <div style={{padding:"14px 18px",borderBottom:"1px solid "+C.b1,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
         <div>
@@ -1726,7 +1726,7 @@ function PdfPagePickerModal(p){
       <div style={{flex:1,overflowY:"auto",padding:14}}>
         {loading&&<div style={{textAlign:"center",padding:40,color:C.t2,fontFamily:F,fontSize:13}}>Kraunamos miniatiūros...</div>}
         {err&&<div style={{color:C.rd,fontFamily:F,fontSize:12,padding:20}}>{err}</div>}
-        {!loading&&!err&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:10}}>
+        {!loading&&!err&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14}}>
           {pages.map(function(pg){
             var isSel=sel.indexOf(pg.num)!==-1;
             return <div key={pg.num} onClick={function(){togglePage(pg.num);}}
@@ -3281,7 +3281,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.49</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.50</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3323,7 +3323,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.49</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.50</div>
         </div>
       </div>
     </div>
