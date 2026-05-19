@@ -967,20 +967,25 @@ function PermitForm(p){
     }
   }
   function removeFile(i){sFiles(function(prev){return prev.filter(function(_,idx){return idx!==i})})}
-  function submit(){
-    if(!ok)return;
-    var orgLabel=orgs.join(", ");
-    var loc=isTelia?(trFrom&&trTo?trFrom+" - "+trTo:""):isESO?esoLoc:"";
-    p.onSubmit({id:uid(),manager:mgr,managerPhone:ph,email:em,location:loc,
-      organization:orgLabel,organizations:orgs,
-      startDate:start,endDate:end,
-      teliaStartDate:isTelia?teliaStart:null,teliaEndDate:isTelia?teliaEnd:null,
-      keStartDate:isKE?keStart:null,keEndDate:isKE?keEnd:null,
-      description:desc,files:files,projectNo:projNo,
-      investNo:invNo,
-      teliaRouteFrom:trFrom,teliaRouteTo:trTo,
-      createdBy:p.user.id,status:"Laukiama tvirtinimo",assignedTo:null,
-      createdAt:fmtDate(new Date()),history:[{status:"Laukiama tvirtinimo",date:fmtDate(new Date())}]});
+  var _sub=useState(false);var submitting=_sub[0],sSubmitting=_sub[1];
+  async function submit(){
+    if(!ok||submitting)return;
+    sSubmitting(true);
+    try{
+      var orgLabel=orgs.join(", ");
+      var loc=isTelia?(trFrom&&trTo?trFrom+" - "+trTo:""):isESO?esoLoc:"";
+      await p.onSubmit({id:uid(),manager:mgr,managerPhone:ph,email:em,location:loc,
+        organization:orgLabel,organizations:orgs,
+        startDate:start,endDate:end,
+        teliaStartDate:isTelia?teliaStart:null,teliaEndDate:isTelia?teliaEnd:null,
+        keStartDate:isKE?keStart:null,keEndDate:isKE?keEnd:null,
+        description:desc,files:files,projectNo:projNo,
+        investNo:invNo,
+        teliaRouteFrom:trFrom,teliaRouteTo:trTo,
+        createdBy:p.user.id,status:"Laukiama tvirtinimo",assignedTo:null,
+        createdAt:fmtDate(new Date()),history:[{status:"Laukiama tvirtinimo",date:fmtDate(new Date())}]});
+    }catch(e){console.error("Pateikimo klaida:",e);}
+    sSubmitting(false);
   }
   return <div style={{maxWidth:560}}>
     <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:4}}>Nauja kasimo leidimo paraiska</h2>
@@ -1047,8 +1052,8 @@ function PermitForm(p){
     </div>
     <Inp label="Papildomas aprasas (neprivaloma)" value={desc} onChange={sDesc} ml rows={3} ph="Papildoma informacija apie darbus..."/>
     <div style={{display:"flex",gap:6,marginTop:14,justifyContent:"flex-end"}}>
-      {p.onCancel&&<Btn v="secondary" onClick={p.onCancel}>Atsaukti</Btn>}
-      <Btn onClick={submit} disabled={!ok}>Pateikti paraiskas</Btn>
+      {p.onCancel&&<Btn v="secondary" onClick={p.onCancel} disabled={submitting}>Atsaukti</Btn>}
+      <Btn onClick={submit} disabled={!ok||submitting}>{submitting?"Siunčiama...":"Pateikti paraiskas"}</Btn>
     </div>
   </div>
 }
@@ -3221,7 +3226,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.36</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.37</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3263,7 +3268,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.36</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.37</div>
         </div>
       </div>
     </div>
