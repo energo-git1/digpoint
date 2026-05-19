@@ -455,8 +455,8 @@ if (SMTP_USER && SMTP_PASS) _mailerOpts.auth = { user: SMTP_USER, pass: SMTP_PAS
 const mailer = nodemailer.createTransport(_mailerOpts);
 console.log(`[SMTP] ${SMTP_HOST}:${SMTP_PORT} secure=${SMTP_SECURE} auth=${!!SMTP_USER}`);
 
-const MAIL_FROM_INTERNAL = 'digpoint@energolt.eu';   // perspėjimai, uždarymas
-const MAIL_FROM_EXTERNAL = 'uzklausos@energolt.eu';  // Telia, KE, ESO, review
+const MAIL_FROM_INTERNAL = '"Digpoint" <uzklausos@energolt.eu>';  // perspėjimai, uždarymas
+const MAIL_FROM_EXTERNAL = '"EnergoLT užklausos" <uzklausos@energolt.eu>';  // Telia, KE, ESO, review
 const ESO_EMAIL   = 'leidimai@energolt.eu';
 const TELIA_EMAIL = 'ligita.rutkauskiene@telia.lt';
 
