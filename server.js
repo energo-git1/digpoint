@@ -430,17 +430,17 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 
 // ── Email / SMTP ──────────────────────────────────────────────
 const mailer = nodemailer.createTransport({
-  host: '192.168.1.100',
+  host: 'mail.energolt.eu',
   port: 465,
   secure: true,
   auth: {
     user: 'uzklausos@energolt.eu',
-    pass: process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS || 'Uzkl2026TR',
+    pass: process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS || '',
   },
   tls: { rejectUnauthorized: false },
-  connectionTimeout: 8000,   // 8 sek — nepalauk amžinai
-  greetingTimeout:   8000,
-  socketTimeout:     10000,
+  connectionTimeout: 10000,
+  greetingTimeout:   10000,
+  socketTimeout:     15000,
 });
 
 const MAIL_FROM_INTERNAL = 'digpoint@energolt.eu';   // perspėjimai, uždarymas
