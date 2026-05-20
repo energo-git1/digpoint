@@ -925,6 +925,24 @@ app.post('/api/admin/check-mail', async (req, res) => {
   }
 });
 
+// Paraiškos statuso atnaujinimas — naudoja Claude po automatinio pateikimo
+app.post('/api/permits/:id/status', (req, res) => {
+  const { id } = req.params;
+  const { status, note } = req.body || {};
+  if (!status) return res.status(400).json({ error: 'Trūksta statuso.' });
+  const permits = dbGet('kl-permits') || [];
+  const idx = permits.findIndex(p => p.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Paraiška nerasta.' });
+  const today = fmtDateSrv(new Date());
+  const updated = { ...permits[idx], status,
+    history: [...(permits[idx].history || []), { status, date: today, note: note || '' }],
+  };
+  permits[idx] = updated;
+  dbSet('kl-permits', permits);
+  console.log(`[STATUS] Paraiška ${id.slice(-5).toUpperCase()} → "${status}"${note ? ' ('+note+')' : ''}`);
+  res.json({ ok: true, permit: updated });
+});
+
 // Pranešimas administratoriui — Claude išsiunčia po formos užpildymo
 app.post('/api/admin/notify', async (req, res) => {
   const { to, subject, html, text } = req.body || {};

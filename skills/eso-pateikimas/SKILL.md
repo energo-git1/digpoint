@@ -78,15 +78,31 @@ Jei `location` tuščias — pabandyk iš PDF nuskaityti adresą:
 - Pirmame puslapyje rask „OBJEKTO VIETA:" eilutę
 - Įrašyk rastą adresą į `obj_address`
 
-### Žingsnis D — Pranešimas ir kitas
+### Žingsnis D — Statusas, pranešimas ir kitas
 
-Pranešk: „✅ Paraiška #{permitId} užpildyta — patikrinkite ir spauskite Siųsti"
+**1. Atnaujink paraiškos statusą Digpoint'e į „Pateikta":**
+```javascript
+// Digpoint skirtuke vykdyti:
+fetch('/api/permits/{permitId}/status', {
+  method: 'POST',
+  headers: {'Content-Type':'application/json'},
+  body: JSON.stringify({status:'Pateikta', note:'ESO paraiška pateikta automatiškai'})
+}).then(r=>r.json()).then(d=>JSON.stringify(d))
+```
 
-Pažymėk užduotį kaip atliktą:
+**2. Pašalink užduotį iš kl-eso-tasks:**
+```javascript
+// Digpoint skirtuke vykdyti:
+fetch('/api/store/kl-eso-tasks')
+  .then(r=>r.json())
+  .then(d=>{
+    var remaining = (d.value||[]).filter(t=>t.permitId!=='{permitId}');
+    return fetch('/api/store/kl-eso-tasks',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:remaining})});
+  }).then(r=>r.json()).then(d=>JSON.stringify(d))
 ```
-PUT http://10.2.1.115:3001/api/store/kl-eso-tasks
-Body: {"value": [/* masyvas be šios užduoties */]}
-```
+
+**3. Pranešk pokalbio lange:**
+`✅ Paraiška #{permitId} užpildyta ir pažymėta „Pateikta" — patikrinkite naršyklėje ir spauskite Siųsti`
 
 Jei liko daugiau pending užduočių — tęsk su kita.
 
@@ -96,6 +112,7 @@ Kai visos paraiškos užpildytos, pranešk:
 - Kiek formų užpildyta
 - Kurioms reikia rankinių veiksmų (PDF įkėlimas, adresas)
 - Prašyk vartotojo patikrinti kiekvieną skirtuką ir spausti „Siųsti"
+- Informuok: Digpoint'e visos paraiškos pažymėtos „Pateikta" ir matosi „Pateiktos paraiškos" rodinyje
 
 ## Klaidos atvejai
 
