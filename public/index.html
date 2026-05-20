@@ -2847,33 +2847,6 @@ function UserMgmt(p){
   var _ar=useState(null);var assignId=_ar[0],sAR=_ar[1];
   var _arole=useState("");var aRole=_arole[0],sARole=_arole[1];
   var _add=useState(false);var showAdd=_add[0],sAdd=_add[1];
-  var _mailBusy=useState(false);var mailBusy=_mailBusy[0],sMailBusy=_mailBusy[1];
-  var _mailRes=useState(null);var mailRes=_mailRes[0],sMailRes=_mailRes[1];
-  var _dbgRes=useState(null);var dbgRes=_dbgRes[0],sDbgRes=_dbgRes[1];
-  var _dbgBusy=useState(false);var dbgBusy=_dbgBusy[0],sDbgBusy=_dbgBusy[1];
-  var _smtpRes=useState(null);var smtpRes=_smtpRes[0],sSmtpRes=_smtpRes[1];
-  var _smtpBusy=useState(false);var smtpBusy=_smtpBusy[0],sSmtpBusy=_smtpBusy[1];
-  function checkMail(){
-    sMailBusy(true);sMailRes(null);
-    fetch("/api/admin/check-mail",{method:"POST"})
-      .then(function(r){return r.json()})
-      .then(function(d){sMailRes(d);sMailBusy(false)})
-      .catch(function(e){sMailRes({error:e.message});sMailBusy(false)});
-  }
-  function debugMail(){
-    sDbgBusy(true);sDbgRes(null);
-    fetch("/api/admin/check-mail-debug")
-      .then(function(r){return r.json()})
-      .then(function(d){sDbgRes(d);sDbgBusy(false)})
-      .catch(function(e){sDbgRes({error:e.message});sDbgBusy(false)});
-  }
-  function testSmtp(){
-    sSmtpBusy(true);sSmtpRes(null);
-    fetch("/api/admin/smtp-test")
-      .then(function(r){return r.json()})
-      .then(function(d){sSmtpRes(d);sSmtpBusy(false)})
-      .catch(function(e){sSmtpRes({ok:false,error:e.message});sSmtpBusy(false)});
-  }
   var _nn=useState("");var nn=_nn[0],sNN=_nn[1];
   var _nu=useState("");var nu=_nu[0],sNU=_nu[1];
   var _ne=useState("");var ne=_ne[0],sNE=_ne[1];
@@ -2941,60 +2914,6 @@ function UserMgmt(p){
       {u.role!=="admin"&&<Btn v="danger" sm onClick={function(){sDel(u.id)}}>Istrinti</Btn>}
     </div>})}
 
-    <div style={{marginTop:28,padding:"16px 18px",background:C.s2,border:"1px solid "+C.b1,borderRadius:10}}>
-      <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Sistemos įrankiai</div>
-      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
-        <Btn sm onClick={testSmtp} disabled={smtpBusy}>
-          {smtpBusy?"⏳ Jungiamasi...":"🔌 Testuoti SMTP"}
-        </Btn>
-        <Btn sm onClick={checkMail} disabled={mailBusy}>
-          {mailBusy?"⏳ Tikrinama...":"📬 Tikrinti el. paštą dabar"}
-        </Btn>
-        <Btn sm onClick={debugMail} disabled={dbgBusy}>
-          {dbgBusy?"⏳ Kraunama...":"🔍 Rodyti pašto turinį"}
-        </Btn>
-        {mailRes&&!mailRes.error&&<span style={{fontSize:11,color:mailRes.processed>0?C.gn:C.t2,fontFamily:F}}>
-          {mailRes.processed>0
-            ?"✅ Apdorota: "+mailRes.processed+" (iš "+mailRes.checked+")"
-            :(mailRes.checked===0?"📭 Laiškų nerasta":"📨 Rasta "+mailRes.checked+", leidimai neatpažinti")}
-        </span>}
-        {mailRes&&mailRes.error&&<span style={{fontSize:11,color:C.rd,fontFamily:F}}>❌ {mailRes.error}</span>}
-      </div>
-      {smtpRes&&<div style={{marginTop:4,marginBottom:8,padding:"10px 12px",borderRadius:8,background:smtpRes.ok?C.gnD:C.rdD,border:"1px solid "+(smtpRes.ok?C.gn:C.rd)+"44",fontSize:11,fontFamily:FM}}>
-        <div style={{fontWeight:700,color:smtpRes.ok?C.gn:C.rd,marginBottom:6}}>{smtpRes.ok?"✅ SMTP prisijungta":"❌ SMTP klaida"}</div>
-        <div style={{display:"grid",gridTemplateColumns:"120px 1fr",gap:"3px 8px",color:C.tx}}>
-          <span style={{color:C.t3}}>Serveris:</span><span>192.168.1.101:465 ({smtpRes.secure||"SSL/TLS"})</span>
-          <span style={{color:C.t3}}>Vartotojas:</span><span>{smtpRes.user||"uzklausos@energolt.eu"}</span>
-          <span style={{color:C.t3}}>Slaptažodis:</span><span>{smtpRes.passSet?"✓ nustatytas":"⚠️ nenustatytas"}</span>
-          <span style={{color:C.t3}}>Laikas:</span><span>{smtpRes.time?new Date(smtpRes.time).toLocaleString("lt-LT"):"-"}</span>
-          {smtpRes.result&&<><span style={{color:C.t3}}>Rezultatas:</span><span style={{color:C.gn}}>{smtpRes.result}</span></>}
-          {smtpRes.error&&<><span style={{color:C.t3}}>Klaida:</span><span style={{color:C.rd,wordBreak:"break-all"}}>{smtpRes.error}</span></>}
-          {smtpRes.code&&<><span style={{color:C.t3}}>Kodas:</span><span>{smtpRes.code}</span></>}
-          {smtpRes.command&&<><span style={{color:C.t3}}>Komanda:</span><span>{smtpRes.command}</span></>}
-        </div>
-      </div>}
-      {dbgRes&&<div style={{marginTop:8,fontSize:11,fontFamily:FM}}>
-        {dbgRes.error
-          ?<span style={{color:C.rd}}>❌ Prisijungimo klaida: {dbgRes.error}</span>
-          :<div>
-            <div style={{color:C.t2,marginBottom:6}}>
-              {dbgRes.connected?"✅ Prisijungta":"❌ Neprisijungta"} · Rasta laiškų (30 d.): <strong>{dbgRes.found}</strong>
-            </div>
-            {(dbgRes.emails||[]).map(function(m,i){
-              return <div key={i} style={{padding:"6px 8px",background:C.bg,borderRadius:6,border:"1px solid "+C.b1,marginBottom:4}}>
-                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                  <span style={{color:m.orgMatch!=="—"?C.gn:C.rd,fontWeight:700}}>{m.orgMatch!=="—"?"✅":"❌"} {m.orgMatch}</span>
-                  <span style={{color:C.t3}}>{m.from}</span>
-                  <span style={{color:m.pdfCount>0?C.tx:C.t3}}>📎 {m.pdfCount} PDF</span>
-                  {m.alreadyDone&&<span style={{color:C.t3}}>(jau apdorotas)</span>}
-                </div>
-                <div style={{color:C.t2,marginTop:2,fontSize:10}}>{m.subject}</div>
-              </div>
-            })}
-          </div>
-        }
-      </div>}
-    </div>
 
     <Modal open={assignId!==null} onClose={closeUser} title="Pakeisti role" w={420}>
       {(function(){var u=p.users.find(function(x){return x.id===assignId});if(!u)return null;
@@ -3274,6 +3193,128 @@ function AuthScreen(p){
 }
 
 // ═════════════════════════════════════════════════════════════
+// SYSTEM TOOLS
+// ═════════════════════════════════════════════════════════════
+function SystemTools(){
+  var _mailBusy=useState(false);var mailBusy=_mailBusy[0],sMailBusy=_mailBusy[1];
+  var _mailRes=useState(null);var mailRes=_mailRes[0],sMailRes=_mailRes[1];
+  var _dbgRes=useState(null);var dbgRes=_dbgRes[0],sDbgRes=_dbgRes[1];
+  var _dbgBusy=useState(false);var dbgBusy=_dbgBusy[0],sDbgBusy=_dbgBusy[1];
+  var _smtpRes=useState(null);var smtpRes=_smtpRes[0],sSmtpRes=_smtpRes[1];
+  var _smtpBusy=useState(false);var smtpBusy=_smtpBusy[0],sSmtpBusy=_smtpBusy[1];
+  var _clearBusy=useState(false);var clearBusy=_clearBusy[0],sClearBusy=_clearBusy[1];
+  var _clearRes=useState(null);var clearRes=_clearRes[0],sClearRes=_clearRes[1];
+
+  function checkMail(){
+    sMailBusy(true);sMailRes(null);
+    fetch("/api/admin/check-mail",{method:"POST"})
+      .then(function(r){return r.json()})
+      .then(function(d){sMailRes(d);sMailBusy(false)})
+      .catch(function(e){sMailRes({error:e.message});sMailBusy(false)});
+  }
+  function debugMail(){
+    sDbgBusy(true);sDbgRes(null);
+    fetch("/api/admin/check-mail-debug")
+      .then(function(r){return r.json()})
+      .then(function(d){sDbgRes(d);sDbgBusy(false)})
+      .catch(function(e){sDbgRes({error:e.message});sDbgBusy(false)});
+  }
+  function testSmtp(){
+    sSmtpBusy(true);sSmtpRes(null);
+    fetch("/api/admin/smtp-test")
+      .then(function(r){return r.json()})
+      .then(function(d){sSmtpRes(d);sSmtpBusy(false)})
+      .catch(function(e){sSmtpRes({ok:false,error:e.message});sSmtpBusy(false)});
+  }
+  function clearImapDone(){
+    sClearBusy(true);sClearRes(null);
+    fetch("/api/admin/clear-imap-done",{method:"POST"})
+      .then(function(r){return r.json()})
+      .then(function(d){sClearRes(d);sClearBusy(false)})
+      .catch(function(e){sClearRes({error:e.message});sClearBusy(false)});
+  }
+
+  var section={marginBottom:24,padding:"16px 18px",background:C.s2,border:"1px solid "+C.b1,borderRadius:10};
+  var secTitle={fontSize:10,fontWeight:700,color:C.t3,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1};
+
+  return <div style={{maxWidth:680}}>
+    <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:20}}>⚙️ Sistemos įrankiai</h2>
+
+    {/* SMTP */}
+    <div style={section}>
+      <div style={secTitle}>El. paštas — SMTP</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+        <Btn sm onClick={testSmtp} disabled={smtpBusy}>{smtpBusy?"⏳ Jungiamasi...":"🔌 Testuoti SMTP"}</Btn>
+      </div>
+      {smtpRes&&<div style={{padding:"10px 12px",borderRadius:8,background:smtpRes.ok?C.gnD:C.rdD,border:"1px solid "+(smtpRes.ok?C.gn:C.rd)+"44",fontSize:11,fontFamily:FM}}>
+        <div style={{fontWeight:700,color:smtpRes.ok?C.gn:C.rd,marginBottom:6}}>{smtpRes.ok?"✅ SMTP prisijungta":"❌ SMTP klaida"}</div>
+        <div style={{display:"grid",gridTemplateColumns:"120px 1fr",gap:"3px 8px",color:C.tx}}>
+          <span style={{color:C.t3}}>Serveris:</span><span>192.168.1.101:465 ({smtpRes.secure||"SSL/TLS"})</span>
+          <span style={{color:C.t3}}>Vartotojas:</span><span>{smtpRes.user||"uzklausos@energolt.eu"}</span>
+          <span style={{color:C.t3}}>Slaptažodis:</span><span>{smtpRes.passSet?"✓ nustatytas":"⚠️ nenustatytas"}</span>
+          <span style={{color:C.t3}}>Laikas:</span><span>{smtpRes.time?new Date(smtpRes.time).toLocaleString("lt-LT"):"-"}</span>
+          {smtpRes.result&&<><span style={{color:C.t3}}>Rezultatas:</span><span style={{color:C.gn}}>{smtpRes.result}</span></>}
+          {smtpRes.error&&<><span style={{color:C.t3}}>Klaida:</span><span style={{color:C.rd,wordBreak:"break-all"}}>{smtpRes.error}</span></>}
+          {smtpRes.code&&<><span style={{color:C.t3}}>Kodas:</span><span>{smtpRes.code}</span></>}
+          {smtpRes.command&&<><span style={{color:C.t3}}>Komanda:</span><span>{smtpRes.command}</span></>}
+        </div>
+      </div>}
+    </div>
+
+    {/* IMAP */}
+    <div style={section}>
+      <div style={secTitle}>El. paštas — IMAP (leidimų gavimas)</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+        <Btn sm onClick={checkMail} disabled={mailBusy}>{mailBusy?"⏳ Tikrinama...":"📬 Tikrinti el. paštą dabar"}</Btn>
+        <Btn sm onClick={debugMail} disabled={dbgBusy}>{dbgBusy?"⏳ Kraunama...":"🔍 Rodyti pašto turinį"}</Btn>
+        <Btn v="danger" sm onClick={clearImapDone} disabled={clearBusy}>{clearBusy?"⏳ Valoma...":"🗑️ Išvalyti apdorotus"}</Btn>
+      </div>
+      {mailRes&&<div style={{marginBottom:8,fontSize:11,fontFamily:F,color:mailRes.error?C.rd:mailRes.processed>0?C.gn:C.t2}}>
+        {mailRes.error?"❌ "+mailRes.error
+          :mailRes.processed>0?"✅ Apdorota: "+mailRes.processed+" (iš "+mailRes.checked+")"
+          :mailRes.checked===0?"📭 Laiškų nerasta":"📨 Rasta "+mailRes.checked+", leidimai neatpažinti"}
+      </div>}
+      {clearRes&&<div style={{marginBottom:8,fontSize:11,fontFamily:F,color:clearRes.error?C.rd:C.gn}}>
+        {clearRes.error?"❌ "+clearRes.error:"✅ "+clearRes.message}
+      </div>}
+      {dbgRes&&<div style={{fontSize:11,fontFamily:FM}}>
+        {dbgRes.error
+          ?<span style={{color:C.rd}}>❌ Prisijungimo klaida: {dbgRes.error}</span>
+          :<div>
+            <div style={{color:C.t2,marginBottom:6}}>
+              {dbgRes.connected?"✅ Prisijungta":"❌ Neprisijungta"} · Rasta laiškų (30 d.): <strong>{dbgRes.found}</strong>
+            </div>
+            {(dbgRes.emails||[]).map(function(m,i){
+              return <div key={i} style={{padding:"6px 8px",background:C.bg,borderRadius:6,border:"1px solid "+C.b1,marginBottom:4}}>
+                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                  <span style={{color:m.orgMatch!=="—"?C.gn:C.rd,fontWeight:700}}>{m.orgMatch!=="—"?"✅":"❌"} {m.orgMatch}</span>
+                  <span style={{color:C.t3}}>{m.from}</span>
+                  <span style={{color:m.pdfCount>0?C.tx:C.t3}}>📎 {m.pdfCount} PDF</span>
+                  {m.alreadyDone&&<span style={{color:C.t3}}>(jau apdorotas)</span>}
+                </div>
+                <div style={{color:C.t2,marginTop:2,fontSize:10}}>{m.subject}</div>
+              </div>
+            })}
+          </div>
+        }
+      </div>}
+    </div>
+
+    {/* Info */}
+    <div style={section}>
+      <div style={secTitle}>Sistemos informacija</div>
+      <div style={{display:"grid",gridTemplateColumns:"140px 1fr",gap:"4px 8px",fontSize:11,fontFamily:FM,color:C.tx}}>
+        <span style={{color:C.t3}}>SMTP serveris:</span><span>192.168.1.101:465 (SSL)</span>
+        <span style={{color:C.t3}}>IMAP serveris:</span><span>192.168.1.101:993 (SSL)</span>
+        <span style={{color:C.t3}}>IMAP tikrinimas:</span><span>kas 15 min.</span>
+        <span style={{color:C.t3}}>Pašto dėžutė:</span><span>uzklausos@energolt.eu</span>
+        <span style={{color:C.t3}}>Duomenų bazė:</span><span>kasimo.db (SQLite WAL)</span>
+      </div>
+    </div>
+  </div>
+}
+
+// ═════════════════════════════════════════════════════════════
 // SIDEBAR
 // ═════════════════════════════════════════════════════════════
 function Sidebar(p){
@@ -3281,14 +3322,14 @@ function Sidebar(p){
   var items=[];
   if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"mine",icon:"📋",label:"Mano paraiškos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
   else if(role==="dokumentacija") items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"all",icon:"📋",label:"Visos paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"all",icon:"📋",label:"Visos paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"system",icon:"⚙️",label:"Sistema"},{id:"profile",icon:"👤",label:"Mano profilis"}];
   return <div style={{width:200,background:C.s1,borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",height:"100vh",flexShrink:0}}>
     <div style={{padding:"18px 16px 10px",borderBottom:"1px solid "+C.b1}}>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.53</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.54</div>
         </div>
       </div>
     </div>
@@ -3696,6 +3737,8 @@ function App(){
     main=<ProfilePage user={user} onUpdated={function(u){var upd=Object.assign({},user,u);setUser(upd);try{localStorage.setItem('kl-session',JSON.stringify(upd))}catch(e){}}} onCancel={function(){setView(defView)}}/>;
   }else if(view==="users"){
     main=<UserMgmt users={users} permits={permits} onAddUser={addUser} onAssignRole={assignRole} onDeleteUser={deleteUser} onUpdateContact={updateContact} onOpenPermit={function(id){var pm=permits.find(function(x){return x.id===id});if(pm){setDetail(pm);setView("all")}}}/>;
+  }else if(view==="system"){
+    main=<SystemTools/>;
   }else{
     var titles={inbox:"Naujos paraiškos",mine:"Mano paraiškos",submitted:"Pateiktos paraiškos",permits:"Leidimai",all:"Visos paraiškos"};
     main=<div>
