@@ -1228,6 +1228,7 @@ function EsoSubmitBtn(p){
 // ═════════════════════════════════════════════════════════════
 function SavivaldybeSubmitBtn(p){
   var o=p.permit;
+  var currentUser=p.user||{};
   var _open=useState(false);var open=_open[0],sOpen=_open[1];
   var _st=useState("idle");var st=_st[0],sSt=_st[1];
 
@@ -1243,6 +1244,8 @@ function SavivaldybeSubmitBtn(p){
       endDate:o.endDate||"",
       description:o.description||"",
       url:SAV_URL,
+      notifyEmail:currentUser.email||"eimutis.simkus@energolt.eu",
+      notifyName:currentUser.name||"",
       createdAt:new Date().toISOString(),
       status:"pending"
     };
@@ -2305,7 +2308,7 @@ function PermitDetail(p){
       {isA&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Administravimas</div>
         {o.organization==="AB ESO"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
-        {(o.organization==="Kauno miesto savivaldybe"||(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1)&&<SavivaldybeSubmitBtn permit={o}/>}
+        {(o.organization==="Kauno miesto savivaldybe"||(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1)&&<SavivaldybeSubmitBtn permit={o} user={p.user}/>}
         <div style={{marginBottom:12}}>
           <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:6,fontFamily:F}}>Priskirti dokumentacijos darbuotojui:</div>
           {docsWorkers.length===0
@@ -2431,7 +2434,7 @@ function PermitDetail(p){
       {isD&&o.assignedTo===p.user.id&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Veiksmai</div>
         {o.organization==="AB ESO"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
-        {(o.organization==="Kauno miesto savivaldybe"||(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1)&&<SavivaldybeSubmitBtn permit={o}/>}
+        {(o.organization==="Kauno miesto savivaldybe"||(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1)&&<SavivaldybeSubmitBtn permit={o} user={p.user}/>}
         <Sel label="Busena" value={st} onChange={sSt} options={[{value:"Pateikta",label:"Pateikta"},{value:"Gautas leidimas",label:"Gautas leidimas"},{value:"Atmestas",label:"Atmestas"}]}/>
         <Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>
         <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:8}}>
@@ -3329,7 +3332,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.54</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.55</div>
         </div>
       </div>
     </div>

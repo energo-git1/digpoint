@@ -87,11 +87,26 @@ Jei name atributai skiriasi — naudoti `read_page` kad rastum tinkamus ref.
 
 **Kiti laukai** (Ardoma danga, eismas) — **palikti kaip nukopijuota**.
 
-## 6 žingsnis — Sustoti ir pranešti
+## 6 žingsnis — Išsiųsti pranešimą ir sustoti
 
-**NESAUGOTI** — vartotojas pats spaudžia "Saugoti".
+**NESAUGOTI** — vartotojas pats prisijungs ir patvirtins.
 
-Padaryti ekrano nuotrauką ir pranešti:
+Padaryti ekrano nuotrauką formos būklei užfiksuoti.
+
+Tada išsiųsti pranešimą el. paštu per Digpoint API:
+
+```
+POST http://10.2.1.115:3001/api/admin/notify
+Content-Type: application/json
+
+{
+  "to": "[task.notifyEmail]",
+  "subject": "✅ Savivaldybės forma paruošta — reikia prisijungti",
+  "html": "<h2 style='color:#1D4ED8'>🏛 Kauno m. sav. forma užpildyta</h2><p>Claude automatiškai užpildė kasimo leidimo paraišką kasimai.kaunas.lt sistemoje.</p><h3>Užpildyta:</h3><ul><li><b>Darbų vadovas:</b> [manager] [managerPhone]</li><li><b>Laikotarpis:</b> [startDate] – [endDate]</li><li><b>Vieta:</b> [location]</li></ul><h3>Reikia jūsų:</h3><ol><li>Atsidaryti <a href='https://kasimai.kaunas.lt'>kasimai.kaunas.lt</a></li><li>Prisijungti per e. valdžios vartus</li><li>Patikrinti formą (ypač žemėlapį ir ardomą dangą)</li><li>Spausti <b>„Saugoti"</b></li></ol><p style='color:#6B7280;font-size:12px'>Digpoint automatinis pranešimas</p>"
+}
+```
+
+Pranešti Claude pokalbio lange:
 
 ```
 ✅ Forma paruošta — kasimai.kaunas.lt
@@ -101,14 +116,13 @@ Užpildyta iš Digpoint paraiškos:
 • Laikotarpis: [startDate] – [endDate]
 • Vieta: [location]
 
-Prašau naršyklėje patikrinkite:
-1. Darbų vadovo duomenis
-2. Laikotarpį
-3. Planuojamus darbus
-4. Ardomą dangą ir plotą (reikia pildyti rankiniu būdu)
-5. Žemėlapį (darbų vieta)
+📧 Pranešimas išsiųstas → [task.notifyEmail]
 
-Kai viskas gerai — spauskite "Saugoti".
+Reikia jūsų:
+1. Atsidaryti kasimai.kaunas.lt
+2. Prisijungti per e. valdžios vartus
+3. Patikrinti formą (žemėlapis, ardoma danga, plotas)
+4. Spausti "Saugoti"
 ```
 
 ## Klaidų atvejai

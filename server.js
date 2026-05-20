@@ -925,6 +925,25 @@ app.post('/api/admin/check-mail', async (req, res) => {
   }
 });
 
+// Pranešimas administratoriui — Claude išsiunčia po formos užpildymo
+app.post('/api/admin/notify', async (req, res) => {
+  const { to, subject, html, text } = req.body || {};
+  const recipient = to || 'eimutis.simkus@energolt.eu';
+  try {
+    await mailerInternal.sendMail({
+      from: MAIL_FROM_INTERNAL,
+      to: recipient,
+      subject: subject || 'Digpoint pranešimas',
+      html: html || `<p>${text || 'Pranešimas iš Digpoint.'}</p>`,
+    });
+    console.log(`[NOTIFY] Pranešimas išsiųstas → ${recipient}: ${subject}`);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[NOTIFY] Klaida:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // Išvalyti apdorotų laiškų sąrašą (kad perprocessintų iš naujo — testavimui)
 app.post('/api/admin/clear-imap-done', (req, res) => {
   dbSet('kl-imap-done', []);
