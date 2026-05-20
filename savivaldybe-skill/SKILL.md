@@ -115,13 +115,20 @@ setVal('dv_tel', '{managerPhone}');
 
 Spausti ant **"Darbų duomenys:"** antraštės kad ją išskleistum.
 
-**Darbų periodas** (jei `startDate` ir `endDate` nėra tušti):
+**Darbų periodas** — visada užpildo automatiškai iš task (Digpoint jau apskaičiuoja 7 dienų langą):
 ```javascript
-setVal('darbai_pradzia', '{startDate}');
-setVal('darbai_pabaiga', '{endDate}');
+function setVal(name, val){
+  var el=document.querySelector('input[name="'+name+'"]');
+  if(!el)return;
+  el.value=val;
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+  el.dispatchEvent(new Event('change',{bubbles:true}));
+}
+setVal('darbai_pradzia', '{startDate}'); // iš task — šiandiena arba paraiškos data
+setVal('darbai_pabaiga', '{endDate}');   // iš task — pradžia + 7 dienos
 ```
 
-Jei datos tuščios — palikti nukopijuotas datas ir informuoti vartotoją.
+Datos paliekamos redaguojamos — vartotojas gali jas pakeisti prieš saugant.
 
 **Darbų vieta (gatvė):**
 ```javascript

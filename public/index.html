@@ -1234,14 +1234,18 @@ function SavivaldybeSubmitBtn(p){
 
   async function prepareTask(){
     sSt("saving");
+    var today=new Date();
+    var plus7=new Date(today);plus7.setDate(plus7.getDate()+7);
+    var savStart=o.startDate||fmtDate(today);
+    var savEnd=o.endDate||fmtDate(plus7);
     var task={
       permitId:o.id,
       manager:o.manager||"",
       managerPhone:o.managerPhone||"",
       managerEmail:o.email||"",
       location:o.location||"",
-      startDate:o.startDate||"",
-      endDate:o.endDate||"",
+      startDate:savStart,
+      endDate:savEnd,
       description:o.description||"",
       url:SAV_URL,
       notifyEmail:currentUser.email||"eimutis.simkus@energolt.eu",
@@ -3332,7 +3336,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.55</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.56</div>
         </div>
       </div>
     </div>
