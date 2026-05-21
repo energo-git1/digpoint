@@ -792,38 +792,42 @@ async function checkImapMail() {
 
             const fromList = msg.envelope.from || [];
             const fromAddr = fromList[0] ? (fromList[0].address || '') : '';
-            let org        = detectOrgFromEmail(fromAddr);
+            const org      = detectOrgFromEmail(fromAddr);
             const subject  = msg.envelope.subject || '';
 
             if (!org) {
-              // Neatpažintas domenas — bandyti aptikti instituciją iš laiško teksto
-              const textParts = findTextPart(msg.bodyStructure);
-              let bodyText = subject;
-              for (const tp of textParts.slice(0, 3)) {
-                try {
-                  const dl = await client.download(seq, tp.part);
-                  const chunks = [];
-                  for await (const chunk of dl.content) chunks.push(chunk);
-                  bodyText += ' ' + Buffer.concat(chunks).toString('utf8');
-                } catch (_) {}
-              }
-              org = detectOrgFromText(bodyText);
-              if (org) console.log(`[IMAP] Aptikta iš teksto: ${org} | "${subject}" | ${fromAddr}`);
-            }
-
-            if (!org) {
-              // Neatpažinta institucija — žymime kaip matytą, kad nerodyti kiekvieną kartą
+              // Neatpažintas domenas — praleisti iš karto, neatsisiųsti turinio
               doneIds.add(msgId);
               continue;
             }
 
-            console.log(`[IMAP] ${org} | "${subject}" | ${fromAddr}`);
+            // ── Patikrinti ar yra laukiančių paraiškų šiai institucijai ──
+            const allPermitsEarly = dbGet('kl-permits') || [];
+            const NEED_STATUSES   = new Set(['Pateikta', 'Gautas dalinai', 'Laukia patvirtinimo leidimo']);
+            const orgKey0 = org === 'Telia, Kaunas' ? 'telia' : org === 'Kauno energija' ? 'ke' : null;
+            const pendingForOrg = allPermitsEarly.filter((p) => {
+              if (!NEED_STATUSES.has(p.status)) return false;
+              const orgs = Array.isArray(p.organizations) && p.organizations.length > 0
+                ? p.organizations : p.organization ? [p.organization] : [];
+              if (!orgs.includes(org)) return false;
+              // Jei jau turi šios institucijos PDF — praleisti
+              if (orgKey0 && p.permitPdfs && p.permitPdfs[orgKey0] && p.permitPdfs[orgKey0].name) return false;
+              return true;
+            });
+
+            if (!pendingForOrg.length) {
+              // Nėra laukiančių paraiškų šiai institucijai — praleisti BEZ žymėjimo,
+              // kad kitą kartą būtų tikrinama iš naujo (gali atsirasti nauja paraiška)
+              continue;
+            }
+
+            console.log(`[IMAP] ${org} | "${subject}" | ${fromAddr} | laukia: ${pendingForOrg.length}`);
 
             const pdfParts = findPdfParts(msg.bodyStructure);
 
             if (!pdfParts.length) {
               console.log(`[IMAP] ${org}: laiškas be PDF priedo, praleidžiama.`);
-              await client.messageFlagsAdd(seq, ['\\Seen']);
+              doneIds.add(msgId);
               continue;
             }
 
@@ -857,7 +861,7 @@ async function checkImapMail() {
               }
             }
 
-            // ── ŽINGSNIS 2: ar PDF atrodo kaip leidimas? (tik perspėjimas, nesustoja) ──
+            // ── ŽINGSNIS 2: ar PDF atrodo kaip leidimas? ──────────────
             const fullPdfText = pdfTexts.join(' ');
             const looksLikePermit = pdfTexts.length > 0 ? isPdfPermitDocument(fullPdfText) : true;
             if (!looksLikePermit) {
@@ -865,17 +869,10 @@ async function checkImapMail() {
             }
 
             // ── ŽINGSNIS 3: surasti atitinkančią paraišką ────────────
-            // Naudojama: laiško tema + PDF tekstas + adresas ištrauktas iš PDF
-            const pdfLocation   = extractLocationFromPdf(fullPdfText);
-            const searchText    = subject + ' ' + fullPdfText + (pdfLocation ? ' ' + pdfLocation : '');
-            const permits       = dbGet('kl-permits') || [];
-            const FINAL_STATUSES = new Set(['Gautas leidimas', 'Atmestas', 'Nebegalioja']);
-            const candidates    = permits.filter((p) =>
-              !FINAL_STATUSES.has(p.status) && (
-                (Array.isArray(p.organizations) && p.organizations.includes(org)) ||
-                p.organization === org
-              )
-            );
+            const pdfLocation = extractLocationFromPdf(fullPdfText);
+            const searchText  = subject + ' ' + fullPdfText + (pdfLocation ? ' ' + pdfLocation : '');
+            const permits     = allPermitsEarly;
+            const candidates  = pendingForOrg;
 
             console.log(`[IMAP] ${org}: kandidatės — ${candidates.length} paraiška(-os). PDF adresas: "${pdfLocation || '—'}"`);
 
