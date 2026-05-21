@@ -827,7 +827,7 @@ function HistoryTimeline(p){
 
 
 var PERMIT_ORGS=["AB ESO","Kauno miesto savivaldybe","Telia, Kaunas","Kauno energija"];
-var TELIA_EMAIL="eimutis.simkus@energolt.eu"; // TEST — pakeisti atgal į ligita.rutkauskiene@telia.lt
+var TELIA_EMAIL="ligita.rutkauskiene@telia.lt";
 function FileDropZone(p){
   var _drag=useState(false);var drag=_drag[0],sDrag=_drag[1];
   var _uploading=useState(false);var uploading=_uploading[0],sUploading=_uploading[1];
@@ -1601,7 +1601,7 @@ async function preparePendingKauoenergijaEmail(permit, pageTexts){
   }
   var addr=permit.teliaRouteTo||permit.location||"";
   return {
-    to:"eimutis.simkus@energolt.eu", // TEST — pakeisti atgal į info@kaunoenergija.lt
+    to:"info@kaunoenergija.lt",
     subject:"Dėl kasimo leidimo "+addr,
     html:buildKauoenergijaEmailHtml(permit),
     attachmentSources:attachmentSources,
