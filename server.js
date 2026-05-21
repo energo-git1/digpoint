@@ -458,33 +458,31 @@ const TELIA_EMAIL = 'ligita.rutkauskiene@telia.lt';
 // Siųsti išorinį laišką per Zimbra + IMAP append į Sent
 async function sendAndSave(opts) {
   const info = await mailer.sendMail(opts);
-  // IMAP Sent išsaugojimas — fire-and-forget, neblokuoja atsakymo
+  // IMAP Sent išsaugojimas — blokuojantis (portas 993 atidarytas)
   if (SMTP_PASS) {
-    (async () => {
-      try {
-        const tmpT = nodemailer.createTransport({ streamTransport: true, newline: 'unix' });
-        const si   = await tmpT.sendMail(opts);
-        const chunks = [];
-        await new Promise((resolve, reject) => {
-          si.message.on('data', (d) => chunks.push(d));
-          si.message.on('end', resolve);
-          si.message.on('error', reject);
-        });
-        const raw = Buffer.concat(chunks);
-        const ic  = new ImapFlow({
-          host: IMAP_HOST, port: IMAP_PORT, secure: true,
-          auth: { user: IMAP_USER, pass: SMTP_PASS  },
-          logger: false, tls: { rejectUnauthorized: false },
-          connectionTimeout: 8000,
-        });
-        await ic.connect();
-        await ic.append('Sent', raw, ['\\Seen'], new Date());
-        await ic.logout();
-        console.log(`[IMAP] Sent išsaugotas: ${opts.subject}`);
-      } catch (saveErr) {
-        console.error('[IMAP] Sent išsaugojimo klaida:', saveErr.message);
-      }
-    })();
+    try {
+      const tmpT = nodemailer.createTransport({ streamTransport: true, newline: 'unix' });
+      const si   = await tmpT.sendMail(opts);
+      const chunks = [];
+      await new Promise((resolve, reject) => {
+        si.message.on('data', (d) => chunks.push(d));
+        si.message.on('end', resolve);
+        si.message.on('error', reject);
+      });
+      const raw = Buffer.concat(chunks);
+      const ic  = new ImapFlow({
+        host: IMAP_HOST, port: IMAP_PORT, secure: true,
+        auth: { user: IMAP_USER, pass: SMTP_PASS  },
+        logger: false, tls: { rejectUnauthorized: false },
+        connectionTimeout: 8000,
+      });
+      await ic.connect();
+      await ic.append('Sent', raw, ['\\Seen'], new Date());
+      await ic.logout();
+      console.log(`[IMAP] Sent išsaugotas: ${opts.subject}`);
+    } catch (saveErr) {
+      console.error('[IMAP] Sent išsaugojimo klaida:', saveErr.message);
+    }
   }
   return info;
 }
