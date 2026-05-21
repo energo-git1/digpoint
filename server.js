@@ -473,6 +473,7 @@ async function sendAndSave(opts) {
         host: IMAP_HOST, port: IMAP_PORT, secure: true,
         auth: { user: IMAP_USER, pass: SMTP_PASS  },
         logger: false, tls: { rejectUnauthorized: false },
+        connectionTimeout: 8000,
       });
       await ic.connect();
       await ic.append('Sent', raw, ['\\Seen'], new Date());
@@ -985,6 +986,34 @@ app.get('/api/admin/smtp-test', async (req, res) => {
     res.json({ ok: true, ...info, result: 'Prisijungta sėkmingai' });
   } catch (e) {
     res.status(500).json({ ok: false, ...info, error: e.message, code: e.code || null, command: e.command || null });
+  }
+});
+
+// IMAP ryšio testas — prisijungia ir atsijungia, nieko nekeičia
+app.get('/api/admin/imap-test', async (req, res) => {
+  const info = {
+    server:  IMAP_HOST,
+    port:    IMAP_PORT,
+    secure:  'SSL/TLS',
+    user:    IMAP_USER,
+    passSet: !!SMTP_PASS,
+    time:    new Date().toISOString(),
+  };
+  if (!SMTP_PASS) return res.status(500).json({ ok: false, ...info, error: 'SMTP_PASS nenustatytas' });
+  const client = new ImapFlow({
+    host: IMAP_HOST, port: IMAP_PORT, secure: true,
+    auth: { user: IMAP_USER, pass: SMTP_PASS },
+    logger: false, tls: { rejectUnauthorized: false },
+    connectionTimeout: 8000,
+  });
+  try {
+    await client.connect();
+    const status = await client.status('INBOX', { messages: true, unseen: true });
+    await client.logout();
+    res.json({ ok: true, ...info, result: 'Prisijungta sėkmingai', messages: status.messages, unseen: status.unseen });
+  } catch (e) {
+    try { await client.logout(); } catch (_) {}
+    res.status(500).json({ ok: false, ...info, error: e.message, code: e.code || null });
   }
 });
 

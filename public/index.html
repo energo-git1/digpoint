@@ -3216,6 +3216,8 @@ function SystemTools(){
   var _smtpBusy=useState(false);var smtpBusy=_smtpBusy[0],sSmtpBusy=_smtpBusy[1];
   var _clearBusy=useState(false);var clearBusy=_clearBusy[0],sClearBusy=_clearBusy[1];
   var _clearRes=useState(null);var clearRes=_clearRes[0],sClearRes=_clearRes[1];
+  var _imapRes=useState(null);var imapRes=_imapRes[0],sImapRes=_imapRes[1];
+  var _imapBusy=useState(false);var imapBusy=_imapBusy[0],sImapBusy=_imapBusy[1];
 
   function checkMail(){
     sMailBusy(true);sMailRes(null);
@@ -3237,6 +3239,13 @@ function SystemTools(){
       .then(function(r){return r.json()})
       .then(function(d){sSmtpRes(d);sSmtpBusy(false)})
       .catch(function(e){sSmtpRes({ok:false,error:e.message});sSmtpBusy(false)});
+  }
+  function testImap(){
+    sImapBusy(true);sImapRes(null);
+    fetch("/api/admin/imap-test")
+      .then(function(r){return r.json()})
+      .then(function(d){sImapRes(d);sImapBusy(false)})
+      .catch(function(e){sImapRes({ok:false,error:e.message});sImapBusy(false)});
   }
   function clearImapDone(){
     sClearBusy(true);sClearRes(null);
@@ -3277,10 +3286,24 @@ function SystemTools(){
     <div style={section}>
       <div style={secTitle}>El. paštas — IMAP (leidimų gavimas)</div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+        <Btn sm onClick={testImap} disabled={imapBusy}>{imapBusy?"⏳ Jungiamasi...":"🔌 Testuoti IMAP"}</Btn>
         <Btn sm onClick={checkMail} disabled={mailBusy}>{mailBusy?"⏳ Tikrinama...":"📬 Tikrinti el. paštą dabar"}</Btn>
         <Btn sm onClick={debugMail} disabled={dbgBusy}>{dbgBusy?"⏳ Kraunama...":"🔍 Rodyti pašto turinį"}</Btn>
         <Btn v="danger" sm onClick={clearImapDone} disabled={clearBusy}>{clearBusy?"⏳ Valoma...":"🗑️ Išvalyti apdorotus"}</Btn>
       </div>
+      {imapRes&&<div style={{marginBottom:8,padding:"10px 12px",borderRadius:8,background:imapRes.ok?C.gnD:C.rdD,border:"1px solid "+(imapRes.ok?C.gn:C.rd)+"44",fontSize:11,fontFamily:FM}}>
+        <div style={{fontWeight:700,color:imapRes.ok?C.gn:C.rd,marginBottom:6}}>{imapRes.ok?"✅ IMAP prisijungta":"❌ IMAP klaida"}</div>
+        <div style={{display:"grid",gridTemplateColumns:"120px 1fr",gap:"3px 8px",color:C.tx}}>
+          <span style={{color:C.t3}}>Serveris:</span><span>{imapRes.server}:{imapRes.port} ({imapRes.secure||"SSL/TLS"})</span>
+          <span style={{color:C.t3}}>Vartotojas:</span><span>{imapRes.user||IMAP_USER}</span>
+          <span style={{color:C.t3}}>Slaptažodis:</span><span>{imapRes.passSet?"✓ nustatytas":"⚠️ nenustatytas"}</span>
+          <span style={{color:C.t3}}>Laikas:</span><span>{imapRes.time?new Date(imapRes.time).toLocaleString("lt-LT"):"-"}</span>
+          {imapRes.ok&&<><span style={{color:C.t3}}>INBOX:</span><span>{imapRes.messages} laiškų, {imapRes.unseen} neskaityti</span></>}
+          {imapRes.result&&<><span style={{color:C.t3}}>Rezultatas:</span><span style={{color:C.gn}}>{imapRes.result}</span></>}
+          {imapRes.error&&<><span style={{color:C.t3}}>Klaida:</span><span style={{color:C.rd,wordBreak:"break-all"}}>{imapRes.error}</span></>}
+          {imapRes.code&&<><span style={{color:C.t3}}>Kodas:</span><span>{imapRes.code}</span></>}
+        </div>
+      </div>}
       {mailRes&&<div style={{marginBottom:8,fontSize:11,fontFamily:F,color:mailRes.error?C.rd:mailRes.processed>0?C.gn:C.t2}}>
         {mailRes.error?"❌ "+mailRes.error
           :mailRes.processed>0?"✅ Apdorota: "+mailRes.processed+" (iš "+mailRes.checked+")"
