@@ -3171,7 +3171,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.70</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.71</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3212,6 +3212,8 @@ function SystemTools(){
   var _clearRes=useState(null);var clearRes=_clearRes[0],sClearRes=_clearRes[1];
   var _imapRes=useState(null);var imapRes=_imapRes[0],sImapRes=_imapRes[1];
   var _imapBusy=useState(false);var imapBusy=_imapBusy[0],sImapBusy=_imapBusy[1];
+  var _reprocBusy=useState(false);var reprocBusy=_reprocBusy[0],sReprocBusy=_reprocBusy[1];
+  var _reprocRes=useState(null);var reprocRes=_reprocRes[0],sReprocRes=_reprocRes[1];
 
   function checkMail(){
     sMailBusy(true);sMailRes(null);
@@ -3247,6 +3249,13 @@ function SystemTools(){
       .then(function(r){return r.json()})
       .then(function(d){sClearRes(d);sClearBusy(false)})
       .catch(function(e){sClearRes({error:e.message});sClearBusy(false)});
+  }
+  function reprocessUnattached(){
+    sReprocBusy(true);sReprocRes(null);
+    fetch("/api/admin/reprocess-unattached",{method:"POST"})
+      .then(function(r){return r.json()})
+      .then(function(d){sReprocRes(d);sReprocBusy(false)})
+      .catch(function(e){sReprocRes({error:e.message});sReprocBusy(false)});
   }
 
   var section={marginBottom:24,padding:"16px 18px",background:C.s2,border:"1px solid "+C.b1,borderRadius:10};
@@ -3284,6 +3293,7 @@ function SystemTools(){
         <Btn sm onClick={checkMail} disabled={mailBusy}>{mailBusy?"⏳ Tikrinama...":"📬 Tikrinti el. paštą dabar"}</Btn>
         <Btn sm onClick={debugMail} disabled={dbgBusy}>{dbgBusy?"⏳ Kraunama...":"🔍 Rodyti pašto turinį"}</Btn>
         <Btn v="danger" sm onClick={clearImapDone} disabled={clearBusy}>{clearBusy?"⏳ Valoma...":"🗑️ Išvalyti apdorotus"}</Btn>
+        <Btn v="primary" sm onClick={reprocessUnattached} disabled={reprocBusy}>{reprocBusy?"⏳ Priskiriama...":"🔗 Priskirti nepriskirtus PDF"}</Btn>
       </div>
       {imapRes&&<div style={{marginBottom:8,padding:"10px 12px",borderRadius:8,background:imapRes.ok?C.gnD:C.rdD,border:"1px solid "+(imapRes.ok?C.gn:C.rd)+"44",fontSize:11,fontFamily:FM}}>
         <div style={{fontWeight:700,color:imapRes.ok?C.gn:C.rd,marginBottom:6}}>{imapRes.ok?"✅ IMAP prisijungta":"❌ IMAP klaida"}</div>
@@ -3317,6 +3327,20 @@ function SystemTools(){
       </div>}
       {clearRes&&<div style={{marginBottom:8,fontSize:11,fontFamily:F,color:clearRes.error?C.rd:C.gn}}>
         {clearRes.error?"❌ "+clearRes.error:"✅ "+clearRes.message}
+      </div>}
+      {reprocRes&&<div style={{marginBottom:8,padding:"10px 12px",borderRadius:8,background:reprocRes.ok?C.gnD:C.rdD,border:"1px solid "+(reprocRes.ok?C.gn:C.rd)+"44",fontSize:11,fontFamily:FM}}>
+        <div style={{fontWeight:700,color:reprocRes.ok?C.gn:C.rd,marginBottom:6}}>
+          {reprocRes.ok?"✅ Priskirta: "+reprocRes.processed+" iš "+reprocRes.total+" PDF":"❌ Klaida: "+(reprocRes.error||"")}
+        </div>
+        {(reprocRes.results||[]).map(function(r,i){
+          return <div key={i} style={{padding:"4px 6px",borderRadius:4,background:C.bg,border:"1px solid "+C.b1,marginBottom:3,fontSize:10,color:r.result.startsWith("✅")?C.gn:C.t3}}>
+            <span style={{fontWeight:700}}>{r.file}</span>
+            {r.org&&<span style={{color:C.t2}}> · {r.org}</span>}
+            {r.permit&&<span style={{color:C.ac}}> → #{r.permit}</span>}
+            {r.score!=null&&<span style={{color:C.t3}}> (score: {r.score.toFixed(2)})</span>}
+            <span> — {r.result}</span>
+          </div>;
+        })}
       </div>}
       {dbgRes&&<div style={{fontSize:11,fontFamily:FM}}>
         {dbgRes.error
@@ -3370,7 +3394,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.70</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.71</div>
         </div>
       </div>
     </div>

@@ -1035,6 +1035,102 @@ app.post('/api/admin/clear-imap-done', (req, res) => {
   res.json({ ok: true, message: 'kl-imap-done išvalytas.' });
 });
 
+// ── Nepriskirti PDF → priskirti paraiškai automatiškai ──────────
+// Suranda failus /uploads/ kurie nepriklauso nė vienai paraiškai,
+// bando sugretinti pagal PDF tekstą ir teliaRouteTo/From/location.
+app.post('/api/admin/reprocess-unattached', async (req, res) => {
+  try {
+    const permits     = dbGet('kl-permits') || [];
+    const attachedSet = new Set();
+    permits.forEach((p) => (p.files || []).forEach((f) => f.filename && attachedSet.add(f.filename)));
+
+    const allFiles   = fs.readdirSync(UPLOAD_DIR);
+    const unattached = allFiles.filter((fn) => fn.endsWith('.pdf') && !attachedSet.has(fn));
+
+    console.log(`[REPROCESS] Nepriskirti PDF: ${unattached.length} (iš ${allFiles.length} failų)`);
+    if (!unattached.length) return res.json({ ok: true, processed: 0, message: 'Nepriskirtu PDF nerasta.' });
+
+    const FINAL_STATUSES = new Set(['Gautas leidimas', 'Atmestas', 'Nebegalioja']);
+    const today = fmtDateSrv(new Date());
+    const results = [];
+
+    for (const fname of unattached) {
+      const fpath = path.join(UPLOAD_DIR, fname);
+      let pdfText = '';
+      try {
+        const buf = fs.readFileSync(fpath);
+        const parsed = await pdfParse(buf);
+        pdfText = parsed.text || '';
+      } catch (_) {}
+
+      // Aptikti instituciją iš PDF teksto
+      const org = detectOrgFromText(pdfText);
+      if (!org) {
+        results.push({ file: fname, result: 'org nerasta PDF tekste — praleista' });
+        continue;
+      }
+
+      const pdfLocation = extractLocationFromPdf(pdfText);
+      const searchText  = pdfText + (pdfLocation ? ' ' + pdfLocation : '');
+
+      const candidates = permits.filter((p) =>
+        !FINAL_STATUSES.has(p.status) && (
+          (Array.isArray(p.organizations) && p.organizations.includes(org)) ||
+          p.organization === org
+        )
+      );
+
+      let bestPermit = null;
+      let bestScore  = 0;
+      for (const p of candidates) {
+        const permitAddr = p.teliaRouteTo || p.teliaRouteFrom || p.location || '';
+        const score = calcLocationScore(permitAddr, searchText);
+        if (score > bestScore) { bestScore = score; bestPermit = p; }
+      }
+
+      const hasAddr = candidates.some((p) => p.teliaRouteTo || p.teliaRouteFrom || p.location);
+      const THRESHOLD = (candidates.length === 1 && !hasAddr) ? 0 : 0.35;
+
+      if (!bestPermit || bestScore < THRESHOLD) {
+        results.push({ file: fname, org, score: bestScore, result: 'paraiška nerasta (per žemas score)' });
+        continue;
+      }
+
+      // Priskirti failą paraiškai
+      const fstat    = fs.statSync(fpath);
+      const fileEntry = { id: srvUid(), name: fname.replace(/^[a-z0-9]+_/, ''), filename: fname, size: fstat.size, url: `/uploads/${fname}` };
+      const allPermits = dbGet('kl-permits') || [];
+      const updated    = allPermits.map((p) => {
+        if (p.id !== bestPermit.id) return p;
+        const alreadyHas = (p.files || []).some((f) => f.filename === fname);
+        if (alreadyHas) return p;
+        return {
+          ...p,
+          status:           'Gautas leidimas',
+          files:            [...(p.files || []), fileEntry],
+          permitValidFrom:  p.permitValidFrom || p.startDate || today,
+          permitValidUntil: p.permitValidUntil || p.endDate || '',
+          history: [...(p.history || []), {
+            status: 'Gautas leidimas',
+            date:   today,
+            note:   `Leidimas priskirtas rankiniu būdu (reprocess) iš ${org}`,
+          }],
+        };
+      });
+      dbSet('kl-permits', updated);
+      // Atnaujinti lokali kintamasis tolimesniam ciklui
+      permits.splice(0, permits.length, ...updated);
+      results.push({ file: fname, org, score: bestScore, permit: bestPermit.id.slice(-5), result: '✅ priskirta' });
+      console.log(`[REPROCESS] ${fname} → #${bestPermit.id.slice(-5)} (${org}, score: ${bestScore.toFixed(2)})`);
+    }
+
+    res.json({ ok: true, processed: results.filter((r) => r.result.startsWith('✅')).length, total: unattached.length, results });
+  } catch (e) {
+    console.error('[REPROCESS] Klaida:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // SMTP ryšio testas — grąžina detalų rezultatą be laiško siuntimo
 app.get('/api/admin/smtp-test', async (req, res) => {
   const info = {
