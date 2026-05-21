@@ -452,7 +452,7 @@ console.log(`[SMTP] mail.energolt.eu (192.168.1.101:465) SSL auth=${!!SMTP_PASS}
 const MAIL_FROM_INTERNAL = '"Digpoint" <uzklausos@energolt.eu>';   // perspėjimai, uždarymas
 const MAIL_FROM_EXTERNAL = '"EnergoLT užklausos" <uzklausos@energolt.eu>';  // Telia, KE, ESO, review
 const ESO_EMAIL   = 'uzklausos@energolt.eu';
-const TELIA_EMAIL = 'ligita.rutkauskiene@telia.lt';
+const TELIA_EMAIL = 'eimutis.sim@gmail.com';
 
 // Siųsti išorinį laišką per Zimbra + IMAP append į Sent
 async function sendAndSave(opts) {
