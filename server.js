@@ -792,13 +792,33 @@ async function checkImapMail() {
 
             const fromList = msg.envelope.from || [];
             const fromAddr = fromList[0] ? (fromList[0].address || '') : '';
-            const org      = detectOrgFromEmail(fromAddr);
             const subject  = msg.envelope.subject || '';
+            let org        = detectOrgFromEmail(fromAddr);
 
             if (!org) {
-              // Neatpažintas domenas — praleisti iš karto, neatsisiųsti turinio
-              doneIds.add(msgId);
-              continue;
+              // Neatpažintas domenas — bandyti iš temos (greita, be atsisiuntimo)
+              org = detectOrgFromText(subject);
+              if (!org) {
+                // Tema irgi be požymių — atsisiųsti laiško tekstą ir patikrinti
+                const textParts = findTextPart(msg.bodyStructure);
+                let bodyText = '';
+                for (const tp of textParts.slice(0, 2)) {
+                  try {
+                    const dl = await client.download(seq, tp.part);
+                    const chunks = [];
+                    for await (const chunk of dl.content) chunks.push(chunk);
+                    bodyText += ' ' + Buffer.concat(chunks).toString('utf8').slice(0, 3000);
+                  } catch (_) {}
+                }
+                org = detectOrgFromText(bodyText);
+                if (!org) {
+                  doneIds.add(msgId);
+                  continue;
+                }
+                console.log(`[IMAP] Aptikta iš teksto: ${org} | "${subject}" | ${fromAddr}`);
+              } else {
+                console.log(`[IMAP] Aptikta iš temos: ${org} | "${subject}" | ${fromAddr}`);
+              }
             }
 
             // ── Patikrinti ar yra paraiškų šiai institucijai be PDF ──
