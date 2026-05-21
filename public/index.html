@@ -2371,9 +2371,10 @@ function PermitDetail(p){
         </div>
       </div>}
 
-      {/* Leidimo PDF įkėlimas — rodomas kai st==="Gautas leidimas" arba jau gautas */}
-      {(isA||isD)&&(st==="Gautas leidimas"||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Laukia patvirtinimo leidimo")&&(function(){
-        var orgsWithPermit=(o.organizations||[]).filter(function(org){return org==="Telia, Kaunas"||org==="Kauno energija";});
+      {/* Leidimo PDF įkėlimas — rodomas kai Pateikta/Gautas dalinai/Gautas leidimas */}
+      {(isA||isD)&&(st==="Gautas leidimas"||o.status==="Pateikta"||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Laukia patvirtinimo leidimo")&&(function(){
+        var orgsList=o.organizations&&o.organizations.length>0?o.organizations:(o.organization?[o.organization]:[]);
+        var orgsWithPermit=orgsList.filter(function(org){return org==="Telia, Kaunas"||org==="Kauno energija";});
         if(orgsWithPermit.length===0)return null;
         function handlePdfUpload(key,f){
           if(!f.name||!f.name.match(/\.pdf$/i)){alert("Tik PDF failai.");return;}

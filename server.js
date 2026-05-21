@@ -930,16 +930,38 @@ async function checkImapMail() {
             if (savedFiles.length > 0) {
               const today      = fmtDateSrv(new Date());
               const allPermits = dbGet('kl-permits') || [];
+              // Nustatome permitPdfs raktą pagal instituciją
+              const orgKey = org === 'Telia, Kaunas' ? 'telia'
+                           : org === 'Kauno energija' ? 'ke'
+                           : null;
               const updated    = allPermits.map((p) => {
                 if (p.id !== bestPermit.id) return p;
+                // Papildome permitPdfs jei institucija palaiko (Telia / KE)
+                const updatedPermitPdfs = orgKey
+                  ? { ...(p.permitPdfs || {}), [orgKey]: savedFiles[0] }
+                  : (p.permitPdfs || {});
+                // Perskaičiuojame statusą pagal gautus PDF
+                const orgs = Array.isArray(p.organizations) && p.organizations.length > 0
+                  ? p.organizations
+                  : p.organization ? [p.organization] : [];
+                const teliaNeed = orgs.includes('Telia, Kaunas');
+                const keNeed    = orgs.includes('Kauno energija');
+                const teliaDone = updatedPermitPdfs.telia && updatedPermitPdfs.telia.name;
+                const keDone    = updatedPermitPdfs.ke    && updatedPermitPdfs.ke.name;
+                const allDone   = (!teliaNeed || teliaDone) && (!keNeed || keDone);
+                const someDone  = (teliaNeed && teliaDone) || (keNeed && keDone);
+                const newStatus = (teliaNeed || keNeed)
+                  ? (allDone ? 'Gautas leidimas' : (someDone ? 'Gautas dalinai' : 'Gautas leidimas'))
+                  : 'Gautas leidimas';
                 return {
                   ...p,
-                  status:           'Gautas leidimas',
+                  status:           newStatus,
                   files:            [...(p.files || []), ...savedFiles],
+                  permitPdfs:       updatedPermitPdfs,
                   permitValidFrom:  p.permitValidFrom || p.startDate || today,
                   permitValidUntil: p.permitValidUntil || p.endDate || '',
                   history: [...(p.history || []), {
-                    status: 'Gautas leidimas',
+                    status: newStatus,
                     date:   today,
                     note:   `Leidimas gautas automatiškai iš ${org} (${fromAddr})`,
                   }],
