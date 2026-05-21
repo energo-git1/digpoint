@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { exec } = require('child_process');
 const ldap = require('ldapjs');
 const Database = require('better-sqlite3');
 const multer = require('multer');
@@ -1119,6 +1120,16 @@ app.post('/api/admin/sync-ad-emails', async (req, res) => {
 // Fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// ── Deploy endpoint — git pull + pm2 restart ─────────────────
+app.post('/api/admin/deploy', (req, res) => {
+  const dir = __dirname;
+  exec(`cd ${dir} && git pull && pm2 restart digpoint`, { timeout: 30000 }, (err, stdout, stderr) => {
+    res.json({ ok: !err, stdout, stderr, error: err ? err.message : null });
+    if (!err) console.log('[DEPLOY] git pull + pm2 restart OK');
+    else console.error('[DEPLOY] Klaida:', err.message);
+  });
 });
 
 // ── Start server ──────────────────────────────────────────────
