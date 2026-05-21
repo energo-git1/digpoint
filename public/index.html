@@ -2067,8 +2067,7 @@ function PermitDetail(p){
             var attCount=await approveAndSendTelia(permitToSend);
             var updated=Object.assign({},o,{pendingEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia laiškas issiustas ("+(p.user.name||"-")+", "+teliaSel.length+" psl.)"}])});
             if(!updated.pendingKauoenergijaEmail){updated.status="Pateikta";updated.history=updated.history.concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Visi laiškai institucijoms išsiusti"}]);}
-            p.onUpdate(updated);
-            p.onClose();
+            p.onSend(updated);
           }catch(e){sAprvSt("✗ Klaida: "+e.message);sAprvBusy(false);}
         }
         return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
@@ -2205,8 +2204,7 @@ function PermitDetail(p){
             var attCount=await approveAndSendKauoenergija(permitToSend);
             var updated=Object.assign({},o,{pendingKauoenergijaEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Kauno energija laiškas issiustas ("+(p.user.name||"-")+", "+keSel.length+" psl.)"}])});
             if(!updated.pendingEmail){updated.status="Pateikta";updated.history=updated.history.concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Visi laiškai institucijoms išsiusti"}]);}
-            p.onUpdate(updated);
-            p.onClose();
+            p.onSend(updated);
           }catch(e){sKEAprvSt("✗ Klaida: "+e.message);sKEAprvBusy(false);}
         }
         return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
@@ -2365,9 +2363,10 @@ function PermitDetail(p){
                   pendingEmail:null,pendingKauoenergijaEmail:null,status:"Pateikta",
                   history:(o.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Išsiųsta: "+(p.user.name||"-")}])
                 });
-                p.onUpdate(updSent);
+                p.onSend(updSent);
+              } else {
+                p.onClose();
               }
-              p.onClose();
             }} style={{background:"#10B981",color:"#fff",border:"none"}}>✉ Išsiųsti</Btn>}
         </div>
       </div>}
@@ -3598,9 +3597,12 @@ function App(){
       }
     }
     // Pranešimas užsakovui kai paraiška pateikta institucijai
+    // Nebeįšaukti jei statusas į "Pateikta" pakito siuntimo metu (Telia/KE) — laiškas jau išsiųstas
     if(updated.status==="Pateikta"&&updated.email){
       var prevPat=permits.find(function(x){return x.id===updated.id});
-      if(!prevPat||prevPat.status!=="Pateikta"){
+      var wasTeliaJustSent=prevPat&&prevPat.pendingEmail&&!updated.pendingEmail;
+      var wasKEJustSent=prevPat&&prevPat.pendingKauoenergijaEmail&&!updated.pendingKauoenergijaEmail;
+      if((!prevPat||prevPat.status!=="Pateikta")&&!wasTeliaJustSent&&!wasKEJustSent){
         sendPateiktaNotification(updated);
       }
     }
@@ -3778,6 +3780,7 @@ function App(){
     <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
     {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
       onUpdate={function(u){updatePermit(u);setDetail(u)}}
+      onSend={function(u){updatePermit(u);setDetail(null)}}
       onDelete={function(id){deletePermit(id);setDetail(null)}}
       onClose={function(){setDetail(null)}}/>}
   </div>
