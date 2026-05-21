@@ -986,8 +986,45 @@ async function checkImapMail() {
               });
               dbSet('kl-permits', updated);
               const shortId = bestPermit.id.slice(-5).toUpperCase();
-              console.log(`[IMAP] ✅ Paraiška #${shortId} → "Gautas leidimas" | ${org} | ${savedFiles.length} PDF`);
+              const updatedPermit = updated.find((p) => p.id === bestPermit.id);
+              console.log(`[IMAP] ✅ Paraiška #${shortId} → "${updatedPermit?.status}" | ${org} | ${savedFiles.length} PDF`);
               processed++;
+
+              // Pranešimas užsakovui apie gautą leidimą
+              if (bestPermit.email && updatedPermit) {
+                try {
+                  const permitNo = shortId;
+                  const gRows = [
+                    `<tr><td style="padding:4px 12px 4px 0;color:#6B7280;font-size:13px">Paraiška Nr.:</td><td style="padding:4px 0;color:#111827;font-size:13px;font-weight:600">#${permitNo}</td></tr>`,
+                    `<tr><td style="padding:4px 12px 4px 0;color:#6B7280;font-size:13px">Institucija:</td><td style="padding:4px 0;color:#111827;font-size:13px;font-weight:600">${org}</td></tr>`,
+                    `<tr><td style="padding:4px 12px 4px 0;color:#6B7280;font-size:13px">Vieta:</td><td style="padding:4px 0;color:#111827;font-size:13px;font-weight:600">${bestPermit.location || '-'}</td></tr>`,
+                    updatedPermit.permitValidFrom ? `<tr><td style="padding:4px 12px 4px 0;color:#6B7280;font-size:13px">Galioja nuo:</td><td style="padding:4px 0;color:#111827;font-size:13px;font-weight:600">${updatedPermit.permitValidFrom}</td></tr>` : '',
+                    updatedPermit.permitValidUntil ? `<tr><td style="padding:4px 12px 4px 0;color:#6B7280;font-size:13px">Galioja iki:</td><td style="padding:4px 0;color:#111827;font-size:13px;font-weight:600">${updatedPermit.permitValidUntil}</td></tr>` : '',
+                  ].join('');
+                  const gHtml = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,sans-serif">
+<div style="max-width:540px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)">
+<div style="padding:20px 28px 0 28px">
+  <p style="margin:0 0 4px;font-size:11px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.5px">Kasimo leidimai</p>
+  <h2 style="margin:0 0 16px;color:#10B981;font-size:17px;font-weight:700">Leidimas gautas</h2>
+  <hr style="border:none;border-top:1px solid #E5E7EB;margin:0 0 20px"/>
+</div>
+<div style="padding:0 28px 24px">
+  <p style="color:#374151;font-size:14px;margin:0 0 16px">Gerb. <strong>${bestPermit.manager || ''}</strong>,<br><br>informuojame, kad Jūsų kasimo leidimo paraiška <strong>#${permitNo}</strong> yra patvirtinta ir leidimas gautas iš <strong>${org}</strong>.</p>
+  <table style="border-collapse:collapse;width:100%;margin-bottom:16px">${gRows}</table>
+</div>
+<div style="padding:12px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF">EnergoLT &middot; Kasimo leidų valdymo sistema &middot; <a href="mailto:uzklausos@energolt.eu" style="color:#6B7280">uzklausos@energolt.eu</a></div>
+</div></body></html>`;
+                  await sendAndSave({
+                    from: MAIL_FROM_INTERNAL,
+                    to: bestPermit.email,
+                    subject: `Kasimo leidimas gautas — ${org} #${permitNo}`,
+                    html: gHtml,
+                  });
+                  console.log(`[IMAP] Pranešimas užsakovui išsiųstas → ${bestPermit.email}`);
+                } catch (notifyErr) {
+                  console.error(`[IMAP] Pranešimo klaida: ${notifyErr.message}`);
+                }
+              }
             }
 
             doneIds.add(msgId);
