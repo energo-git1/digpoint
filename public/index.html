@@ -131,14 +131,12 @@ async function extractPdfTextByPage(dataUrl){
   }catch(e){return []}
 }
 
-// Telia derinimo aptikimas — naujas algoritmas pagal pritarimų lentelės derintojo vardą:
-//   1) Rasti PROJEKTO PRITARIMŲ LENTELĖ puslapį
-//   2) Iš jo ištraukti Telia derintojo vardą (pvz., "Vytautas Stravinskas")
-//   3) Sukurti lankstų regex (pagauna ir "V. Stravinskas" formą)
-//   4) Telia derinimas = brėžinio puslapis + tas vardas
-//
-// Fallback (jei pritarimų lentelės nėra arba vardo neištraukėm):
-//   Brėžinys + bendrieji Telia raktažodžiai (kaip ir ankstesnė versija).
+// Telia derinimo aptikimas — daugiapakopis algoritmas:
+//   1) Brėžinys + derintojo vardas (geriausias variantas)
+//   2) Bet koks puslapis + derintojo vardas + Telia požymiai
+//   3) Bet koks puslapis + derintojo vardas (be brėžinio reikalavimo)
+//   4) Fallback: brėžinys + bendrieji Telia raktažodžiai
+//   5) Fallback: bet koks puslapis su SUDERINTA/PRITARTA + Telia
 function findTeliaApprovalPage(pageTexts){
   var tablePage=findProjectApprovalsTablePage(pageTexts);
   if(tablePage){
@@ -146,17 +144,33 @@ function findTeliaApprovalPage(pageTexts){
     if(name){
       var nameRe=buildApproverNameRegex(name);
       if(nameRe){
+        // 1) Brėžinys + vardas
         for(var i=0;i<pageTexts.length;i++){
-          if(i+1===tablePage)continue; // praleidžiame pačią lentelę
+          if(i+1===tablePage)continue;
           if(isDrawingPageText(pageTexts[i])&&nameRe.test(pageTexts[i]))return i+1;
+        }
+        // 2) Bet koks puslapis + vardas + Telia marker
+        for(var i=0;i<pageTexts.length;i++){
+          if(i+1===tablePage)continue;
+          if(nameRe.test(pageTexts[i])&&hasTeliaMarkers(pageTexts[i]))return i+1;
+        }
+        // 3) Bet koks puslapis + tik vardas (paskutinis šansas su vardu)
+        for(var i=0;i<pageTexts.length;i++){
+          if(i+1===tablePage)continue;
+          if(nameRe.test(pageTexts[i]))return i+1;
         }
       }
     }
   }
-  // Fallback — brėžinys + bendrieji Telia raktažodžiai
+  // 4) Fallback — brėžinys + Telia raktažodžiai
   for(var j=0;j<pageTexts.length;j++){
     if(j+1===tablePage)continue;
     if(isDrawingPageText(pageTexts[j])&&hasTeliaMarkers(pageTexts[j]))return j+1;
+  }
+  // 5) Fallback — bet koks puslapis su SUDERINTA/PRITARTA + Telia
+  for(var k=0;k<pageTexts.length;k++){
+    if(k+1===tablePage)continue;
+    if(hasTeliaMarkers(pageTexts[k])&&/SUDERINT|PRITART|suderint|pritart/i.test(pageTexts[k]))return k+1;
   }
   return null;
 }
@@ -321,17 +335,33 @@ function findKauoenergijaApprovalPage(pageTexts){
     if(name){
       var nameRe=buildApproverNameRegex(name);
       if(nameRe){
+        // 1) Brėžinys + vardas
         for(var i=0;i<pageTexts.length;i++){
           if(i+1===tablePage)continue;
           if(isDrawingPageText(pageTexts[i])&&nameRe.test(pageTexts[i]))return i+1;
         }
+        // 2) Bet koks puslapis + vardas + KE marker
+        for(var i=0;i<pageTexts.length;i++){
+          if(i+1===tablePage)continue;
+          if(nameRe.test(pageTexts[i])&&hasKauoenergijaMarkers(pageTexts[i]))return i+1;
+        }
+        // 3) Bet koks puslapis + tik vardas
+        for(var i=0;i<pageTexts.length;i++){
+          if(i+1===tablePage)continue;
+          if(nameRe.test(pageTexts[i]))return i+1;
+        }
       }
     }
   }
-  // Fallback — drawing + bendrieji KE markers
+  // 4) Fallback — brėžinys + KE raktažodžiai
   for(var j=0;j<pageTexts.length;j++){
     if(j+1===tablePage)continue;
     if(isDrawingPageText(pageTexts[j])&&hasKauoenergijaMarkers(pageTexts[j]))return j+1;
+  }
+  // 5) Fallback — bet koks puslapis su SUDERINTA/PRITARTA + KE
+  for(var k=0;k<pageTexts.length;k++){
+    if(k+1===tablePage)continue;
+    if(hasKauoenergijaMarkers(pageTexts[k])&&/SUDERINT|PRITART|suderint|pritart/i.test(pageTexts[k]))return k+1;
   }
   return null;
 }
@@ -3172,7 +3202,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.76</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.77</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3395,7 +3425,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.76</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.77</div>
         </div>
       </div>
     </div>
