@@ -2814,7 +2814,7 @@ function ScheduleView(p){
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:5,paddingLeft:11}}>
                       <span style={{fontSize:9,color:C.t3,fontFamily:F}}>{SL[permit.status]||permit.status}</span>
-                      {permit.permitValidUntil&&<span style={{fontSize:8,color:ps?ps.color:C.t3,fontFamily:FM,fontWeight:600}}>iki {permit.permitValidUntil}</span>}
+                      {permit.permitValidUntil&&<span style={{fontSize:8,color:ps?ps.color:C.t3,fontFamily:FM,fontWeight:600}}>{permit.permitValidFrom?permit.permitValidFrom+" – ":""}{permit.permitValidUntil}</span>}
                     </div>
                   </div>
 
