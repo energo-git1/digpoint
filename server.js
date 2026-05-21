@@ -674,13 +674,43 @@ function normalizeForMatch(s) {
     .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// Kiek leidimo adreso žodžių sutampa su laiško tema (0–1)
-function calcLocationScore(permitLocation, emailSubject) {
-  const loc  = normalizeForMatch(permitLocation);
-  const subj = normalizeForMatch(emailSubject);
+// Kiek leidimo adreso žodžių sutampa su tekstu (0–1)
+function calcLocationScore(permitLocation, text) {
+  const loc   = normalizeForMatch(permitLocation);
+  const haystack = normalizeForMatch(text);
   const words = loc.split(' ').filter((w) => w.length >= 4);
   if (!words.length) return 0;
-  return words.filter((w) => subj.includes(w)).length / words.length;
+  return words.filter((w) => haystack.includes(w)).length / words.length;
+}
+
+// 2 žingsnis — ar PDF yra leidimo dokumentas?
+// Tikrinama ar tekste yra leidimą/sutikimą reiškiantys žodžiai.
+const PERMIT_KEYWORDS = [
+  'leidimas', 'leidima', 'leidimai',
+  'sutikimas', 'sutikima',
+  'leistina', 'leisti kasimo',
+  'kasimo darbai', 'kasimo leidim',
+  'žemės kasimo', 'zemes kasimo',
+  'suderintas', 'suderinta',
+  'patvirtintas', 'patvirtinta',
+];
+function isPdfPermitDocument(pdfText) {
+  const t = normalizeForMatch(pdfText);
+  return PERMIT_KEYWORDS.some((kw) => t.includes(normalizeForMatch(kw)));
+}
+
+// 3 žingsnis — ištraukti adresą iš PDF teksto
+// Ieško gatvės pavadinimo šalia adreso žymių.
+function extractLocationFromPdf(pdfText) {
+  const patterns = [
+    /(?:darbų\s+vieta|objekto\s+vieta|adresas|statybos\s+vieta|vieta)[:\s]+([^\n]{5,80})/i,
+    /(?:gatvė|g\.|pr\.|al\.|pl\.)[:\s]*([A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž][^\n]{3,60})/i,
+  ];
+  for (const pat of patterns) {
+    const m = pdfText.match(pat);
+    if (m) return m[1].replace(/\s+/g, ' ').trim();
+  }
+  return null;
 }
 
 // Rekursyviai suranda teksto dalis (text/plain arba text/html) bodyStructure medyje
@@ -797,7 +827,7 @@ async function checkImapMail() {
               continue;
             }
 
-            // 1. Visada parsisiųsti ir išsaugoti PDF (prieš paiešką)
+            // ── ŽINGSNIS 1: parsisiųsti ir išsaugoti PDF ──────────────
             const savedFiles = [];
             const pdfTexts   = [];
             for (const pdfPart of pdfParts) {
@@ -816,7 +846,6 @@ async function checkImapMail() {
                   url:      `/uploads/${fname}`,
                 });
                 console.log(`[IMAP] PDF išsaugotas: ${fname} (${(buf.length/1024).toFixed(1)} KB)`);
-                // 2. Ištraukti tekstą iš PDF sugretimiui
                 try {
                   const parsed = await pdfParse(buf);
                   if (parsed.text) pdfTexts.push(parsed.text);
@@ -828,31 +857,43 @@ async function checkImapMail() {
               }
             }
 
-            // 3. Paieška: naudoti laiško temą + PDF tekstą kartu
-            const searchText = subject + ' ' + pdfTexts.join(' ');
-            const permits    = dbGet('kl-permits') || [];
-            // Ieškoti visose aktyviosiose paraiškose (ne tik 'Pateikta') —
-            // ESO paraiška dažnai lieka 'Laukiama tvirtinimo' kai ateina leidimas,
-            // nes EsoSubmitBtn statuso automatiškai nekeičia.
+            // ── ŽINGSNIS 2: ar PDF atrodo kaip leidimas? (tik perspėjimas, nesustoja) ──
+            const fullPdfText = pdfTexts.join(' ');
+            const looksLikePermit = pdfTexts.length > 0 ? isPdfPermitDocument(fullPdfText) : true;
+            if (!looksLikePermit) {
+              console.log(`[IMAP] ${org}: ⚠️ PDF raktažodžiai nerasti — gali būti ne leidimas, bet tęsiama.`);
+            }
+
+            // ── ŽINGSNIS 3: surasti atitinkančią paraišką ────────────
+            // Naudojama: laiško tema + PDF tekstas + adresas ištrauktas iš PDF
+            const pdfLocation   = extractLocationFromPdf(fullPdfText);
+            const searchText    = subject + ' ' + fullPdfText + (pdfLocation ? ' ' + pdfLocation : '');
+            const permits       = dbGet('kl-permits') || [];
             const FINAL_STATUSES = new Set(['Gautas leidimas', 'Atmestas', 'Nebegalioja']);
-            const candidates = permits.filter((p) =>
+            const candidates    = permits.filter((p) =>
               !FINAL_STATUSES.has(p.status) && (
                 (Array.isArray(p.organizations) && p.organizations.includes(org)) ||
                 p.organization === org
               )
             );
 
+            console.log(`[IMAP] ${org}: kandidatės — ${candidates.length} paraiška(-os). PDF adresas: "${pdfLocation || '—'}"`);
+
             let bestPermit = null;
             let bestScore  = 0;
             for (const p of candidates) {
-              const score = calcLocationScore(p.location, searchText);
+              // Adresas: teliaRouteTo > teliaRouteFrom > location (paraiškose dažnai location tuščias)
+              const permitAddr = p.teliaRouteTo || p.teliaRouteFrom || p.location || '';
+              const score = calcLocationScore(permitAddr, searchText);
               if (score > bestScore) { bestScore = score; bestPermit = p; }
             }
 
-            const THRESHOLD = 0.4;
+            // Jei tik viena kandidatė ir neturi adreso — priimame be score patikros
+            const hasAddr = candidates.some((p) => p.teliaRouteTo || p.teliaRouteFrom || p.location);
+            const THRESHOLD = (candidates.length === 1 && !hasAddr) ? 0 : 0.4;
 
             if (!bestPermit || bestScore < THRESHOLD) {
-              console.log(`[IMAP] ${org}: nepavyko sugretinti paraiškos (score: ${bestScore.toFixed(2)})`);
+              console.log(`[IMAP] ${org}: nepavyko sugretinti paraiškos (score: ${bestScore.toFixed(2)}, threshold: ${THRESHOLD})`);
               // PDF jau išsaugoti — įspėjimas su nuorodomis į failus
               try {
                 const fileLinks = savedFiles.map((f) =>
@@ -861,9 +902,11 @@ async function checkImapMail() {
                 const warnHtml = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;font-size:13px;color:#1F2937;padding:20px">
                   <p>Sistema aptiko gautą laišką iš <strong>${org}</strong> (${fromAddr}), tačiau nepavyko automatiškai sugretinti su jokia paraiška.</p>
                   <p>Laiško tema: <em>${subject}</em></p>
+                  ${pdfLocation ? `<p>PDF adresas: <strong>${pdfLocation}</strong></p>` : ''}
+                  <p>Gretinimo rezultatas: <strong>${bestScore.toFixed(2)}</strong> (reikalinga ≥ ${THRESHOLD})</p>
                   <p><strong>PDF failai išsaugoti</strong> — prisekite prie tinkamos paraiškos rankiniu būdu:</p>
                   <ul>${fileLinks}</ul>
-                  <p>Paraiška turi turėti statusą „Pateikta" ir instituciją „${org}".</p>
+                  <p>Paraiška turi turėti instituciją „${org}".</p>
                 </body></html>`;
                 await mailerInternal.sendMail({
                   from: MAIL_FROM_INTERNAL,
@@ -880,7 +923,10 @@ async function checkImapMail() {
               continue;
             }
 
-            // 4. Rasta paraiška — priskirti PDF ir pakeisti statusą
+            console.log(`[IMAP] ${org}: gretinimas sėkmingas → #${bestPermit.id.slice(-5).toUpperCase()} (score: ${bestScore.toFixed(2)})`);
+
+
+            // ── ŽINGSNIS 4: priskirti PDF ir pakeisti statusą ────────
             if (savedFiles.length > 0) {
               const today      = fmtDateSrv(new Date());
               const allPermits = dbGet('kl-permits') || [];
