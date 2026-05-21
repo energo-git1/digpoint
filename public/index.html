@@ -1131,6 +1131,33 @@ function EsoSubmitBtn(p){
 
   async function prepareTask(){
     sSt("saving");
+    var orgs=o.organizations&&o.organizations.length>0?o.organizations:(o.organization?[o.organization]:[]);
+    var hasTelia=orgs.indexOf("Telia, Kaunas")!==-1;
+    var hasKE=orgs.indexOf("Kauno energija")!==-1;
+
+    // 1) Siunčiame Telia laišką automatiškai (jei reikia)
+    if(hasTelia){
+      try{
+        var pageTexts=null;
+        var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+        if(pdfFile){try{var _pd=await getPdfDataUrl(pdfFile);if(_pd)pageTexts=await extractPdfTextByPage(_pd);}catch(_){}}
+        var permitWithTelia=await preparePendingTeliaEmail(o,pageTexts);
+        await approveAndSendTelia(permitWithTelia);
+      }catch(e){console.warn("[Auto] Telia laiško siuntimas nepavyko:",e.message);}
+    }
+
+    // 2) Siunčiame KE laišką automatiškai (jei reikia)
+    if(hasKE){
+      try{
+        var pageTextsKE=null;
+        var pdfFileKE=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+        if(pdfFileKE){try{var _pdKE=await getPdfDataUrl(pdfFileKE);if(_pdKE)pageTextsKE=await extractPdfTextByPage(_pdKE);}catch(_){}}
+        var keEmailObj=await preparePendingKauoenergijaEmail(o,pageTextsKE);
+        await approveAndSendKauoenergija(Object.assign({},o,{pendingKauoenergijaEmail:keEmailObj}));
+      }catch(e){console.warn("[Auto] KE laiško siuntimas nepavyko:",e.message);}
+    }
+
+    // 3) Išsaugome ESO užduotį
     var today=new Date();
     var plus3=new Date(today);plus3.setMonth(plus3.getMonth()+3);
     var esoStart=o.startDate||fmtDate(today);
@@ -1151,19 +1178,18 @@ function EsoSubmitBtn(p){
       createdAt:new Date().toISOString(),
       status:"pending"
     };
-    // Pridedame prie masyvo (ne pakeičiame) — palaiko kelias paraiškas iš karto
     var existing=await sGet('kl-eso-tasks')||[];
-    var filtered=existing.filter(function(t){return t.permitId!==o.id}); // pašaliname seną jei yra
+    var filtered=existing.filter(function(t){return t.permitId!==o.id});
     var tasks=filtered.concat([task]);
-    await sSet('kl-eso-tasks', tasks);
-    // sendPrompt tik pirmą kartą (kai sąrašas buvo tuščias)
-    if(filtered.length===0){
-      setTimeout(function(){
-        if(typeof window.sendPrompt==='function'){
-          window.sendPrompt('Pateik ESO formą');
-        }
-      }, 2000);
-    }
+    await sSet('kl-eso-tasks',tasks);
+
+    // 4) Paleidžiame ESO agentą automatiškai
+    setTimeout(function(){
+      if(typeof window.sendPrompt==='function'){
+        window.sendPrompt('Pateik ESO');
+      }
+    },1500);
+
     sSt("ready");
   }
 
@@ -1232,15 +1258,15 @@ function EsoSubmitBtn(p){
 
         {/* Agento paleidimo blokas */}
         {st==="idle"&&<div style={{background:C.acD,border:"1px solid "+C.ac+"44",borderRadius:8,padding:"12px 14px",fontSize:11,color:C.ac,fontFamily:F,lineHeight:1.7}}>
-          <div style={{fontWeight:700,marginBottom:6}}>🤖 Cowork agentas užpildys formą automatiškai</div>
-          <div style={{fontSize:10,color:C.t2}}>Spausk mygtuką žemiau — duomenys bus išsaugoti serveryje. Tuomet Cowork lange pasakyk: <span style={{fontFamily:FM,fontWeight:700,color:C.ac}}>"pateik ESO"</span></div>
+          <div style={{fontWeight:700,marginBottom:6}}>🤖 Viskas vyks automatiškai</div>
+          <div style={{fontSize:10,color:C.t2}}>Spausk mygtuką — Telia/KE laiškai bus išsiųsti iš karto, ESO forma atsidaro Cowork lange automatiškai.</div>
         </div>}
         {st==="saving"&&<div style={{background:C.s2,borderRadius:8,padding:"12px 14px",fontSize:11,color:C.t2,fontFamily:F,textAlign:"center"}}>
-          ⏳ Saugoma užduotis serveryje...
+          ⏳ Siunčiami laiškai ir paleidžiamas ESO agentas...
         </div>}
         {st==="ready"&&<div style={{background:C.gnD,border:"1px solid "+C.gn+"44",borderRadius:8,padding:"12px 14px",fontSize:11,color:C.gn,fontFamily:F,lineHeight:1.7}}>
-          <div style={{fontWeight:700,marginBottom:4}}>✅ Užduotis paruošta</div>
-          <div style={{fontSize:10}}>Dabar Cowork lange pasakyk: <span style={{fontFamily:FM,fontWeight:700}}>"pateik ESO"</span> — agentas automatiškai užpildys formą ir sustabdys prieš siuntimą.</div>
+          <div style={{fontWeight:700,marginBottom:4}}>✅ Atlikta</div>
+          <div style={{fontSize:10}}>Telia/KE laiškai išsiųsti. ESO forma atsidaro Cowork lange — patikrinkite ir spauskite Siųsti.</div>
         </div>}
 
         <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
@@ -3202,7 +3228,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.77</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.78</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3425,7 +3451,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.77</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.78</div>
         </div>
       </div>
     </div>
