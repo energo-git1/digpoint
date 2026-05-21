@@ -634,10 +634,10 @@ const IMAP_USER = 'uzklausos@energolt.eu';
 
 // Siuntėjų domenai → institucijų pavadinimai (kaip saugomi kl-permits)
 const IMAP_ORG_DOMAINS = [
-  { org: 'AB ESO',                   domains: ['eso.lt'] },
-  { org: 'Kauno miesto savivaldybė', domains: ['kaunas.lt'] },
-  { org: 'Telia, Kaunas',            domains: ['telia.lt', 'telia.com'] },
-  { org: 'Kauno energija',           domains: ['kaunoenergeija.lt', 'kaunoenergia.lt'] },
+  { org: 'AB ESO',                  domains: ['eso.lt'] },
+  { org: 'Kauno miesto savivaldybe', domains: ['kaunas.lt'] },
+  { org: 'Telia, Kaunas',           domains: ['telia.lt', 'telia.com'] },
+  { org: 'Kauno energija',          domains: ['kaunoenergeija.lt', 'kaunoenergia.lt'] },
 ];
 
 function detectOrgFromEmail(fromAddr) {
@@ -654,7 +654,7 @@ function detectOrgFromText(text) {
   const t = (text || '').toLowerCase();
   if (t.includes('telia')) return 'Telia, Kaunas';
   if (t.includes('kauno energija') || t.includes('kaunoenergia') || t.includes('kauno energ')) return 'Kauno energija';
-  if (t.includes('savivaldyb') || t.includes('kauno miesto')) return 'Kauno miesto savivaldybė';
+  if (t.includes('savivaldyb') || t.includes('kauno miesto')) return 'Kauno miesto savivaldybe';
   if (/\beso\b/.test(t)) return 'AB ESO';
   return null;
 }
@@ -831,10 +831,15 @@ async function checkImapMail() {
             // 3. Paieška: naudoti laiško temą + PDF tekstą kartu
             const searchText = subject + ' ' + pdfTexts.join(' ');
             const permits    = dbGet('kl-permits') || [];
+            // Ieškoti visose aktyviosiose paraiškose (ne tik 'Pateikta') —
+            // ESO paraiška dažnai lieka 'Laukiama tvirtinimo' kai ateina leidimas,
+            // nes EsoSubmitBtn statuso automatiškai nekeičia.
+            const FINAL_STATUSES = new Set(['Gautas leidimas', 'Atmestas', 'Nebegalioja']);
             const candidates = permits.filter((p) =>
-              p.status === 'Pateikta' &&
-              Array.isArray(p.organizations) &&
-              p.organizations.includes(org)
+              !FINAL_STATUSES.has(p.status) && (
+                (Array.isArray(p.organizations) && p.organizations.includes(org)) ||
+                p.organization === org
+              )
             );
 
             let bestPermit = null;
