@@ -3177,7 +3177,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.62</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.63</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3304,10 +3304,22 @@ function SystemTools(){
           {imapRes.code&&<><span style={{color:C.t3}}>Kodas:</span><span>{imapRes.code}</span></>}
         </div>
       </div>}
-      {mailRes&&<div style={{marginBottom:8,fontSize:11,fontFamily:F,color:mailRes.error?C.rd:mailRes.processed>0?C.gn:C.t2}}>
-        {mailRes.error?"❌ "+mailRes.error
-          :mailRes.processed>0?"✅ Apdorota: "+mailRes.processed+" (iš "+mailRes.checked+")"
-          :mailRes.checked===0?"📭 Laiškų nerasta":"📨 Rasta "+mailRes.checked+", leidimai neatpažinti"}
+      {mailRes&&<div style={{marginBottom:8,padding:"10px 12px",borderRadius:8,background:mailRes.ok?C.gnD:C.rdD,border:"1px solid "+(mailRes.ok?C.gn:C.rd)+"44",fontSize:11,fontFamily:FM}}>
+        <div style={{fontWeight:700,color:mailRes.ok?C.gn:C.rd,marginBottom:6}}>
+          {mailRes.ok
+            ? mailRes.processed>0?"✅ Apdorota "+mailRes.processed+" leidim. (iš "+mailRes.checked+")"
+              : mailRes.checked===0?"📭 INBOX tuščias — laiškų nerasta":"📨 Rasta "+mailRes.checked+", atpažintų: 0"
+            : "❌ IMAP tikrinimo klaida"}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"120px 1fr",gap:"3px 8px",color:C.tx}}>
+          <span style={{color:C.t3}}>Serveris:</span><span>{mailRes.server}:{mailRes.port} ({mailRes.secure||"SSL/TLS"})</span>
+          <span style={{color:C.t3}}>Vartotojas:</span><span>{mailRes.user}</span>
+          <span style={{color:C.t3}}>Slaptažodis:</span><span>{mailRes.passSet?"✓ nustatytas":"⚠️ nenustatytas"}</span>
+          <span style={{color:C.t3}}>Laikas:</span><span>{mailRes.time?new Date(mailRes.time).toLocaleString("lt-LT"):"-"}</span>
+          {mailRes.ok&&<><span style={{color:C.t3}}>Rezultatas:</span><span style={{color:C.gn}}>Prisijungta, patikrinta</span></>}
+          {mailRes.connError&&<><span style={{color:C.t3}}>Klaida:</span><span style={{color:C.rd,wordBreak:"break-all"}}>{mailRes.connError}</span></>}
+          {mailRes.connCode&&<><span style={{color:C.t3}}>Kodas:</span><span>{mailRes.connCode}</span></>}
+        </div>
       </div>}
       {clearRes&&<div style={{marginBottom:8,fontSize:11,fontFamily:F,color:clearRes.error?C.rd:C.gn}}>
         {clearRes.error?"❌ "+clearRes.error:"✅ "+clearRes.message}
@@ -3364,7 +3376,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.62</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.63</div>
         </div>
       </div>
     </div>

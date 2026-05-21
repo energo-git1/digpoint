@@ -522,7 +522,7 @@ app.post('/api/notify/permit-pdf-missing', async (req, res) => {
       <p>Paraiška lieka <strong>„Pateikta"</strong> statusu.</p>
       <p>Reikalingas rankinis leidimo PDF įkėlimas sistemoje.</p>
     </body></html>`;
-    const info = await mailerInternal.sendMail({ from: MAIL_FROM_INTERNAL, to: 'uzklausos@energolt.eu', subject, html });
+    const info = await sendAndSave({ from: MAIL_FROM_INTERNAL, to: 'uzklausos@energolt.eu', subject, html });
     console.log(`  📨 Permit PDF missing warning → uzklausos | #${permitNo} | ${info.messageId}`);
     res.json({ ok: true });
   } catch (e) {
@@ -913,6 +913,7 @@ async function checkImapMail() {
   } catch (connErr) {
     console.error('[IMAP] Prisijungimo klaida:', connErr.message);
     try { await client.logout(); } catch (_) {}
+    return { checked, processed, connError: connErr.message, connCode: connErr.code || null };
   }
 
   return { checked, processed };
@@ -920,11 +921,20 @@ async function checkImapMail() {
 
 // Rankinis IMAP tikrinimo paleidimas per API
 app.post('/api/admin/check-mail', async (req, res) => {
+  const meta = {
+    server: IMAP_HOST,
+    port:   IMAP_PORT,
+    secure: 'SSL/TLS',
+    user:   IMAP_USER,
+    passSet: !!SMTP_PASS,
+    time:   new Date().toISOString(),
+  };
   try {
     const result = await checkImapMail();
-    res.json({ ok: true, ...result });
+    const ok = !result.connError;
+    res.json({ ok, ...meta, ...result });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ ok: false, ...meta, connError: e.message, checked: 0, processed: 0 });
   }
 });
 
@@ -951,7 +961,7 @@ app.post('/api/admin/notify', async (req, res) => {
   const { to, subject, html, text } = req.body || {};
   const recipient = to || 'eimutis.simkus@energolt.eu';
   try {
-    await mailerInternal.sendMail({
+    await sendAndSave({
       from: MAIL_FROM_INTERNAL,
       to: recipient,
       subject: subject || 'Digpoint pranešimas',
