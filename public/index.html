@@ -1808,6 +1808,7 @@ function PermitDetail(p){
   var _previewKEBusy=useState(false);var previewKEBusy=_previewKEBusy[0],sPreviewKEBusy=_previewKEBusy[1];
   var _keAprvSt=useState("");var keAprvSt=_keAprvSt[0],sKEAprvSt=_keAprvSt[1];
   var _keAprvBusy=useState(false);var keAprvBusy=_keAprvBusy[0],sKEAprvBusy=_keAprvBusy[1];
+  var _sendAllBusy=useState(false);var sendAllBusy=_sendAllBusy[0],sSendAllBusy=_sendAllBusy[1];
   // Kauno energija — rankinio trasos redagavimo įvestys
   var _keFromIn=useState(o.teliaRouteFrom||"");var keFromIn=_keFromIn[0],sKEFromIn=_keFromIn[1];
   var _keToIn=useState(o.teliaRouteTo||"");var keToIn=_keToIn[0],sKEToIn=_keToIn[1];
@@ -2336,7 +2337,9 @@ function PermitDetail(p){
           {o.status!=="Atmestas"&&<Btn v="danger" sm onClick={function(){if(window.confirm("Istrinti sias paraiskas?")){p.onDelete(o.id);p.onClose()}}}>Istrinti</Btn>}
           {o.status!=="Atmestas"&&<Btn onClick={save} sm>Issaugoti</Btn>}
           {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.pendingEmail||o.pendingKauoenergijaEmail)&&
-            <Btn sm onClick={async function(){
+            <Btn sm disabled={sendAllBusy} onClick={async function(){
+              if(sendAllBusy)return;
+              sSendAllBusy(true);
               var anyError=false;
               if(o.pendingEmail&&!o.pendingEmail.cancelled){
                 try{
@@ -2358,6 +2361,7 @@ function PermitDetail(p){
                   await approveAndSendKauoenergija(keToSend);
                 }catch(e){anyError=true;alert("KE siuntimo klaida: "+e.message);}
               }
+              sSendAllBusy(false);
               if(!anyError){
                 var updSent=Object.assign({},o,{
                   pendingEmail:null,pendingKauoenergijaEmail:null,status:"Pateikta",
@@ -2367,7 +2371,9 @@ function PermitDetail(p){
               } else {
                 p.onClose();
               }
-            }} style={{background:"#10B981",color:"#fff",border:"none"}}>✉ Išsiųsti</Btn>}
+            }} style={{background:sendAllBusy?"#6B7280":"#10B981",color:"#fff",border:"none"}}>
+              {sendAllBusy?"Siunčiama...":"✉ Išsiųsti"}
+            </Btn>}
         </div>
       </div>}
 
