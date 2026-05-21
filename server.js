@@ -1036,8 +1036,23 @@ app.post('/api/admin/clear-imap-done', (req, res) => {
 });
 
 // ── Nepriskirti PDF → priskirti paraiškai automatiškai ──────────
+// Greitas nepriskirtų PDF sąrašas be parsavimo
+app.get('/api/admin/list-unattached', (req, res) => {
+  try {
+    const permits     = dbGet('kl-permits') || [];
+    const attachedSet = new Set();
+    permits.forEach((p) => (p.files || []).forEach((f) => f.filename && attachedSet.add(f.filename)));
+    const allFiles   = fs.readdirSync(UPLOAD_DIR);
+    const unattached = allFiles.filter((fn) => fn.endsWith('.pdf') && !attachedSet.has(fn));
+    res.json({ ok: true, count: unattached.length, files: unattached });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // Suranda failus /uploads/ kurie nepriklauso nė vienai paraiškai,
 // bando sugretinti pagal PDF tekstą ir teliaRouteTo/From/location.
+// Jei aktyvių kandidatų nėra — ieško ir tarp jau gautų leidimų (prideda failą be statuso keitimo).
 app.post('/api/admin/reprocess-unattached', async (req, res) => {
   try {
     const permits     = dbGet('kl-permits') || [];
@@ -1063,22 +1078,37 @@ app.post('/api/admin/reprocess-unattached', async (req, res) => {
         pdfText = parsed.text || '';
       } catch (_) {}
 
-      // Aptikti instituciją iš PDF teksto
-      const org = detectOrgFromText(pdfText);
+      // Aptikti instituciją iš PDF teksto arba failo pavadinimo
+      let org = detectOrgFromText(pdfText);
+      if (!org) org = detectOrgFromText(fname); // fallback: iš failo pavadinimo
       if (!org) {
-        results.push({ file: fname, result: 'org nerasta PDF tekste — praleista' });
+        results.push({ file: fname, result: 'org nerasta PDF tekste ir pavadinime — praleista' });
         continue;
       }
 
       const pdfLocation = extractLocationFromPdf(pdfText);
-      const searchText  = pdfText + (pdfLocation ? ' ' + pdfLocation : '');
+      const searchText  = pdfText + (pdfLocation ? ' ' + pdfLocation : '') + ' ' + fname;
 
-      const candidates = permits.filter((p) =>
+      // 1) Pirmiausia aktyvios paraiškos
+      const activeCandidates = permits.filter((p) =>
         !FINAL_STATUSES.has(p.status) && (
           (Array.isArray(p.organizations) && p.organizations.includes(org)) ||
           p.organization === org
         )
       );
+
+      // 2) Jei aktyvių nėra — galutinės (failas pridedamas be statuso keitimo)
+      const finalCandidates = activeCandidates.length === 0
+        ? permits.filter((p) =>
+            FINAL_STATUSES.has(p.status) && (
+              (Array.isArray(p.organizations) && p.organizations.includes(org)) ||
+              p.organization === org
+            )
+          )
+        : [];
+
+      const candidates  = activeCandidates.length > 0 ? activeCandidates : finalCandidates;
+      const isFallback  = activeCandidates.length === 0 && finalCandidates.length > 0;
 
       let bestPermit = null;
       let bestScore  = 0;
@@ -1097,31 +1127,38 @@ app.post('/api/admin/reprocess-unattached', async (req, res) => {
       }
 
       // Priskirti failą paraiškai
-      const fstat    = fs.statSync(fpath);
+      const fstat     = fs.statSync(fpath);
       const fileEntry = { id: srvUid(), name: fname.replace(/^[a-z0-9]+_/, ''), filename: fname, size: fstat.size, url: `/uploads/${fname}` };
       const allPermits = dbGet('kl-permits') || [];
       const updated    = allPermits.map((p) => {
         if (p.id !== bestPermit.id) return p;
         const alreadyHas = (p.files || []).some((f) => f.filename === fname);
         if (alreadyHas) return p;
+        const newFiles   = [...(p.files || []), fileEntry];
+        const newHistory = [...(p.history || []), {
+          status: isFallback ? p.status : 'Gautas leidimas',
+          date:   today,
+          note:   `Failas priskirtas rankiniu būdu (reprocess) iš ${org}${isFallback ? ' [papildomas prie jau gauto leidimo]' : ''}`,
+        }];
+        if (isFallback) {
+          // Paraiška jau baigta — tik pridedame failą, nekeičiame statuso
+          return { ...p, files: newFiles, history: newHistory };
+        }
         return {
           ...p,
           status:           'Gautas leidimas',
-          files:            [...(p.files || []), fileEntry],
+          files:            newFiles,
           permitValidFrom:  p.permitValidFrom || p.startDate || today,
           permitValidUntil: p.permitValidUntil || p.endDate || '',
-          history: [...(p.history || []), {
-            status: 'Gautas leidimas',
-            date:   today,
-            note:   `Leidimas priskirtas rankiniu būdu (reprocess) iš ${org}`,
-          }],
+          history:          newHistory,
         };
       });
       dbSet('kl-permits', updated);
       // Atnaujinti lokali kintamasis tolimesniam ciklui
       permits.splice(0, permits.length, ...updated);
-      results.push({ file: fname, org, score: bestScore, permit: bestPermit.id.slice(-5), result: '✅ priskirta' });
-      console.log(`[REPROCESS] ${fname} → #${bestPermit.id.slice(-5)} (${org}, score: ${bestScore.toFixed(2)})`);
+      const tag = isFallback ? '✅ priskirta (prie jau gauto)' : '✅ priskirta';
+      results.push({ file: fname, org, score: bestScore, permit: bestPermit.id.slice(-5), result: tag });
+      console.log(`[REPROCESS] ${fname} → #${bestPermit.id.slice(-5)} (${org}, score: ${bestScore.toFixed(2)})${isFallback ? ' [fallback]' : ''}`);
     }
 
     res.json({ ok: true, processed: results.filter((r) => r.result.startsWith('✅')).length, total: unattached.length, results });
