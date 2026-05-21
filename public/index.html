@@ -1809,6 +1809,7 @@ function PermitDetail(p){
   var _keAprvSt=useState("");var keAprvSt=_keAprvSt[0],sKEAprvSt=_keAprvSt[1];
   var _keAprvBusy=useState(false);var keAprvBusy=_keAprvBusy[0],sKEAprvBusy=_keAprvBusy[1];
   var _sendAllBusy=useState(false);var sendAllBusy=_sendAllBusy[0],sSendAllBusy=_sendAllBusy[1];
+  var sendAllBusyRef=useRef(false);
   // Kauno energija — rankinio trasos redagavimo įvestys
   var _keFromIn=useState(o.teliaRouteFrom||"");var keFromIn=_keFromIn[0],sKEFromIn=_keFromIn[1];
   var _keToIn=useState(o.teliaRouteTo||"");var keToIn=_keToIn[0],sKEToIn=_keToIn[1];
@@ -2338,7 +2339,8 @@ function PermitDetail(p){
           {o.status!=="Atmestas"&&<Btn onClick={save} sm>Issaugoti</Btn>}
           {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.pendingEmail||o.pendingKauoenergijaEmail)&&
             <Btn sm disabled={sendAllBusy} onClick={async function(){
-              if(sendAllBusy)return;
+              if(sendAllBusyRef.current)return;
+              sendAllBusyRef.current=true;
               sSendAllBusy(true);
               var anyError=false;
               if(o.pendingEmail&&!o.pendingEmail.cancelled){
@@ -2361,6 +2363,7 @@ function PermitDetail(p){
                   await approveAndSendKauoenergija(keToSend);
                 }catch(e){anyError=true;alert("KE siuntimo klaida: "+e.message);}
               }
+              sendAllBusyRef.current=false;
               sSendAllBusy(false);
               if(!anyError){
                 var updSent=Object.assign({},o,{
@@ -3177,7 +3180,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.63</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.64</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3376,7 +3379,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.63</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.64</div>
         </div>
       </div>
     </div>
