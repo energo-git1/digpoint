@@ -726,6 +726,7 @@ async function checkImapMail() {
     auth: { user: IMAP_USER, pass: IMAP_PASS },
     logger: false,
     tls: { rejectUnauthorized: false },
+    connectionTimeout: 8000,
   });
 
   let checked = 0;
@@ -1027,6 +1028,7 @@ app.get('/api/admin/check-mail-debug', async (req, res) => {
     auth: { user: IMAP_USER, pass: IMAP_PASS },
     logger: false,
     tls: { rejectUnauthorized: false },
+    connectionTimeout: 8000,
   });
 
   try {
