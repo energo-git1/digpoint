@@ -801,27 +801,27 @@ async function checkImapMail() {
               continue;
             }
 
-            // ── Patikrinti ar yra laukiančių paraiškų šiai institucijai ──
+            // ── Patikrinti ar yra paraiškų šiai institucijai be PDF ──
             const allPermitsEarly = dbGet('kl-permits') || [];
-            const NEED_STATUSES   = new Set(['Pateikta', 'Gautas dalinai', 'Laukia patvirtinimo leidimo']);
+            const TRULY_FINAL     = new Set(['Atmestas', 'Nebegalioja']);
             const orgKey0 = org === 'Telia, Kaunas' ? 'telia' : org === 'Kauno energija' ? 'ke' : null;
             const pendingForOrg = allPermitsEarly.filter((p) => {
-              if (!NEED_STATUSES.has(p.status)) return false;
+              if (TRULY_FINAL.has(p.status)) return false;
               const orgs = Array.isArray(p.organizations) && p.organizations.length > 0
                 ? p.organizations : p.organization ? [p.organization] : [];
               if (!orgs.includes(org)) return false;
-              // Jei jau turi šios institucijos PDF — praleisti
+              // Jei Telia/KE — tikrinti ar jau turi šios institucijos PDF
               if (orgKey0 && p.permitPdfs && p.permitPdfs[orgKey0] && p.permitPdfs[orgKey0].name) return false;
               return true;
             });
 
             if (!pendingForOrg.length) {
-              // Nėra laukiančių paraiškų šiai institucijai — praleisti BEZ žymėjimo,
-              // kad kitą kartą būtų tikrinama iš naujo (gali atsirasti nauja paraiška)
+              // Nėra paraiškų šiai institucijai be PDF — praleisti BEZ žymėjimo,
+              // kad kitą kartą būtų tikrinama (gali atsirasti nauja paraiška)
               continue;
             }
 
-            console.log(`[IMAP] ${org} | "${subject}" | ${fromAddr} | laukia: ${pendingForOrg.length}`);
+            console.log(`[IMAP] ${org} | "${subject}" | ${fromAddr} | paraiškų be PDF: ${pendingForOrg.length}`);
 
             const pdfParts = findPdfParts(msg.bodyStructure);
 
@@ -990,6 +990,83 @@ async function checkImapMail() {
 
   return { checked, processed };
 }
+
+// Išvalyti apdorotų laiškų sąrašą — leidžia iš naujo patikrinti visus laiškus
+app.post('/api/admin/clear-imap-done', (req, res) => {
+  dbSet('kl-imap-done', []);
+  console.log('[IMAP] kl-imap-done išvalytas — kitas tikrinimas apdoros visus laiškus iš naujo.');
+  res.json({ ok: true, message: 'IMAP done sąrašas išvalytas.' });
+});
+
+// Priskirti jau atsisiųstus PDF prie paraiškų kurios dar neturi permitPdfs
+// Naudojama: paraiška turi files[] su PDF, bet permitPdfs tuščias
+app.post('/api/admin/reprocess-unattached', async (req, res) => {
+  const permits = dbGet('kl-permits') || [];
+  const TRULY_FINAL = new Set(['Atmestas', 'Nebegalioja']);
+  let assigned = 0;
+  const log = [];
+
+  const updated = permits.map((p) => {
+    if (TRULY_FINAL.has(p.status)) return p;
+    const orgs = Array.isArray(p.organizations) && p.organizations.length > 0
+      ? p.organizations : p.organization ? [p.organization] : [];
+    const needTelia = orgs.includes('Telia, Kaunas');
+    const needKE    = orgs.includes('Kauno energija');
+    if (!needTelia && !needKE) return p;
+
+    const pdfs = p.permitPdfs || {};
+    let changed = false;
+    const newPdfs = { ...pdfs };
+
+    // Renkame PDF failus iš p.files kurie neatrodo kaip projekto failai
+    const pdfFiles = (p.files || []).filter((f) => f.name && f.name.match(/\.pdf$/i));
+
+    if (needTelia && !(pdfs.telia && pdfs.telia.name)) {
+      // Ieškome failo kuris atrodo kaip Telia sutikimas
+      const teliaFile = pdfFiles.find((f) =>
+        /telia|sutik|derinimas|pritarim/i.test(f.name)
+      ) || (pdfFiles.length === 1 ? pdfFiles[0] : null);
+      if (teliaFile) {
+        newPdfs.telia = { name: teliaFile.name, url: teliaFile.url || null, filename: teliaFile.filename || null };
+        changed = true;
+        log.push(`#${p.id.slice(-5).toUpperCase()} → Telia: ${teliaFile.name}`);
+      }
+    }
+    if (needKE && !(pdfs.ke && pdfs.ke.name)) {
+      const keFile = pdfFiles.find((f) =>
+        /kauno.energ|ke|sutik|derinimas|pritarim/i.test(f.name)
+      ) || (pdfFiles.length === 1 && !newPdfs.telia ? pdfFiles[0] : null);
+      if (keFile) {
+        newPdfs.ke = { name: keFile.name, url: keFile.url || null, filename: keFile.filename || null };
+        changed = true;
+        log.push(`#${p.id.slice(-5).toUpperCase()} → KE: ${keFile.name}`);
+      }
+    }
+
+    if (!changed) return p;
+    assigned++;
+
+    // Perskaičiuoti statusą
+    const teliaDone = newPdfs.telia && newPdfs.telia.name;
+    const keDone    = newPdfs.ke    && newPdfs.ke.name;
+    const allDone   = (!needTelia || teliaDone) && (!needKE || keDone);
+    const someDone  = (needTelia && teliaDone) || (needKE && keDone);
+    const newStatus = allDone ? 'Gautas leidimas' : (someDone ? 'Gautas dalinai' : p.status);
+    const today = fmtDateSrv(new Date());
+    return {
+      ...p,
+      permitPdfs: newPdfs,
+      status: newStatus !== p.status ? newStatus : p.status,
+      history: newStatus !== p.status
+        ? [...(p.history || []), { status: newStatus, date: today, note: 'Leidimo PDF priskirtas rankiniu būdu (reprocess)' }]
+        : p.history,
+    };
+  });
+
+  if (assigned > 0) dbSet('kl-permits', updated);
+  console.log(`[REPROCESS] Priskirta: ${assigned} paraiška(-ų). ${log.join('; ')}`);
+  res.json({ ok: true, assigned, log });
+});
 
 // Rankinis IMAP tikrinimo paleidimas per API
 app.post('/api/admin/check-mail', async (req, res) => {
