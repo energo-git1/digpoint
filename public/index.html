@@ -1043,6 +1043,31 @@ function PermitForm(p){
   var _invNo=useState("");var invNo=_invNo[0],sInvNo=_invNo[1];
   var _projNo=useState("");var projNo=_projNo[0],sProjNo=_projNo[1];
   var _esoLoc=useState("");var esoLoc=_esoLoc[0],sEsoLoc=_esoLoc[1];
+  // Savivaldybė specifiniai laukai
+  var _workType=useState("");var workType=_workType[0],sWorkType=_workType[1]; // "planiniai"|"avariniai"
+  var _srcPermitId=useState("");var srcPermitId=_srcPermitId[0],sSrcPermitId=_srcPermitId[1];
+  // Esamos paraiškos su gautais leidimais (šaltinis Savivaldybės PDF kompiliatoriui)
+  var permitSources=(p.permits||[]).filter(function(x){
+    var hasPdfs=x.permitPdfs&&Object.keys(x.permitPdfs).some(function(k){return x.permitPdfs[k]&&x.permitPdfs[k].name;});
+    var hasProjectPdf=(x.files||[]).some(function(f){return f.name&&f.name.match(/\.pdf$/i);});
+    return hasPdfs||hasProjectPdf;
+  });
+  function selectSourcePermit(id){
+    sSrcPermitId(id);
+    if(!id)return;
+    var src=(p.permits||[]).find(function(x){return x.id===id;});
+    if(!src)return;
+    // Auto-pildome laukus iš šaltinio paraiškos
+    if(src.manager)sMgr(src.manager);
+    if(src.managerPhone)sPh(src.managerPhone);
+    if(src.email)sEm(src.email);
+    if(src.investNo)sInvNo(src.investNo);
+    if(src.projectNo)sProjNo(src.projectNo);
+    if(src.location)sEsoLoc(src.location);
+    if(src.teliaRouteFrom)sTrFrom(src.teliaRouteFrom);
+    if(src.teliaRouteTo)sTrTo(src.teliaRouteTo);
+    if(src.files&&src.files.length>0)sFiles(src.files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i);}));
+  }
   var isESO=orgs.indexOf("AB ESO")!==-1;
   var isTelia=orgs.indexOf("Telia, Kaunas")!==-1;
   var isKE=orgs.indexOf("Kauno energija")!==-1;
@@ -1052,8 +1077,9 @@ function PermitForm(p){
   var teliaOk=!isTelia||(teliaStart&&teliaEnd&&teliaEnd>=teliaStart);
   var keOk=!isKE||(keStart&&keEnd&&keEnd>=keStart);
   var hasSav=orgs.indexOf("Kauno miesto savivaldybe")!==-1;
-  var savOk=isESO||!hasSav||(start&&end&&end>=start); // ESO — datos neprivalomės; Savivaldybė — privalomės
-  var ok=mgr&&ph&&em&&orgs.length>0&&teliaOk&&keOk&&savOk;
+  var savOk=isESO||!hasSav||(start&&end&&end>=start);
+  var workTypeOk=!hasSav||!!workType; // Savivaldybė: darbų tipas privalomas
+  var ok=mgr&&ph&&em&&orgs.length>0&&teliaOk&&keOk&&savOk&&workTypeOk;
   function toggleOrg(o){
     var wasSelected=orgs.indexOf(o)!==-1;
     sOrgs(function(prev){var idx=prev.indexOf(o);return idx===-1?prev.concat([o]):prev.filter(function(x){return x!==o});});
@@ -1105,7 +1131,7 @@ function PermitForm(p){
     sSubmitting(true);
     try{
       var orgLabel=orgs.join(", ");
-      var loc=isTelia?(trFrom&&trTo?trFrom+" - "+trTo:""):isESO?esoLoc:"";
+      var loc=isTelia?(trFrom&&trTo?trFrom+" - "+trTo:""):isESO?esoLoc:hasSav?esoLoc:"";
       await p.onSubmit({id:uid(),manager:mgr,managerPhone:ph,email:em,location:loc,
         organization:orgLabel,organizations:orgs,
         startDate:start,endDate:end,
@@ -1114,6 +1140,8 @@ function PermitForm(p){
         description:desc,files:files,projectNo:projNo,
         investNo:invNo,
         teliaRouteFrom:trFrom,teliaRouteTo:trTo,
+        workType:hasSav?workType:null,
+        sourcePermitId:hasSav&&srcPermitId?srcPermitId:null,
         createdBy:p.user.id,status:"Laukiama tvirtinimo",assignedTo:null,
         createdAt:fmtDate(new Date()),history:[{status:"Laukiama tvirtinimo",date:fmtDate(new Date())}]});
     }catch(e){console.error("Pateikimo klaida:",e);}
@@ -1148,6 +1176,42 @@ function PermitForm(p){
       </div>
       {orgs.length===0&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:8}}>Pasirinkite bent viena institucija.</div>}
     </div>
+    {/* Savivaldybė: darbų tipas + objekto parinkimas */}
+    {hasSav&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės paraiška</div>
+      {/* Darbų tipas */}
+      <div style={{marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:600,color:C.t2,marginBottom:6,fontFamily:F}}>Darbų tipas <span style={{color:C.rd}}>*</span></div>
+        <div style={{display:"flex",gap:8}}>
+          {[{v:"planiniai",label:"📋 Planiniai darbai"},{v:"avariniai",label:"⚡ Avariniai darbai"}].map(function(opt){
+            var sel=workType===opt.v;
+            return <label key={opt.v} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:8,border:"1.5px solid "+(sel?C.ac:C.b1),background:sel?C.acD:C.bg,cursor:"pointer",fontSize:12,color:sel?C.ac:C.tx,fontFamily:F,fontWeight:sel?700:400,transition:"all .15s",userSelect:"none"}}>
+              <input type="radio" checked={sel} onChange={function(){sWorkType(opt.v);}} style={{accentColor:C.ac,margin:0,width:13,height:13}}/>
+              {opt.label}
+            </label>;
+          })}
+        </div>
+        {!workType&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:6}}>Pasirinkite darbų tipą.</div>}
+      </div>
+      {/* Objekto parinkimas iš esamų paraiškų */}
+      {permitSources.length>0&&<div>
+        <div style={{fontSize:11,fontWeight:600,color:C.t2,marginBottom:6,fontFamily:F}}>Objektas <span style={{fontSize:10,color:C.t3,fontWeight:400}}>(pasirinkti iš gautų leidimų)</span></div>
+        <select value={srcPermitId} onChange={function(e){selectSourcePermit(e.target.value);}}
+          style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid "+C.b1,background:C.bg,color:srcPermitId?C.tx:C.t3,fontFamily:F,fontSize:13,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+          <option value="">— pasirinkti objektą —</option>
+          {permitSources.map(function(x){
+            var label=(x.investNo||x.id.slice(-5).toUpperCase())+(x.location?" — "+x.location:"")+(x.status?" ("+x.status+")":"");
+            return <option key={x.id} value={x.id}>{label}</option>;
+          })}
+        </select>
+        {srcPermitId&&<div style={{marginTop:6,padding:"6px 10px",background:C.gnD,borderRadius:6,fontSize:10,color:C.gn,fontFamily:F}}>
+          ✓ Kontaktiniai duomenys, failai ir numeriai užpildyti automatiškai
+        </div>}
+      </div>}
+      {permitSources.length===0&&<div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:4}}>
+        Sistemoje nėra paraiškų su gautais dokumentais. Duomenis įveskite rankiniu būdu.
+      </div>}
+    </div>}
     {/* Telia laikotarpis */}
     {isTelia&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Telia laikotarpis</div>
@@ -3333,7 +3397,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.82</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.83</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3556,7 +3620,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.82</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.83</div>
         </div>
       </div>
     </div>
@@ -3956,7 +4020,7 @@ function App(){
   var main=null;
   if(view==="new"&&(user.role==="orderer"||user.role==="admin"||user.role==="dokumentacija")){
     var cancelView=user.role==="orderer"?"mine":user.role==="dokumentacija"?"inbox":"inbox";
-    main=<PermitForm user={user} users={users} onSubmit={addPermit} onCancel={function(){setView(cancelView)}}/>;
+    main=<PermitForm user={user} users={users} permits={permits} onSubmit={addPermit} onCancel={function(){setView(cancelView)}}/>;
   }else if(view==="schedule"){
     // Leidimų grafike tik paraiškos su leidimu
     var schedPermits=user.role==="orderer"
