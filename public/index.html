@@ -366,6 +366,108 @@ function findKauoenergijaApprovalPage(pageTexts){
   return null;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// KAUNO VANDENYS derinimo puslapio aptikimas (5 lygių kaskada)
+// ═══════════════════════════════════════════════════════════════
+function hasKaunoVandenysiMarkers(text){
+  var markers=[
+    /Kauno\s+vandenys/i,
+    /UAB\s+Kauno\s+vandenys/i,
+    /kaunovandenys/i,
+    /vandens\s+tiekimo/i,
+    /nuotekų\s+šalinimo/i,
+  ];
+  return markers.some(function(re){return re.test(text)});
+}
+
+function extractKaunoVandenysiApproverName(tableText){
+  var ctx=tableText.match(/(?:Kauno\s+vandenys|UAB\s+Kauno\s+vandenys)[\s\S]{0,250}/i);
+  if(!ctx)return null;
+  var sub=ctx[0];
+  var lines=sub.split(/\n/).map(function(l){return l.trim();}).filter(function(l){return l.length>2;});
+  for(var i=1;i<Math.min(lines.length,8);i++){
+    var candidate=lines[i].replace(/[^A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž\s\-]/g,' ').trim();
+    if(/^[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž]+\s+[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž]+/.test(candidate))return candidate.split(/\s+/).slice(0,2).join(' ');
+  }
+  return null;
+}
+
+function findKaunoVandenysiApprovalPage(pageTexts){
+  var tablePage=findProjectApprovalsTablePage(pageTexts);
+  if(tablePage){
+    var name=extractKaunoVandenysiApproverName(pageTexts[tablePage-1]);
+    if(name){
+      var nameRe=buildApproverNameRegex(name);
+      if(nameRe){
+        // 1) Brėžinys + vardas
+        for(var i=0;i<pageTexts.length;i++){
+          if(i+1===tablePage)continue;
+          if(isDrawingPageText(pageTexts[i])&&nameRe.test(pageTexts[i]))return i+1;
+        }
+        // 2) Bet koks puslapis + vardas + KV marker
+        for(var i=0;i<pageTexts.length;i++){
+          if(i+1===tablePage)continue;
+          if(nameRe.test(pageTexts[i])&&hasKaunoVandenysiMarkers(pageTexts[i]))return i+1;
+        }
+        // 3) Bet koks puslapis + tik vardas
+        for(var i=0;i<pageTexts.length;i++){
+          if(i+1===tablePage)continue;
+          if(nameRe.test(pageTexts[i]))return i+1;
+        }
+      }
+    }
+  }
+  // 4) Fallback — brėžinys + KV raktažodžiai
+  for(var j=0;j<pageTexts.length;j++){
+    if(j+1===tablePage)continue;
+    if(isDrawingPageText(pageTexts[j])&&hasKaunoVandenysiMarkers(pageTexts[j]))return j+1;
+  }
+  // 5) Fallback — bet koks puslapis su SUDERINTA/PRITARTA + KV
+  for(var k=0;k<pageTexts.length;k++){
+    if(k+1===tablePage)continue;
+    if(hasKaunoVandenysiMarkers(pageTexts[k])&&/SUDERINT|PRITART|suderint|pritart/i.test(pageTexts[k]))return k+1;
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SAVIVALDYBĖS derinimo puslapio aptikimas (5 lygių kaskada)
+// Visada Paulius Vainoras, Kauno miesto savivaldybės administracija
+// ═══════════════════════════════════════════════════════════════
+function hasSavivaldybeMarkers(text){
+  var markers=[
+    /Paulius\s+Vainoras/i,
+    /Kauno\s+miesto\s+savivaldyb/i,
+    /savivaldyb[eė][sš]\s+administracija/i,
+  ];
+  return markers.some(function(re){return re.test(text)});
+}
+
+function findSavivaldybeApprovalPage(pageTexts){
+  var tablePage=findProjectApprovalsTablePage(pageTexts);
+  // 1) Brėžinys + Paulius Vainoras + Savivaldybė
+  for(var i=0;i<pageTexts.length;i++){
+    if(i+1===tablePage)continue;
+    if(isDrawingPageText(pageTexts[i])&&hasSavivaldybeMarkers(pageTexts[i]))return i+1;
+  }
+  // 2) Bet koks puslapis + abi sąlygos
+  for(var i=0;i<pageTexts.length;i++){
+    if(i+1===tablePage)continue;
+    if(hasSavivaldybeMarkers(pageTexts[i])&&/SUDERINT|PRITART|suderint|pritart/i.test(pageTexts[i]))return i+1;
+  }
+  // 3) Bet koks puslapis + Paulius Vainoras
+  for(var i=0;i<pageTexts.length;i++){
+    if(i+1===tablePage)continue;
+    if(/Paulius\s+Vainoras/i.test(pageTexts[i]))return i+1;
+  }
+  // 4) Bet koks puslapis + Kauno miesto savivaldybė
+  for(var j=0;j<pageTexts.length;j++){
+    if(j+1===tablePage)continue;
+    if(hasSavivaldybeMarkers(pageTexts[j]))return j+1;
+  }
+  return null;
+}
+
 // Telia parašo raktažodžiai — bendrieji (fallback'as, jei nepavyksta išgauti vardo iš lentelės)
 function hasTeliaMarkers(text){
   var markers=[
@@ -2370,9 +2472,10 @@ function PermitDetail(p){
             </div>}
         </div>
         {(function(){
-          var orgsNeedPdf=(o.organizations||[]).filter(function(org){return org==="Telia, Kaunas"||org==="Kauno energija";});
+          var ORG_PDF_KEYS={"Telia, Kaunas":"telia","Kauno energija":"ke","Kauno vandenys":"vandenys","AB ESO":"eso"};
+          var orgsNeedPdf=(o.organizations||[]).filter(function(org){return !!ORG_PDF_KEYS[org];});
           var allPdfsReady=orgsNeedPdf.length>0&&orgsNeedPdf.every(function(org){
-            var key=org==="Telia, Kaunas"?"telia":"ke";
+            var key=ORG_PDF_KEYS[org];
             return permitPdfs[key]&&permitPdfs[key].name;
           });
           var gautiLabel=allPdfsReady?"Gautas leidimas":"Gautas leidimas (reikalingas PDF)";
@@ -2429,8 +2532,9 @@ function PermitDetail(p){
 
       {/* Leidimo PDF įkėlimas — rodomas kai Pateikta/Gautas dalinai/Gautas leidimas */}
       {(isA||isD)&&(st==="Gautas leidimas"||o.status==="Pateikta"||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Laukia patvirtinimo leidimo")&&(function(){
+        var ORG_PDF_MAP={"Telia, Kaunas":{key:"telia",color:"#1D4ED8"},"Kauno energija":{key:"ke",color:"#C2410C"},"Kauno vandenys":{key:"vandenys",color:"#0369A1"},"AB ESO":{key:"eso",color:"#FF6B2B"}};
         var orgsList=o.organizations&&o.organizations.length>0?o.organizations:(o.organization?[o.organization]:[]);
-        var orgsWithPermit=orgsList.filter(function(org){return org==="Telia, Kaunas"||org==="Kauno energija";});
+        var orgsWithPermit=orgsList.filter(function(org){return !!ORG_PDF_MAP[org];});
         if(orgsWithPermit.length===0)return null;
         function handlePdfUpload(key,f){
           if(!f.name||!f.name.match(/\.pdf$/i)){alert("Tik PDF failai.");return;}
@@ -2463,9 +2567,10 @@ function PermitDetail(p){
           <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Gauti leidimai</div>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {orgsWithPermit.map(function(org){
-              var key=org==="Telia, Kaunas"?"telia":"ke";
-              var label=org==="Telia, Kaunas"?"Telia, Kaunas":"Kauno energija";
-              var color=org==="Telia, Kaunas"?"#1D4ED8":"#C2410C";
+              var meta=ORG_PDF_MAP[org]||{key:org.toLowerCase().replace(/\s+/g,''),color:"#6B7280"};
+              var key=meta.key;
+              var label=org;
+              var color=meta.color;
               var pf=permitPdfs[key];
               return <div key={key} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,border:"1px solid "+(pf?C.gn:C.b1),background:pf?C.gnD:C.s2}}>
                 <span style={{fontSize:11,fontWeight:600,color:color,minWidth:110,fontFamily:F}}>{label}</span>
@@ -3228,7 +3333,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.81</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.82</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3451,7 +3556,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.81</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.82</div>
         </div>
       </div>
     </div>
@@ -3619,16 +3724,17 @@ function App(){
     });
   }
   // Perskaičiuoja paraiškos leidimo statusą pagal gautus PDF
+  var PERMIT_PDF_ORG_KEYS={"Telia, Kaunas":"telia","Kauno energija":"ke","Kauno vandenys":"vandenys","AB ESO":"eso"};
   function calcPermitStatus(permit){
-    var orgs=(permit.organizations||[]).filter(function(o){return o==="Telia, Kaunas"||o==="Kauno energija";});
+    var orgs=(permit.organizations||[]).filter(function(o){return !!PERMIT_PDF_ORG_KEYS[o];});
     if(orgs.length===0)return permit.status;
     var pdfs=permit.permitPdfs||{};
     var allHave=orgs.every(function(org){
-      var key=org==="Telia, Kaunas"?"telia":"ke";
+      var key=PERMIT_PDF_ORG_KEYS[org];
       return pdfs[key]&&pdfs[key].name;
     });
     var someHave=orgs.some(function(org){
-      var key=org==="Telia, Kaunas"?"telia":"ke";
+      var key=PERMIT_PDF_ORG_KEYS[org];
       return pdfs[key]&&pdfs[key].name;
     });
     if(allHave)return "Gautas leidimas";

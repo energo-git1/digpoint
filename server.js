@@ -638,11 +638,21 @@ const IMAP_ORG_DOMAINS = [
   { org: 'Kauno miesto savivaldybe', domains: ['kaunas.lt'] },
   { org: 'Telia, Kaunas',           domains: ['telia.lt', 'telia.com'] },
   { org: 'Kauno energija',          domains: ['kaunoenergeija.lt', 'kaunoenergia.lt'] },
+  { org: 'Kauno vandenys',          domains: ['kaunovandenys.lt'] },
+];
+
+// Spausdintuvo/skaitytuvo siuntėjų adresai → institucija
+const SCANNER_SENDERS = [
+  { email: 'bizhub220@energolt.eu', org: 'Kauno vandenys' },
 ];
 
 function detectOrgFromEmail(fromAddr) {
   if (!fromAddr) return null;
   const addr = fromAddr.toLowerCase();
+  // Pirma: tikrinti ar tai skaitytuvas (tikslus adresas)
+  const scanner = SCANNER_SENDERS.find((s) => addr.includes(s.email));
+  if (scanner) return scanner.org;
+  // Tada: tikrinti domeną
   for (const { org, domains } of IMAP_ORG_DOMAINS) {
     if (domains.some((d) => addr.includes('@' + d))) return org;
   }
@@ -654,9 +664,17 @@ function detectOrgFromText(text) {
   const t = (text || '').toLowerCase();
   if (t.includes('telia')) return 'Telia, Kaunas';
   if (t.includes('kauno energija') || t.includes('kaunoenergia') || t.includes('kauno energ')) return 'Kauno energija';
+  if (t.includes('kauno vandenys') || t.includes('kaunovandenys')) return 'Kauno vandenys';
   if (t.includes('savivaldyb') || t.includes('kauno miesto')) return 'Kauno miesto savivaldybe';
   if (/\beso\b/.test(t)) return 'AB ESO';
   return null;
+}
+
+// Ištraukia VISUS investicinius numerius iš PDF teksto (pvz. E1N2547991, E9109481)
+function extractAllInvestNos(text) {
+  const matches = [...(text || '').matchAll(/[A-Z][0-9][A-Z][0-9]{5,10}/g)];
+  const unique = [...new Set(matches.map((m) => m[0]))];
+  return unique;
 }
 
 function fmtDateSrv(d) {
@@ -824,13 +842,17 @@ async function checkImapMail() {
             // ── Patikrinti ar yra paraiškų šiai institucijai be PDF ──
             const allPermitsEarly = dbGet('kl-permits') || [];
             const TRULY_FINAL     = new Set(['Atmestas', 'Nebegalioja']);
-            const orgKey0 = org === 'Telia, Kaunas' ? 'telia' : org === 'Kauno energija' ? 'ke' : null;
+            const orgKey0 = org === 'Telia, Kaunas' ? 'telia'
+                          : org === 'Kauno energija' ? 'ke'
+                          : org === 'Kauno vandenys'  ? 'vandenys'
+                          : org === 'AB ESO'           ? 'eso'
+                          : null;
             const pendingForOrg = allPermitsEarly.filter((p) => {
               if (TRULY_FINAL.has(p.status)) return false;
               const orgs = Array.isArray(p.organizations) && p.organizations.length > 0
                 ? p.organizations : p.organization ? [p.organization] : [];
               if (!orgs.includes(org)) return false;
-              // Jei Telia/KE — tikrinti ar jau turi šios institucijos PDF
+              // Jei žinome orgKey — tikrinti ar jau turi šios institucijos PDF
               if (orgKey0 && p.permitPdfs && p.permitPdfs[orgKey0] && p.permitPdfs[orgKey0].name) return false;
               return true;
             });
@@ -888,17 +910,63 @@ async function checkImapMail() {
               console.log(`[IMAP] ${org}: ⚠️ PDF raktažodžiai nerasti — gali būti ne leidimas, bet tęsiama.`);
             }
 
+            // ── ŽINGSNIS 2b: Kauno vandenys skaitytuvas — daugiaobjektinis PDF ──
+            // Jei viename PDF yra keli investiciniai numeriai — priskirti kiekvienam
+            if (org === 'Kauno vandenys' && fullPdfText) {
+              const allInvNos = extractAllInvestNos(fullPdfText);
+              if (allInvNos.length > 1) {
+                console.log(`[IMAP] Kauno vandenys: daugiaobjektinis PDF — rasti inv. nr.: ${allInvNos.join(', ')}`);
+                const allPermitsForSplit = dbGet('kl-permits') || [];
+                let assignedCount = 0;
+                const updatedForSplit = allPermitsForSplit.map((p) => {
+                  const pInv = (p.investNo || '').trim();
+                  if (!pInv || !allInvNos.includes(pInv)) return p;
+                  const pOrgs = Array.isArray(p.organizations) && p.organizations.length > 0
+                    ? p.organizations : p.organization ? [p.organization] : [];
+                  if (!pOrgs.includes('Kauno vandenys')) return p;
+                  if (p.permitPdfs && p.permitPdfs.vandenys && p.permitPdfs.vandenys.name) return p;
+                  assignedCount++;
+                  const updPdfs = { ...(p.permitPdfs || {}), vandenys: savedFiles[0] };
+                  return { ...p, permitPdfs: updPdfs,
+                    files: [...(p.files || []), ...savedFiles],
+                    history: [...(p.history || []), { status: p.status, date: fmtDateSrv(new Date()),
+                      note: `Kauno vandenys leidimas gautas automatiškai (daugiaobjektinis PDF, inv. ${pInv})` }],
+                  };
+                });
+                if (assignedCount > 0) {
+                  dbSet('kl-permits', updatedForSplit);
+                  console.log(`[IMAP] ✅ Kauno vandenys daugiaobjektinis PDF priskirtas ${assignedCount} paraiška(-oms)`);
+                  processed += assignedCount;
+                  doneIds.add(msgId);
+                  dbSet('kl-imap-done', [...doneIds]);
+                  await client.messageFlagsAdd(seq, ['\\Seen']);
+                  continue;
+                }
+              }
+            }
+
             // ── ŽINGSNIS 3: surasti atitinkančią paraišką ────────────
+            // Kauno vandenys: pirma bandyti pagal investicinį numerį
+            let bestPermitByInvNo = null;
+            if (org === 'Kauno vandenys' && fullPdfText) {
+              const invNos = extractAllInvestNos(fullPdfText);
+              if (invNos.length === 1) {
+                bestPermitByInvNo = pendingForOrg.find((p) =>
+                  (p.investNo || '').trim() === invNos[0]
+                ) || null;
+                if (bestPermitByInvNo) console.log(`[IMAP] Kauno vandenys: surastas pagal inv. nr. ${invNos[0]}`);
+              }
+            }
+
             const pdfLocation = extractLocationFromPdf(fullPdfText);
             const searchText  = subject + ' ' + fullPdfText + (pdfLocation ? ' ' + pdfLocation : '');
-            const permits     = allPermitsEarly;
             const candidates  = pendingForOrg;
 
             console.log(`[IMAP] ${org}: kandidatės — ${candidates.length} paraiška(-os). PDF adresas: "${pdfLocation || '—'}"`);
 
-            let bestPermit = null;
-            let bestScore  = 0;
-            for (const p of candidates) {
+            let bestPermit = bestPermitByInvNo;
+            let bestScore  = bestPermitByInvNo ? 1.0 : 0;
+            if (!bestPermit) for (const p of candidates) {
               // Adresas: teliaRouteTo > teliaRouteFrom > location (paraiškose dažnai location tuščias)
               const permitAddr = p.teliaRouteTo || p.teliaRouteFrom || p.location || '';
               const score = calcLocationScore(permitAddr, searchText);
@@ -950,10 +1018,12 @@ async function checkImapMail() {
               // Nustatome permitPdfs raktą pagal instituciją
               const orgKey = org === 'Telia, Kaunas' ? 'telia'
                            : org === 'Kauno energija' ? 'ke'
+                           : org === 'Kauno vandenys'  ? 'vandenys'
+                           : org === 'AB ESO'           ? 'eso'
                            : null;
               const updated    = allPermits.map((p) => {
                 if (p.id !== bestPermit.id) return p;
-                // Papildome permitPdfs jei institucija palaiko (Telia / KE)
+                // Papildome permitPdfs su gautu failu
                 const updatedPermitPdfs = orgKey
                   ? { ...(p.permitPdfs || {}), [orgKey]: savedFiles[0] }
                   : (p.permitPdfs || {});
@@ -961,14 +1031,21 @@ async function checkImapMail() {
                 const orgs = Array.isArray(p.organizations) && p.organizations.length > 0
                   ? p.organizations
                   : p.organization ? [p.organization] : [];
-                const teliaNeed = orgs.includes('Telia, Kaunas');
-                const keNeed    = orgs.includes('Kauno energija');
-                const teliaDone = updatedPermitPdfs.telia && updatedPermitPdfs.telia.name;
-                const keDone    = updatedPermitPdfs.ke    && updatedPermitPdfs.ke.name;
-                const allDone   = (!teliaNeed || teliaDone) && (!keNeed || keDone);
-                const someDone  = (teliaNeed && teliaDone) || (keNeed && keDone);
-                const newStatus = (teliaNeed || keNeed)
-                  ? (allDone ? 'Gautas leidimas' : (someDone ? 'Gautas dalinai' : 'Gautas leidimas'))
+                const teliaNeed    = orgs.includes('Telia, Kaunas');
+                const keNeed       = orgs.includes('Kauno energija');
+                const vandenysNeed = orgs.includes('Kauno vandenys');
+                const esoNeed      = orgs.includes('AB ESO');
+                const teliaDone    = updatedPermitPdfs.telia    && updatedPermitPdfs.telia.name;
+                const keDone       = updatedPermitPdfs.ke       && updatedPermitPdfs.ke.name;
+                const vandenysDone = updatedPermitPdfs.vandenys && updatedPermitPdfs.vandenys.name;
+                const esoDone      = updatedPermitPdfs.eso      && updatedPermitPdfs.eso.name;
+                const allDone  = (!teliaNeed || teliaDone) && (!keNeed || keDone)
+                               && (!vandenysNeed || vandenysDone) && (!esoNeed || esoDone);
+                const someDone = (teliaNeed && teliaDone) || (keNeed && keDone)
+                               || (vandenysNeed && vandenysDone) || (esoNeed && esoDone);
+                const anyNeed  = teliaNeed || keNeed || vandenysNeed || esoNeed;
+                const newStatus = anyNeed
+                  ? (allDone ? 'Gautas leidimas' : (someDone ? 'Gautas dalinai' : p.status))
                   : 'Gautas leidimas';
                 return {
                   ...p,
