@@ -949,9 +949,9 @@ function PermitForm(p){
   // Validacija: kiekviena institucija turi savo datas
   var teliaOk=!isTelia||(teliaStart&&teliaEnd&&teliaEnd>=teliaStart);
   var keOk=!isKE||(keStart&&keEnd&&keEnd>=keStart);
-  var esoOk=!isESO||(!start&&!end)||(start&&end&&end>=start); // datos neprivalomės — EsoSubmitBtn apskaičiuoja pats
-  var otherOk=!(orgs.indexOf("Kauno miesto savivaldybe")!==-1)||(!start&&!end)||(start&&end&&end>=start);
-  var ok=mgr&&ph&&em&&orgs.length>0&&teliaOk&&keOk&&((!isESO&&orgs.indexOf("Kauno miesto savivaldybe")===-1)||esoOk);
+  var hasSav=orgs.indexOf("Kauno miesto savivaldybe")!==-1;
+  var savOk=!hasSav||(start&&end&&end>=start); // Savivaldybė reikalauja datų; ESO — ne
+  var ok=mgr&&ph&&em&&orgs.length>0&&teliaOk&&keOk&&savOk;
   function toggleOrg(o){
     var wasSelected=orgs.indexOf(o)!==-1;
     sOrgs(function(prev){var idx=prev.indexOf(o);return idx===-1?prev.concat([o]):prev.filter(function(x){return x!==o});});
@@ -1064,8 +1064,8 @@ function PermitForm(p){
       </div>
       {keStart&&keEnd&&keEnd<keStart&&<div style={{color:C.rd,fontSize:11,marginTop:-8,fontFamily:F}}>Pabaiga negali būti ankstesnė.</div>}
     </div>}
-    {/* ESO / Savivaldybė bendras laikotarpis */}
-    {(isESO||orgs.indexOf("Kauno miesto savivaldybe")!==-1)&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
+    {/* Savivaldybė bendras laikotarpis (ESO datos neprivalomės — EsoSubmitBtn apskaičiuoja pats) */}
+    {orgs.indexOf("Kauno miesto savivaldybe")!==-1&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbų laikotarpis</div>
       <div style={{display:"flex",gap:12}}>
         <div style={{flex:1}}><Inp label="Pradžia" type="date" value={start} onChange={sStart} req/></div>
@@ -3228,7 +3228,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.78</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.79</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3451,7 +3451,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.78</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.79</div>
         </div>
       </div>
     </div>
