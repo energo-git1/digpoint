@@ -1087,11 +1087,13 @@ function PermitForm(p){
   }
   var isESO=orgs.indexOf("AB ESO")!==-1;
   var isTelia=orgs.indexOf("Telia, Kaunas")!==-1;
+  var isTeliaInv=orgs.indexOf("Telia, investiciniai")!==-1;
+  var isAnyTelia=isTelia||isTeliaInv;
   var isKE=orgs.indexOf("Kauno energija")!==-1;
   // Trasos laukai (trFrom/trTo) auto-pildomi iš projekto PDF (žr. addFile + parseTeliaRoute).
   // Validacijoje neprivaloma — jei nepavyksta išskaityti, adminas patikslins per review.
   // Validacija: kiekviena institucija turi savo datas
-  var teliaOk=!isTelia||(teliaStart&&teliaEnd&&teliaEnd>=teliaStart);
+  var teliaOk=!isAnyTelia||(teliaStart&&teliaEnd&&teliaEnd>=teliaStart);
   var keOk=!isKE||(keStart&&keEnd&&keEnd>=keStart);
   var hasSav=orgs.indexOf("Kauno miesto savivaldybe")!==-1;
   var savOk=isESO||!hasSav||(start&&end&&end>=start);
@@ -1156,7 +1158,7 @@ function PermitForm(p){
       await p.onSubmit({id:uid(),manager:mgr,managerPhone:ph,email:em,location:loc,
         organization:orgLabel,organizations:orgs,
         startDate:start,endDate:end,
-        teliaStartDate:isTelia?teliaStart:null,teliaEndDate:isTelia?teliaEnd:null,
+        teliaStartDate:isAnyTelia?teliaStart:null,teliaEndDate:isAnyTelia?teliaEnd:null,
         keStartDate:isKE?keStart:null,keEndDate:isKE?keEnd:null,
         description:desc,files:files,projectNo:projNo,
         investNo:invNo,
@@ -1234,8 +1236,8 @@ function PermitForm(p){
       </div>}
     </div>}
     {/* Telia laikotarpis */}
-    {isTelia&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
-      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Telia laikotarpis</div>
+    {isAnyTelia&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>{isTeliaInv&&!isTelia?"Telia investiciniai laikotarpis":"Telia laikotarpis"}</div>
       <div style={{display:"flex",gap:12}}>
         <div style={{flex:1}}><Inp label="Pradžia" type="date" value={teliaStart} onChange={sTeliaStart} req/></div>
         <div style={{flex:1}}><Inp label="Pabaiga" type="date" value={teliaEnd} onChange={sTeliaEnd} req/></div>
@@ -3373,8 +3375,8 @@ function ScheduleView(p){
                   rows.push({permit:permit,org:permit.organization,startDate:permit.startDate,endDate:permit.endDate});
                 }else{
                   orgsInst.forEach(function(org){
-                    var sd=org==="Telia, Kaunas"?(permit.teliaStartDate||permit.startDate):org==="Kauno energija"?(permit.keStartDate||permit.startDate):permit.startDate;
-                    var ed=org==="Telia, Kaunas"?(permit.teliaEndDate||permit.endDate):org==="Kauno energija"?(permit.keEndDate||permit.endDate):permit.endDate;
+                    var sd=(org==="Telia, Kaunas"||org==="Telia, investiciniai")?(permit.teliaStartDate||permit.startDate):org==="Kauno energija"?(permit.keStartDate||permit.startDate):permit.startDate;
+                    var ed=(org==="Telia, Kaunas"||org==="Telia, investiciniai")?(permit.teliaEndDate||permit.endDate):org==="Kauno energija"?(permit.keEndDate||permit.endDate):permit.endDate;
                     rows.push({permit:permit,org:org,startDate:sd,endDate:ed});
                   });
                 }
@@ -3762,7 +3764,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.90</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.91</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3985,7 +3987,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.90</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.91</div>
         </div>
       </div>
     </div>
