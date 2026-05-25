@@ -1180,7 +1180,7 @@ function PermitForm(p){
       await p.onSubmit(buildPermitData());
       // Atidaro naują formą su tais pačiais kliento duomenimis
       if(p.onMore)p.onMore({manager:mgr,managerPhone:ph,email:em,investNo:invNo,projectNo:projNo,
-        teliaRouteFrom:trFrom,teliaRouteTo:trTo,files:files,organizations:orgs});
+        teliaRouteFrom:trFrom,teliaRouteTo:trTo});
     }catch(e){console.error("Pateikimo klaida:",e);}
     sSubmitting(false);
   }
