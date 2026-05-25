@@ -1035,17 +1035,18 @@ function FileDropZone(p){
 }
 
 function PermitForm(p){
+  var pf=p.prefill||null; // prefill iš esamos paraiškos (papildoma paraiška)
   var orderers=(p.users||[]).filter(function(u){return u.role==="orderer"||u.role==="admin"});
   var _selOrd=useState(p.user.id||"");var selOrd=_selOrd[0],sSelOrd=_selOrd[1];
-  var _mgr=useState(p.user.name||"");var mgr=_mgr[0],sMgr=_mgr[1];
-  var _ph=useState(p.user.phone||"");var ph=_ph[0],sPh=_ph[1];
-  var _em=useState(p.user.email||"");var em=_em[0],sEm=_em[1];
+  var _mgr=useState(pf?pf.manager||"":p.user.name||"");var mgr=_mgr[0],sMgr=_mgr[1];
+  var _ph=useState(pf?pf.managerPhone||"":p.user.phone||"");var ph=_ph[0],sPh=_ph[1];
+  var _em=useState(pf?pf.email||"":p.user.email||"");var em=_em[0],sEm=_em[1];
   function selectOrderer(id){
     sSelOrd(id);
     var u=orderers.find(function(x){return x.id===id});
     if(u){sMgr(u.name||"");sPh(u.phone||"");sEm(u.email||"");}
   }
-  var _orgs=useState([]);var orgs=_orgs[0],sOrgs=_orgs[1];
+  var _orgs=useState(pf&&pf.organizations?pf.organizations:[]);var orgs=_orgs[0],sOrgs=_orgs[1];
   var _s=useState("");var start=_s[0],sStart=_s[1];
   var _e=useState("");var end=_e[0],sEnd=_e[1];
   // Atskiri datos laukai kiekvienai institucijai
@@ -1054,12 +1055,12 @@ function PermitForm(p){
   var _keS=useState("");var keStart=_keS[0],sKEStart=_keS[1];
   var _keE=useState("");var keEnd=_keE[0],sKEEnd=_keE[1];
   var _desc=useState("");var desc=_desc[0],sDesc=_desc[1];
-  var _files=useState([]);var files=_files[0],sFiles=_files[1];
-  var _trFrom=useState("");var trFrom=_trFrom[0],sTrFrom=_trFrom[1];
-  var _trTo=useState("");var trTo=_trTo[0],sTrTo=_trTo[1];
-  var _invNo=useState("");var invNo=_invNo[0],sInvNo=_invNo[1];
-  var _projNo=useState("");var projNo=_projNo[0],sProjNo=_projNo[1];
-  var _esoLoc=useState("");var esoLoc=_esoLoc[0],sEsoLoc=_esoLoc[1];
+  var _files=useState(pf&&pf.files?pf.files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i);}):[]);var files=_files[0],sFiles=_files[1];
+  var _trFrom=useState(pf?pf.teliaRouteFrom||"":"");var trFrom=_trFrom[0],sTrFrom=_trFrom[1];
+  var _trTo=useState(pf?pf.teliaRouteTo||"":"");var trTo=_trTo[0],sTrTo=_trTo[1];
+  var _invNo=useState(pf?pf.investNo||"":"");var invNo=_invNo[0],sInvNo=_invNo[1];
+  var _projNo=useState(pf?pf.projectNo||"":"");var projNo=_projNo[0],sProjNo=_projNo[1];
+  var _esoLoc=useState(pf?pf.location||"":"");var esoLoc=_esoLoc[0],sEsoLoc=_esoLoc[1];
   // Savivaldybė specifiniai laukai
   var _workType=useState("");var workType=_workType[0],sWorkType=_workType[1]; // "planiniai"|"avariniai"
   var _srcPermitId=useState("");var srcPermitId=_srcPermitId[0],sSrcPermitId=_srcPermitId[1];
@@ -1149,24 +1150,37 @@ function PermitForm(p){
   }
   function removeFile(i){sFiles(function(prev){return prev.filter(function(_,idx){return idx!==i})})}
   var _sub=useState(false);var submitting=_sub[0],sSubmitting=_sub[1];
+  function buildPermitData(){
+    var orgLabel=orgs.join(", ");
+    var loc=isTelia?(trFrom&&trTo?trFrom+" - "+trTo:""):isESO?esoLoc:hasSav?esoLoc:"";
+    return {id:uid(),manager:mgr,managerPhone:ph,email:em,location:loc,
+      organization:orgLabel,organizations:orgs,
+      startDate:start,endDate:end,
+      teliaStartDate:isAnyTelia?teliaStart:null,teliaEndDate:isAnyTelia?teliaEnd:null,
+      keStartDate:isKE?keStart:null,keEndDate:isKE?keEnd:null,
+      description:desc,files:files,projectNo:projNo,
+      investNo:invNo,
+      teliaRouteFrom:trFrom,teliaRouteTo:trTo,
+      workType:hasSav?workType:null,
+      sourcePermitId:hasSav&&srcPermitId?srcPermitId:null,
+      createdBy:p.user.id,status:"Laukiama tvirtinimo",assignedTo:null,
+      createdAt:fmtDate(new Date()),history:[{status:"Laukiama tvirtinimo",date:fmtDate(new Date())}]};
+  }
   async function submit(){
     if(!ok||submitting)return;
     sSubmitting(true);
+    try{await p.onSubmit(buildPermitData());}
+    catch(e){console.error("Pateikimo klaida:",e);}
+    sSubmitting(false);
+  }
+  async function submitAndMore(){
+    if(!ok||submitting)return;
+    sSubmitting(true);
     try{
-      var orgLabel=orgs.join(", ");
-      var loc=isTelia?(trFrom&&trTo?trFrom+" - "+trTo:""):isESO?esoLoc:hasSav?esoLoc:"";
-      await p.onSubmit({id:uid(),manager:mgr,managerPhone:ph,email:em,location:loc,
-        organization:orgLabel,organizations:orgs,
-        startDate:start,endDate:end,
-        teliaStartDate:isAnyTelia?teliaStart:null,teliaEndDate:isAnyTelia?teliaEnd:null,
-        keStartDate:isKE?keStart:null,keEndDate:isKE?keEnd:null,
-        description:desc,files:files,projectNo:projNo,
-        investNo:invNo,
-        teliaRouteFrom:trFrom,teliaRouteTo:trTo,
-        workType:hasSav?workType:null,
-        sourcePermitId:hasSav&&srcPermitId?srcPermitId:null,
-        createdBy:p.user.id,status:"Laukiama tvirtinimo",assignedTo:null,
-        createdAt:fmtDate(new Date()),history:[{status:"Laukiama tvirtinimo",date:fmtDate(new Date())}]});
+      await p.onSubmit(buildPermitData());
+      // Atidaro naują formą su tais pačiais kliento duomenimis
+      if(p.onMore)p.onMore({manager:mgr,managerPhone:ph,email:em,investNo:invNo,projectNo:projNo,
+        teliaRouteFrom:trFrom,teliaRouteTo:trTo,files:files,organizations:orgs});
     }catch(e){console.error("Pateikimo klaida:",e);}
     sSubmitting(false);
   }
@@ -1272,6 +1286,9 @@ function PermitForm(p){
     <Inp label="Papildomas aprasas (neprivaloma)" value={desc} onChange={sDesc} ml rows={3} ph="Papildoma informacija apie darbus..."/>
     <div style={{display:"flex",gap:6,marginTop:14,justifyContent:"flex-end"}}>
       {p.onCancel&&<Btn v="secondary" onClick={p.onCancel} disabled={submitting}>Atsaukti</Btn>}
+      {p.onMore&&<Btn v="secondary" onClick={submitAndMore} disabled={!ok||submitting} title="Pateikti ir sukurti papildomą paraišką tam pačiam užsakovui">
+        📋 Papildoma
+      </Btn>}
       <Btn onClick={submit} disabled={!ok||submitting}>{submitting?"Siunčiama...":"Pateikti paraiskas"}</Btn>
     </div>
   </div>
@@ -3781,7 +3798,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.94</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.95</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -4004,7 +4021,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.94</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.95</div>
         </div>
       </div>
     </div>
@@ -4070,6 +4087,7 @@ function App(){
   var _detail=useState(null);var detail=_detail[0],setDetail=_detail[1];
   var _theme=useState(_t0);var theme=_theme[0],setTheme=_theme[1];
   var _filter=useState("");var filter=_filter[0],setFilter=_filter[1];
+  var _prefill=useState(null);var prefill=_prefill[0],setPrefill=_prefill[1];
   var _loaded=useState(false);var loaded=_loaded[0],sL=_loaded[1];
 
   useEffect(function(){(async function(){
@@ -4409,7 +4427,10 @@ function App(){
   var main=null;
   if(view==="new"&&(user.role==="orderer"||user.role==="admin"||user.role==="dokumentacija")){
     var cancelView=user.role==="orderer"?"mine":user.role==="dokumentacija"?"inbox":"inbox";
-    main=<PermitForm user={user} users={users} permits={permits} onSubmit={addPermit} onCancel={function(){setView(cancelView)}}/>;
+    main=<PermitForm key={prefill?JSON.stringify(prefill):"empty"} user={user} users={users} permits={permits} prefill={prefill}
+      onSubmit={addPermit}
+      onCancel={function(){setPrefill(null);setView(cancelView);}}
+      onMore={function(clientData){setPrefill(clientData);setView("new");}}/>;
   }else if(view==="schedule"){
     // Leidimų grafike tik paraiškos su leidimu
     var schedPermits=user.role==="orderer"
@@ -4474,7 +4495,7 @@ function App(){
   }
 
   return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    <Sidebar user={user} view={view} onNav={setView} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
+    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
     <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
     {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
       onUpdate={function(u){updatePermit(u);setDetail(u)}}
