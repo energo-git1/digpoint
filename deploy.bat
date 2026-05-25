@@ -2,11 +2,11 @@
 cd /d %~dp0
 echo [1/3] git add + commit...
 git add -A
-git commit -m "v1.2.90: Telia investiciniai - nauja organizacija, dinaminis savivaldybes aptikimas, konfigūruojamas el. pastas"
+git commit -m "v1.2.94: Telia investiciniai organizacija, gantt pataisymai, ESO PDF datos, dvigubo pranešimo fix"
 echo [2/3] git push...
 git push
 echo [3/3] Triggering server deploy (git pull + pm2 restart)...
 curl -s -X POST http://10.2.1.115:3001/api/admin/deploy
 echo.
-echo Done! Reload the Digpoint tab to see v1.2.88
+echo Done! Reload the Digpoint tab to see v1.2.94
 pause

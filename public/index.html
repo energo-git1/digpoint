@@ -2891,7 +2891,6 @@ function PermitDetail(p){
                   pendingEmail:null,pendingKauoenergijaEmail:null,pendingTeliaInvEmail:null,status:"Pateikta",
                   history:(o.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Išsiųsta: "+(p.user.name||"-")}])
                 });
-                if(updSent.email)sendPateiktaNotification(updSent);
                 p.onSend(updSent);
               } else {
                 p.onClose();
@@ -3782,7 +3781,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.93</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.94</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -4005,7 +4004,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.93</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.94</div>
         </div>
       </div>
     </div>
@@ -4277,7 +4276,8 @@ function App(){
       var prevPat=permits.find(function(x){return x.id===updated.id});
       var wasTeliaJustSent=prevPat&&prevPat.pendingEmail&&!updated.pendingEmail;
       var wasKEJustSent=prevPat&&prevPat.pendingKauoenergijaEmail&&!updated.pendingKauoenergijaEmail;
-      if((!prevPat||prevPat.status!=="Pateikta")&&!wasTeliaJustSent&&!wasKEJustSent){
+      var wasTeliaInvJustSent=prevPat&&prevPat.pendingTeliaInvEmail&&!updated.pendingTeliaInvEmail;
+      if((!prevPat||prevPat.status!=="Pateikta")&&!wasTeliaJustSent&&!wasKEJustSent&&!wasTeliaInvJustSent){
         sendPateiktaNotification(updated);
       }
     }
