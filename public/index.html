@@ -2220,7 +2220,28 @@ function PermitDetail(p){
       if((st==="Gautas leidimas"||st==="Gautas")&&pvu)u.permitValidUntil=pvu;
       u.history=(o.history||[]).concat([{status:st,date:fmtDate(new Date()),note:note||((st==="Gautas leidimas"||st==="Gautas")&&pvu?"Leidimas gautas, galioja iki "+pvu:"")}]);
     }
-    u.closeFiles=cFiles;u.lbcFiles=lbcFiles;p.onUpdate(u);p.onClose();
+    u.closeFiles=cFiles;u.lbcFiles=lbcFiles;
+    // Išsaugome pasirinktus PDF puslapius į attachmentSources
+    var _pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+    var _cleanAddr=function(s){return (s||"").replace(/[^a-zA-Z0-9À-ɏ\s.,\-]/g,"").trim();};
+    if(u.pendingEmail&&teliaSel.length>0){
+      var _ta=_cleanAddr(o.teliaRouteTo||o.location||"");
+      var _tf=(_ta?_ta+" kasimo leidimui":"kasimo leidimui")+".pdf";
+      u.pendingEmail=Object.assign({},u.pendingEmail,{attachmentSources:[{filename:_tf,sourceFileName:_pdfFile?_pdfFile.name:"",pageNumbers:teliaSel}]});
+    }
+    if(u.pendingKauoenergijaEmail&&keSel.length>0){
+      var _ka=_cleanAddr(o.teliaRouteTo||o.location||"");
+      var _kf=(_ka?_ka+" kasimo leidimui":"kasimo leidimui")+".pdf";
+      u.pendingKauoenergijaEmail=Object.assign({},u.pendingKauoenergijaEmail,{attachmentSources:[{filename:_kf,sourceFileName:_pdfFile?_pdfFile.name:"",pageNumbers:keSel}]});
+    }
+    if(u.pendingTeliaInvEmail&&teliaInvSel.length>0){
+      var _ia=_cleanAddr(o.teliaRouteTo||o.location||"");
+      var _if=(_ia?_ia+" kasimo leidimui":"kasimo leidimui")+".pdf";
+      var _invEmail=(teliaInvEmailIn||"").trim()||u.pendingTeliaInvEmail.to;
+      u.pendingTeliaInvEmail=Object.assign({},u.pendingTeliaInvEmail,{attachmentSources:[{filename:_if,sourceFileName:_pdfFile?_pdfFile.name:"",pageNumbers:teliaInvSel}],to:_invEmail});
+      if(_invEmail)u.teliaInvEmail=_invEmail;
+    }
+    p.onUpdate(u);p.onClose();
   }
 
   return <Modal open={true} onClose={p.onClose} title={"Paraiskas #"+o.id.slice(-5).toUpperCase()} w={600}>
@@ -3798,7 +3819,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.95</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.96</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -4021,7 +4042,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.95</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.96</div>
         </div>
       </div>
     </div>
