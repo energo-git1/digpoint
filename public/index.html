@@ -2119,9 +2119,22 @@ function PermitDetail(p){
   var _teliaInvToIn=useState(o.teliaRouteTo||"");var teliaInvToIn=_teliaInvToIn[0],sTeliaInvToIn=_teliaInvToIn[1];
   var _teliaInvEmailIn=useState(o.teliaInvEmail||"");var teliaInvEmailIn=_teliaInvEmailIn[0],sTeliaInvEmailIn=_teliaInvEmailIn[1];
   var _knownInvEmails=useState([]);var knownInvEmails=_knownInvEmails[0],sKnownInvEmails=_knownInvEmails[1];
+  var _showInvEmailDrop=useState(false);var showInvEmailDrop=_showInvEmailDrop[0],sShowInvEmailDrop=_showInvEmailDrop[1];
   useEffect(function(){
     sGet('kl-telia-inv-emails').then(function(v){if(v&&v.length)sKnownInvEmails(v);}).catch(function(){});
   },[]);
+  async function saveInvEmail(em){
+    em=em.trim();
+    if(!em||knownInvEmails.indexOf(em)!==-1)return;
+    var updated=knownInvEmails.concat([em]);
+    sKnownInvEmails(updated);
+    await sSet('kl-telia-inv-emails',updated);
+  }
+  async function deleteInvEmail(em){
+    var updated=knownInvEmails.filter(function(x){return x!==em;});
+    sKnownInvEmails(updated);
+    await sSet('kl-telia-inv-emails',updated);
+  }
   var isA=p.user.role==="admin";
   var isD=p.user.role==="dokumentacija";
   var cr=p.users.find(function(u){return u.id===o.createdBy});
@@ -2684,17 +2697,35 @@ function PermitDetail(p){
         return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
           <div style={{background:C.s2,border:"1.5px solid #1D4ED866",borderRadius:10,padding:14}}>
             <div style={{fontSize:11,fontWeight:700,color:"#1D4ED8",marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>📡 Telia investiciniai paraiska — patikra pries siunciant</div>
-            {/* El. pašto įvestis su autocomplete */}
-            <div style={{marginBottom:12}}>
+            {/* El. pašto įvestis su kontaktų sąrašu */}
+            <div style={{marginBottom:12,position:"relative"}}>
               <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:4,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Gavėjo el. paštas</div>
-              <input type="email" list="telia-inv-emails-list" value={teliaInvEmailIn} onChange={function(e){
-                sTeliaInvEmailIn(e.target.value);
-              }} placeholder="pvz.: vardas@telia.lt"
-                style={{width:"100%",padding:"7px 10px",fontSize:13,fontFamily:F,background:C.bg,color:C.tx,border:"1.5px solid "+(teliaInvEmailIn?"#1D4ED8":C.b1),borderRadius:7,boxSizing:"border-box"}}/>
-              <datalist id="telia-inv-emails-list">
-                {knownInvEmails.map(function(em){return <option key={em} value={em}/>;})}
-              </datalist>
-              {inv.to&&inv.to!==(teliaInvEmailIn||"").trim()&&<div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:3}}>Ankstesnis: {inv.to}</div>}
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <input type="email" value={teliaInvEmailIn} onChange={function(e){sTeliaInvEmailIn(e.target.value);}} placeholder="pvz.: vardas@telia.lt"
+                  style={{flex:1,padding:"7px 10px",fontSize:13,fontFamily:F,background:C.bg,color:C.tx,border:"1.5px solid "+(teliaInvEmailIn?"#1D4ED8":C.b1),borderRadius:7,minWidth:0}}/>
+                {/* Išsaugoti mygtukas */}
+                {teliaInvEmailIn&&teliaInvEmailIn.includes("@")&&knownInvEmails.indexOf(teliaInvEmailIn.trim())===-1&&
+                  <button onClick={function(){saveInvEmail(teliaInvEmailIn);}} title="Išsaugoti kontaktą"
+                    style={{padding:"6px 10px",fontSize:12,background:"#1D4ED815",border:"1.5px solid #1D4ED844",borderRadius:7,color:"#1D4ED8",cursor:"pointer",whiteSpace:"nowrap",fontFamily:F}}>
+                    💾 Išsaugoti
+                  </button>}
+                {/* Kontaktų sąrašo mygtukas */}
+                {knownInvEmails.length>0&&
+                  <button onClick={function(){sShowInvEmailDrop(function(v){return !v;});}} title="Išsaugoti kontaktai"
+                    style={{padding:"6px 10px",fontSize:12,background:showInvEmailDrop?"#1D4ED8":"#1D4ED815",border:"1.5px solid #1D4ED844",borderRadius:7,color:showInvEmailDrop?"#fff":"#1D4ED8",cursor:"pointer",fontFamily:F}}>
+                    ▾ {knownInvEmails.length}
+                  </button>}
+              </div>
+              {/* Dropdown su kontaktais */}
+              {showInvEmailDrop&&knownInvEmails.length>0&&<div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:50,background:C.s1,border:"1.5px solid #1D4ED844",borderRadius:8,marginTop:3,boxShadow:"0 4px 16px rgba(0,0,0,.15)",overflow:"hidden"}}>
+                {knownInvEmails.map(function(em){return <div key={em} style={{display:"flex",alignItems:"center",padding:"7px 10px",gap:8,borderBottom:"1px solid "+C.b1,cursor:"pointer"}}
+                  onMouseEnter={function(e){e.currentTarget.style.background=C.s2}}
+                  onMouseLeave={function(e){e.currentTarget.style.background="transparent"}}>
+                  <span style={{flex:1,fontSize:12,fontFamily:F,color:C.tx}} onClick={function(){sTeliaInvEmailIn(em);sShowInvEmailDrop(false);}}>{em}</span>
+                  <button onClick={function(e){e.stopPropagation();deleteInvEmail(em);}} title="Ištrinti"
+                    style={{background:"none",border:"none",color:C.t3,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>✕</button>
+                </div>;})}
+              </div>}
             </div>
             {/* Aptikta savivaldybė */}
             {inv.detectionInfo&&inv.detectionInfo.detectedMunicipality&&<div style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:10,padding:"5px 10px",background:C.acD,borderRadius:6}}>
@@ -2752,19 +2783,6 @@ function PermitDetail(p){
             {teliaInvAprvSt&&<div style={{fontSize:11,color:teliaInvAprvSt.startsWith("✗")?C.rd:teliaInvAprvSt.startsWith("✓")?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:teliaInvAprvSt.startsWith("✗")?C.rdD:teliaInvAprvSt.startsWith("✓")?C.gnD:C.acD,borderRadius:6}}>{teliaInvAprvSt}</div>}
             <div style={{display:"flex",gap:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
               <Btn v="secondary" sm onClick={regenerateTeliaInv} disabled={teliaInvAprvBusy}>🔄 Atnaujinti</Btn>
-              <Btn sm disabled={teliaInvAprvBusy} onClick={approveTeliaInv} style={{background:teliaInvAprvBusy?"#6B7280":"#1D4ED8",color:"#fff",border:"none"}}>
-                {teliaInvAprvBusy?"Siunčiama...":"✉ Siųsti Telia Inv"}
-              </Btn>
-              <Btn v="danger" sm disabled={teliaInvAprvBusy} onClick={function(){
-                var priezastis=window.prompt("Atmetimo priežastis (Telia Inv):","Inžinerinių komunikacijų trasoje nėra");
-                if(priezastis===null)return;
-                var cancelledInv=Object.assign({},o.pendingTeliaInvEmail,{cancelled:true,cancelNote:priezastis||""});
-                var updated=Object.assign({},o,{
-                  pendingTeliaInvEmail:cancelledInv,
-                  history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia Inv atmesta: "+(priezastis||"-")+" ("+(p.user.name||"-")+")"}])
-                });
-                p.onUpdate(updated);sTeliaInvAprvSt("✓ Telia Inv atmesta.");
-              }}>✗ Atmesti</Btn>
             </div>
           </div>
         </div>;
@@ -3764,7 +3782,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.91</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.93</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3987,7 +4005,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.91</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.93</div>
         </div>
       </div>
     </div>
