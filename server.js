@@ -48,7 +48,8 @@ const LDAP_SVC_DN     = process.env.LDAP_SVC_DN   || 'CN=svc_jira,OU=Service Acc
 const LDAP_SVC_PASS   = process.env.LDAP_SVC_PASS || '';
 
 // Middleware
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Database setup ────────────────────────────────────────────
