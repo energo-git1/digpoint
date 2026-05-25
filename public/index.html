@@ -2812,12 +2812,22 @@ function PermitRow(p){
     pdfBtns=<div style={{display:"flex",gap:5,flexShrink:0}}>{btns}</div>;
   }
 
+  // Papildoma informacija: investNo + adresas iš teliaRouteTo jei location tuščias
+  var addrLine=loc||(o.teliaRouteTo&&o.teliaRouteTo.replace(/\s*INVESTICINIS\s+NR\.?:?\s*\S+/i,"").trim())||"";
+  var invLabel=o.investNo?o.investNo:"";
+  // Antroji eilutė: org + inv. nr. (jei yra) + darbuotojas
+  var subParts=[];
+  if(loc||addrLine)subParts.push(o.organization);
+  if(invLabel)subParts.push(invLabel);
+  if(!isPermits&&cr)subParts.push(cr.name);
+  var subLine=subParts.join(" · ");
+
   return <div onClick={p.onClick} onMouseEnter={function(){sH(true)}} onMouseLeave={function(){sH(false)}}
     style={{padding:"10px 14px",background:h?C.s3:rowBg,border:rowBorderW+" solid "+(h?C.b2:rowBorder),borderRadius:10,cursor:"pointer",transition:"all .15s",marginBottom:4}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
       <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{loc||o.organization}</div>
-        <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:1}}>{loc?o.organization:""}{!isPermits&&cr?(" · "+cr.name):""}</div>
+        <div style={{fontSize:13,fontWeight:700,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{addrLine||o.organization}</div>
+        <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:1}}>{subLine}</div>
       </div>
       {pdfBtns}
       <StatusBadge status={o.status}/>
@@ -3452,7 +3462,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.86</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.87</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3675,7 +3685,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.86</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.87</div>
         </div>
       </div>
     </div>
