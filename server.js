@@ -865,6 +865,20 @@ async function checkImapMail() {
 
             console.log(`[IMAP] ${org} | "${subject}" | ${fromAddr} | paraiškų be PDF: ${pendingForOrg.length}`);
 
+            // ── AB ESO: atsisiųsti laiško kūną informaciniam filtrui ──
+            let esoBodyText = '';
+            if (org === 'AB ESO') {
+              const textParts = findTextPart(msg.bodyStructure);
+              for (const tp of textParts.slice(0, 2)) {
+                try {
+                  const dl = await client.download(seq, tp.part);
+                  const chunks = [];
+                  for await (const chunk of dl.content) chunks.push(chunk);
+                  esoBodyText += ' ' + Buffer.concat(chunks).toString('utf8').slice(0, 3000);
+                } catch (_) {}
+              }
+            }
+
             const pdfParts = findPdfParts(msg.bodyStructure);
 
             if (!pdfParts.length) {
@@ -908,6 +922,24 @@ async function checkImapMail() {
             const looksLikePermit = pdfTexts.length > 0 ? isPdfPermitDocument(fullPdfText) : true;
             if (!looksLikePermit) {
               console.log(`[IMAP] ${org}: ⚠️ PDF raktažodžiai nerasti — gali būti ne leidimas, bet tęsiama.`);
+            }
+
+            // ── AB ESO: informacinio laiško filtras ───────────────────
+            // ESO siunčia du laiškus: (1) patvirtinimas apie gautą paraišką (NE leidimas),
+            // (2) tikrasis leidimas/atsakymas. Pirmą reikia praleisti.
+            if (org === 'AB ESO') {
+              const allEsoText = (esoBodyText + ' ' + subject + ' ' + fullPdfText);
+              const isInfoConfirm =
+                /gavome.*praším|praším.*gauta|pateiksime.*ne\s+v[eė]liau|automatinis\s+prane[sš]im|neatsakin[eė]ti.*šį.*laišk|prašom[ao].*neatsakin[eė]ti/i.test(allEsoText);
+              const hasApproval =
+                /suteikiam[as]*\s+leidim|leidžiama\s+vykdyti|suderint[a]\s+kasimo|leisti\s+kasimo|kasimo\s+leidim[as]*\s+suteikt|leidimas\s+išduot|išduodam[as]*\s+leidim/i.test(allEsoText);
+              if (isInfoConfirm && !hasApproval) {
+                console.log(`[IMAP] AB ESO: ⏭️ informacinis patvirtinimas (ne leidimas) — žymima matyta, statusas nekeičiamas. Tema: "${subject}"`);
+                doneIds.add(msgId);
+                dbSet('kl-imap-done', [...doneIds]);
+                await client.messageFlagsAdd(seq, ['\\Seen']);
+                continue;
+              }
             }
 
             // ── ŽINGSNIS 2b: Kauno vandenys skaitytuvas — daugiaobjektinis PDF ──
