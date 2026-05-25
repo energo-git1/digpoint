@@ -2870,9 +2870,16 @@ function ScheduleView(p){
   });
 
   // Grupuojame pagal lokaciją
+  function getPermitLoc(permit){
+    if(permit.location&&permit.location.trim())return permit.location.trim();
+    var tr=permit.teliaRouteTo&&permit.teliaRouteTo.replace(/\s*INVESTICINIS\s+NR\.?:?\s*\S+/i,"").replace(/^\.\s*/,"").trim();
+    if(tr)return tr;
+    if(permit.investNo)return "Inv. nr. "+permit.investNo;
+    return "(vieta nenurodyta)";
+  }
   var locMap={};
   filtered.forEach(function(permit){
-    var loc=permit.location||"(vieta nenurodyta)";
+    var loc=getPermitLoc(permit);
     if(!locMap[loc])locMap[loc]=[];
     locMap[loc].push(permit);
   });
@@ -2883,29 +2890,33 @@ function ScheduleView(p){
   });
 
   function barStyle(permit){
-    if(!permit.startDate||!permit.endDate)return null;
-    var s=new Date(permit.startDate);var e=new Date(permit.endDate);
+    var sd=permit.startDate||permit.permitValidFrom;
+    var ed=permit.endDate||permit.permitValidUntil||sd;
+    if(!sd)return null;
+    var s=new Date(sd);var e=new Date(ed);
     if(s>rangeEnd||e<rangeStart)return null;
     var effS=s<rangeStart?rangeStart:s;
     var effE=e>rangeEnd?rangeEnd:e;
     var left=(effS.getDate()-1)/totalDays*100;
-    var width=Math.max(0.5,(effE.getDate()-effS.getDate()+1)/totalDays*100);
+    var width=Math.max(1,(effE.getDate()-effS.getDate()+1)/totalDays*100);
     var sm=STATUS_MAP[permit.status]||STATUS_MAP["Laukiama tvirtinimo"]||{dot:C.ac};
     return {left:left+"%",width:width+"%",background:sm.dot,opacity:0.85};
   }
 
   function permitBarStyle(permit){
-    if(!permit.permitValidFrom||!permit.permitValidUntil)return null;
-    var s=new Date(permit.permitValidFrom);var e=new Date(permit.permitValidUntil);
+    if(!permit.permitValidFrom)return null;
+    var s=new Date(permit.permitValidFrom);
+    var hasUntil=!!(permit.permitValidUntil&&permit.permitValidUntil.trim());
+    var e=hasUntil?new Date(permit.permitValidUntil):new Date(s.getTime()+86400000);
     if(s>rangeEnd||e<rangeStart)return null;
     var effS=s<rangeStart?rangeStart:s;
     var effE=e>rangeEnd?rangeEnd:e;
     var left=(effS.getDate()-1)/totalDays*100;
-    var width=Math.max(0.5,(effE.getDate()-effS.getDate()+1)/totalDays*100);
-    var expired=new Date(permit.permitValidUntil)<now;
-    var expiring=!expired&&(new Date(permit.permitValidUntil)-now)/(1000*60*60*24)<=14;
+    var width=Math.max(hasUntil?0.5:1.5,(effE.getDate()-effS.getDate()+(hasUntil?1:0))/totalDays*100);
+    var expired=hasUntil&&new Date(permit.permitValidUntil)<now;
+    var expiring=hasUntil&&!expired&&(new Date(permit.permitValidUntil)-now)/(1000*60*60*24)<=14;
     var col=expired?C.rd:expiring?C.yl:C.gn;
-    return {left:left+"%",width:width+"%",color:col};
+    return {left:left+"%",width:width+"%",color:col,noUntil:!hasUntil};
   }
 
   var BAR_H=18;var PERMIT_H=7;var ROW_H=44;var LEFT_W=240;
@@ -3028,7 +3039,7 @@ function ScheduleView(p){
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:5,paddingLeft:11}}>
                       <span style={{fontSize:9,color:C.t3,fontFamily:F}}>{SL[permit.status]||permit.status}</span>
-                      {permit.permitValidUntil&&<span style={{fontSize:8,color:ps?ps.color:C.t3,fontFamily:FM,fontWeight:600}}>{permit.permitValidFrom?permit.permitValidFrom+" – ":""}{permit.permitValidUntil}</span>}
+                      {permit.permitValidFrom&&<span style={{fontSize:8,color:ps?ps.color:C.t3,fontFamily:FM,fontWeight:600}}>{permit.permitValidFrom}{permit.permitValidUntil?" – "+permit.permitValidUntil:""}</span>}
                     </div>
                   </div>
 
@@ -3041,7 +3052,7 @@ function ScheduleView(p){
                         <span style={{fontSize:7,color:"#fff",fontFamily:FM,whiteSpace:"nowrap",textShadow:"0 1px 2px rgba(0,0,0,.5)"}}>{row.startDate} — {row.endDate}</span>
                       </div>
                     </div>}
-                    {ps&&<div style={{position:"absolute",left:ps.left,width:ps.width,top:30,height:PERMIT_H,borderRadius:2,background:ps.color,opacity:.9,zIndex:2,minWidth:3}}/>}
+                    {ps&&<div style={{position:"absolute",left:ps.left,width:ps.width,top:30,height:PERMIT_H,borderRadius:ps.noUntil?3:2,background:ps.color,opacity:.9,zIndex:2,minWidth:ps.noUntil?6:3,boxShadow:ps.noUntil?"0 0 4px "+ps.color:"none"}}/>}
                   </div>
                 </div>;
               });
@@ -3391,7 +3402,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.88</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.89</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3614,7 +3625,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.88</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.89</div>
         </div>
       </div>
     </div>
