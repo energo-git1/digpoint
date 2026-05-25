@@ -2818,6 +2818,54 @@ function PermitRow(p){
   </div>
 }
 // ═════════════════════════════════════════════════════════════
+// PERMIT GROUP — Grupuota eilutė pagal investicinį numerį
+// ═════════════════════════════════════════════════════════════
+var ORG_SHORT={"AB ESO":"ESO","Telia, Kaunas":"Telia","Kauno energija":"KE","Kauno vandenys":"KV","Kauno miesto savivaldybe":"SAV"};
+function PermitGroup(p){
+  var _open=useState(false);var open=_open[0],sOpen=_open[1];
+  var group=p.group; // [{permit,...},...]
+  var invNo=group[0].investNo||group[0].id.slice(-5).toUpperCase();
+  var loc=group[0].location||group[0].teliaRouteTo||group[0].teliaRouteFrom||"";
+  // Bendras statusas grupei — blogiausias
+  var ORDER=["Laukiama tvirtinimo","Laukia patvirtinimo leidimo","Pateikta","Gautas dalinai","Gautas leidimas","Gautas","Nebegalioja","Atmestas"];
+  var worstIdx=group.reduce(function(best,pm){var idx=ORDER.indexOf(pm.status);return idx!==-1&&idx<best?idx:best;},ORDER.length-1);
+  var worstStatus=ORDER[worstIdx]||group[0].status;
+  var sm=STATUS_MAP[worstStatus]||STATUS_MAP["Laukiama tvirtinimo"];
+
+  return <div style={{marginBottom:4}}>
+    {/* Grupės antraštė */}
+    <div onClick={function(){sOpen(!open);}}
+      style={{padding:"8px 12px",background:open?C.s3:C.s2,border:"1px solid "+(open?C.b2:C.b1),borderRadius:open?"10px 10px 0 0":10,cursor:"pointer",display:"flex",alignItems:"center",gap:8,transition:"all .15s"}}>
+      <span style={{fontSize:9,color:C.t3,transition:"transform .15s",display:"inline-block",transform:open?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
+      <div style={{flex:1,minWidth:0}}>
+        <span style={{fontSize:12,fontWeight:700,color:C.tx,fontFamily:FM}}>{invNo}</span>
+        {loc&&<span style={{fontSize:11,color:C.t2,fontFamily:F,marginLeft:6}}>{loc.length>40?loc.slice(0,40)+"…":loc}</span>}
+      </div>
+      {/* Mini statusų juosta */}
+      <div style={{display:"flex",gap:4,flexShrink:0}}>
+        {group.map(function(pm){
+          var orgs=pm.organizations&&pm.organizations.length>0?pm.organizations:(pm.organization?[pm.organization]:[]);
+          var orgLabel=orgs.map(function(o){return ORG_SHORT[o]||o;}).join("+");
+          var s=STATUS_MAP[pm.status]||sm;
+          return <span key={pm.id} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:5,background:s.bg,color:s.c,border:"0.5px solid "+s.c+"44",whiteSpace:"nowrap"}}>
+            {orgLabel}
+          </span>;
+        })}
+      </div>
+      <span style={{fontSize:9,color:C.t3,fontFamily:F,flexShrink:0,marginLeft:2}}>{group.length} par.</span>
+    </div>
+    {/* Išskleistos eilutės */}
+    {open&&<div style={{border:"1px solid "+C.b2,borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"hidden"}}>
+      {group.map(function(pm,idx){
+        return <div key={pm.id} style={{borderTop:idx>0?"1px solid "+C.b1:"none"}}>
+          <PermitRow permit={pm} users={p.users} viewMode={p.viewMode} onClick={function(){p.onSelect(pm);}} nested/>
+        </div>;
+      })}
+    </div>}
+  </div>;
+}
+
+// ═════════════════════════════════════════════════════════════
 // SCHEDULE VIEW — Leidimų grafikas (Gantt tipo)
 // ═════════════════════════════════════════════════════════════
 function ScheduleView(p){
@@ -3397,7 +3445,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.83</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.84</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -3620,7 +3668,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.83</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.84</div>
         </div>
       </div>
     </div>
@@ -4057,7 +4105,30 @@ function App(){
             <div style={{fontSize:9,color:C.t2,fontFamily:F,display:"flex",alignItems:"center",gap:3}}><span style={{width:4,height:4,borderRadius:"50%",background:STATUS_MAP[s].dot}}/>{SL[s]||s}</div>
           </div>})}
       </div>}
-      {visible.length===0?<Empty icon="&#128077;" title="Paraiškų nėra."/>:visible.map(function(permit){return <PermitRow key={permit.id} permit={permit} users={users} viewMode={view} onClick={function(){setDetail(permit)}}/>})}
+      {visible.length===0?<Empty icon="&#128077;" title="Paraiškų nėra."/>:(function(){
+        // Grupuojame pagal investNo
+        var grouped=[];
+        var invMap={};
+        visible.forEach(function(pm){
+          var inv=pm.investNo&&pm.investNo.trim();
+          if(inv){
+            if(!invMap[inv]){invMap[inv]=[];grouped.push({type:"group",inv:inv,items:invMap[inv]});}
+            invMap[inv].push(pm);
+          } else {
+            grouped.push({type:"single",permit:pm});
+          }
+        });
+        return grouped.map(function(entry){
+          if(entry.type==="single"){
+            return <PermitRow key={entry.permit.id} permit={entry.permit} users={users} viewMode={view} onClick={function(){setDetail(entry.permit)}}/>;
+          }
+          if(entry.items.length===1){
+            var pm=entry.items[0];
+            return <PermitRow key={pm.id} permit={pm} users={users} viewMode={view} onClick={function(){setDetail(pm)}}/>;
+          }
+          return <PermitGroup key={entry.inv} group={entry.items} users={users} viewMode={view} onSelect={setDetail}/>;
+        });
+      })()}
     </div>;
   }
 
