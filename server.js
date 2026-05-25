@@ -721,6 +721,8 @@ function isPdfPermitDocument(pdfText) {
 // Ieško gatvės pavadinimo šalia adreso žymių.
 function extractLocationFromPdf(pdfText) {
   const patterns = [
+    // ESO specifinis: "vykdymo vieta" arba "kasimo darbų vieta"
+    /(?:vykdymo\s+vieta|kasimo\s+darb[uų]\s+viet[ao])[:\s\n]+([^\n(]{5,100})/i,
     /(?:darbų\s+vieta|objekto\s+vieta|adresas|statybos\s+vieta|vieta)[:\s]+([^\n]{5,80})/i,
     /(?:gatvė|g\.|pr\.|al\.|pl\.)[:\s]*([A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž][^\n]{3,60})/i,
   ];
@@ -729,6 +731,22 @@ function extractLocationFromPdf(pdfText) {
     if (m) return m[1].replace(/\s+/g, ' ').trim();
   }
   return null;
+}
+
+// Ištraukti ESO leidimo datas iš PDF teksto
+// ESO formate: "pradžia  2026-05-21  pabaiga  2026-08-20"
+function extractEsoDatesFromPdf(pdfText) {
+  if (!pdfText) return { start: null, end: null };
+  // ISO formato datos (2026-05-21)
+  let m = pdfText.match(/prad[žz][iī]a\s+(\d{4}-\d{2}-\d{2})\s+pabaiga\s+(\d{4}-\d{2}-\d{2})/i);
+  if (m) return { start: m[1], end: m[2] };
+  // Su papildomais tarpais/naujomis eilutėmis
+  m = pdfText.match(/prad[žz][iī]a[\s\n]+(\d{4}-\d{2}-\d{2})[\s\S]{0,80}?pabaiga[\s\n]+(\d{4}-\d{2}-\d{2})/i);
+  if (m) return { start: m[1], end: m[2] };
+  // Tik pradžios data (jei pabaigos nėra)
+  m = pdfText.match(/prad[žz][iī]a[\s\n]+(\d{4}-\d{2}-\d{2})/i);
+  if (m) return { start: m[1], end: null };
+  return { start: null, end: null };
 }
 
 // Rekursyviai suranda teksto dalis (text/plain arba text/html) bodyStructure medyje
@@ -1047,6 +1065,12 @@ async function checkImapMail() {
             if (savedFiles.length > 0) {
               const today      = fmtDateSrv(new Date());
               const allPermits = dbGet('kl-permits') || [];
+              // Ištraukiame datas ir adresą iš PDF teksto (ESO leidimams)
+              const esoDates = org === 'AB ESO' ? extractEsoDatesFromPdf(fullPdfText) : { start: null, end: null };
+              const pdfLocExtracted = fullPdfText ? extractLocationFromPdf(fullPdfText) : null;
+              if (org === 'AB ESO' && esoDates.start) {
+                console.log(`[IMAP] AB ESO datos iš PDF: pradžia=${esoDates.start} pabaiga=${esoDates.end||'(nėra)'}`);
+              }
               // Nustatome permitPdfs raktą pagal instituciją
               const orgKey = org === 'Telia, Kaunas' ? 'telia'
                            : org === 'Kauno energija' ? 'ke'
@@ -1079,13 +1103,18 @@ async function checkImapMail() {
                 const newStatus = anyNeed
                   ? (allDone ? 'Gautas leidimas' : (someDone ? 'Gautas dalinai' : p.status))
                   : 'Gautas leidimas';
+                const pdfStart = esoDates.start;
+                const pdfEnd   = esoDates.end;
                 return {
                   ...p,
                   status:           newStatus,
                   files:            [...(p.files || []), ...savedFiles],
                   permitPdfs:       updatedPermitPdfs,
-                  permitValidFrom:  p.permitValidFrom || p.startDate || today,
-                  permitValidUntil: p.permitValidUntil || p.endDate || '',
+                  location:         p.location || pdfLocExtracted || '',
+                  startDate:        p.startDate || pdfStart || '',
+                  endDate:          p.endDate   || pdfEnd   || '',
+                  permitValidFrom:  p.permitValidFrom || pdfStart || p.startDate || today,
+                  permitValidUntil: p.permitValidUntil || pdfEnd  || p.endDate   || '',
                   history: [...(p.history || []), {
                     status: newStatus,
                     date:   today,
