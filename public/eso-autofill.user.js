@@ -1,214 +1,214 @@
 // ==UserScript==
 // @name         Digpoint ESO Autofill
 // @namespace    http://10.2.1.115:3001/
-// @version      1.2.0
+// @version      1.3.0
 // @description  Automatiškai užpildo ESO kasimo leidimo formą iš Digpoint sistemos
 // @author       EnergoLT
 // @match        https://www.eso.lt/aktualios-formos/kasimo-darbai/*
 // @grant        GM_xmlhttpRequest
 // @connect      10.2.1.115
+// @connect      localhost
 // @run-at       document-idle
 // ==/UserScript==
 
 (function () {
   'use strict';
 
-  const API = 'http://10.2.1.115:3001';
+  var API = 'http://10.2.1.115:3001';
 
-  /* ── UI overlay ───────────────────────────────────────────── */
-  function showOverlay(msg, color) {
-    var el = document.getElementById('dp-eso-overlay');
+  /* ── Overlay ─────────────────────────────────────────────── */
+  function overlay(msg, color) {
+    var el = document.getElementById('dp-eso');
     if (!el) {
       el = document.createElement('div');
-      el.id = 'dp-eso-overlay';
-      el.style.cssText = 'position:fixed;top:14px;right:14px;z-index:2147483647;padding:14px 18px;border-radius:10px;font-size:14px;font-family:sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.25);max-width:340px;line-height:1.5;color:#fff;';
+      el.id = 'dp-eso';
+      el.style.cssText = [
+        'position:fixed', 'top:12px', 'right:12px', 'z-index:2147483647',
+        'padding:12px 16px', 'border-radius:8px', 'font:14px/1.5 sans-serif',
+        'box-shadow:0 4px 16px rgba(0,0,0,.3)', 'max-width:320px', 'color:#fff',
+        'cursor:pointer'
+      ].join(';');
+      el.onclick = function(){ el.remove(); };
       document.body.appendChild(el);
     }
     el.style.background = color || '#1a56db';
-    el.innerHTML = msg;
+    el.innerHTML = msg + '<br><small style="opacity:.6">(spausk norėdamas uždaryti)</small>';
   }
 
   function sleep(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
 
-  /* ── Laukia kol atsiranda DOM elementas ──────────────────── */
-  function waitFor(selector, timeout) {
-    timeout = timeout || 8000;
-    return new Promise(function(resolve) {
-      var el = document.querySelector(selector);
-      if (el) return resolve(el);
-      var obs = new MutationObserver(function() {
-        var el = document.querySelector(selector);
-        if (el) { obs.disconnect(); resolve(el); }
-      });
-      obs.observe(document.body, { childList: true, subtree: true });
-      setTimeout(function() { obs.disconnect(); resolve(null); }, timeout);
-    });
-  }
-
-  /* ── API: gauti pirmą laukiančią ESO užduotį ─────────────── */
-  function fetchTask() {
-    return new Promise(function(resolve) {
-      GM_xmlhttpRequest({
-        method: 'GET',
-        url: API + '/api/store/kl-eso-tasks',
+  /* ── GM_xmlhttpRequest promise wrapper ───────────────────── */
+  function gmFetch(url, method, body) {
+    return new Promise(function(resolve, reject) {
+      var opts = {
+        method: method || 'GET',
+        url: url,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
         onload: function(r) {
-          try {
-            var data = JSON.parse(r.responseText);
-            var tasks = Array.isArray(data.value) ? data.value
-                      : Array.isArray(data) ? data : [];
-            var pending = tasks.filter(function(t) { return t.status === 'pending'; });
-            resolve(pending.length ? pending[0] : null);
-          } catch(e) { resolve(null); }
+          if (r.status >= 200 && r.status < 300) {
+            try { resolve(JSON.parse(r.responseText)); }
+            catch(e) { resolve(r.responseText); }
+          } else {
+            reject(new Error('HTTP ' + r.status));
+          }
         },
-        onerror: function() { resolve(null); }
-      });
+        onerror: function(r) { reject(new Error('Network error: ' + r.statusText)); },
+        ontimeout: function() { reject(new Error('Timeout')); },
+        timeout: 8000
+      };
+      if (body) opts.data = JSON.stringify(body);
+      GM_xmlhttpRequest(opts);
     });
   }
 
-  /* ── API: pašalinti atliktą užduotį ──────────────────────── */
-  function removeTask(permitId) {
-    GM_xmlhttpRequest({
-      method: 'GET',
-      url: API + '/api/store/kl-eso-tasks',
-      onload: function(r) {
-        try {
-          var data = JSON.parse(r.responseText);
-          var tasks = Array.isArray(data.value) ? data.value : [];
-          var remaining = tasks.filter(function(t) { return t.permitId !== permitId; });
-          GM_xmlhttpRequest({
-            method: 'PUT',
-            url: API + '/api/store/kl-eso-tasks',
-            headers: { 'Content-Type': 'application/json' },
-            data: JSON.stringify({ value: remaining }),
-            onload: function() {}
-          });
-        } catch(e) {}
-      }
-    });
+  /* ── Gauti pirmą pending užduotį ─────────────────────────── */
+  async function fetchTask() {
+    var data = await gmFetch(API + '/api/store/kl-eso-tasks');
+    var tasks = Array.isArray(data.value) ? data.value : Array.isArray(data) ? data : [];
+    var pending = tasks.filter(function(t){ return t.status === 'pending'; });
+    return pending[0] || null;
   }
 
-  /* ── Nustatome Angular scope reikšmę ─────────────────────── */
-  function setScope(scope, key, value) {
-    scope.$apply(function() {
-      // Parašome į postData objektą
-      scope.postData[key] = value;
-    });
+  /* ── Pašalinti atliktą užduotį ───────────────────────────── */
+  async function removeTask(permitId) {
+    try {
+      var data = await gmFetch(API + '/api/store/kl-eso-tasks');
+      var tasks = Array.isArray(data.value) ? data.value : [];
+      var remaining = tasks.filter(function(t){ return t.permitId !== permitId; });
+      await gmFetch(API + '/api/store/kl-eso-tasks', 'PUT', { value: remaining });
+    } catch(e) { console.warn('[ESO] removeTask error:', e); }
   }
 
-  /* ── Randame Angular scope su postData ───────────────────── */
+  /* ── Rasti Angular scope su postData ─────────────────────── */
   function findScope() {
-    var input = document.querySelector('input[name="obj_address"], input[name="acceptance_email"], input[name="excavation_start"]');
-    if (!input) return null;
-    var s = angular.element(input).scope();
-    while (s) {
-      if (s.postData) return s;
-      s = s.$parent;
+    var selectors = ['input[name="obj_address"]','input[name="acceptance_email"]','input[name="excavation_start"]'];
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (!el) continue;
+      var s = angular.element(el).scope();
+      while (s) { if (s.postData) return s; s = s.$parent; }
     }
     return null;
   }
 
-  /* ── Pasirenkame savivaldybę ──────────────────────────────── */
+  /* ── Spausti ESO rangovas Toliau (3-ias) ─────────────────── */
+  async function clickEsoRangovas() {
+    var btns = Array.from(document.querySelectorAll('button'));
+    var toliau = btns.filter(function(b){ return b.textContent.trim() === 'Toliau'; });
+    if (toliau.length === 0) return true; // Forma jau atidaryta
+    if (toliau.length >= 3) {
+      toliau[2].click();
+      await sleep(1500);
+      return true;
+    }
+    // Jei mažiau nei 3 — bandome spausti paskutinį
+    toliau[toliau.length - 1].click();
+    await sleep(1500);
+    return true;
+  }
+
+  /* ── Savivaldybė ─────────────────────────────────────────── */
   function setMunicipality(scope) {
     var sel = document.querySelector('select#obj_municipality');
     if (!sel) return;
-    var kauno = Array.from(sel.options).find(function(o) {
-      return o.text.indexOf('Kauno m') !== -1;
-    });
-    if (kauno) {
-      scope.$apply(function() {
-        scope.postData.obj_municipality = kauno.value;
-      });
+    var opt = Array.from(sel.options).find(function(o){ return o.text.indexOf('Kauno m') !== -1; });
+    if (opt) {
+      scope.$apply(function(){ scope.postData.obj_municipality = opt.value; });
     }
   }
 
-  /* ── Pagrindinė užpildymo funkcija ───────────────────────── */
+  /* ── Užpildyti formą ─────────────────────────────────────── */
   async function fillForm(task) {
-    showOverlay('⏳ Ieškoma formos...', '#1a56db');
+    overlay('⏳ Atidaroma ESO rangovas forma...', '#1a56db');
 
-    // 1. Spaudžiame "ESO rangovas" Toliau (3-ias mygtukas)
-    await sleep(1500);
-    var btns = Array.from(document.querySelectorAll('button'));
-    var toliauBtns = btns.filter(function(b) { return b.textContent.trim() === 'Toliau'; });
-    if (toliauBtns.length >= 3) {
-      toliauBtns[2].click(); // ESO rangovas
-      showOverlay('⏳ Atidaroma ESO rangovas forma...', '#1a56db');
-      await sleep(1200);
-    } else if (toliauBtns.length > 0) {
-      // Jei forma jau atidaryta — tiesiog pildome
-    } else {
-      showOverlay('⚠️ Nerasta "Toliau" mygtukų. Galbūt forma jau atidaryta?', '#d97706');
-      await sleep(1000);
+    await clickEsoRangovas();
+
+    // Laukiame kol atsiras laukai
+    for (var wait = 0; wait < 10; wait++) {
+      if (document.querySelector('input[name="obj_address"]')) break;
+      await sleep(500);
     }
 
-    // 2. Randame Angular scope
     var scope = findScope();
     if (!scope) {
-      showOverlay('❌ Angular scope nerastas. Bandykite perkrauti puslapį.', '#dc2626');
+      overlay('❌ Forma nerasta. Pabandykite rankiniu būdu paspausti "ESO rangovas → Toliau"', '#dc2626');
       return;
     }
 
-    showOverlay('✍️ Pildoma forma...', '#1a56db');
+    overlay('✍️ Pildoma forma...', '#2563eb');
 
-    // 3. Užpildome laukus per Angular scope
-    var phone = (task.managerPhone || '').replace(/^\+370/, '').replace(/\s/g, '').trim();
+    var phone = (task.managerPhone || '').replace(/^\+370/, '').replace(/\s/g,'').trim();
 
-    scope.$apply(function() {
-      scope.postData.legal_company_name = 'EnergoLT';
-      scope.postData.legal_manager_name = task.manager || '';
-      scope.postData.legal_manager_phone = phone;
-      scope.postData.acceptance_email = task.email || '';
-      scope.postData.obj_address = task.location || '';
-      scope.postData.excavation_purpose = 'Elektros tinklų įrengimas';
-      scope.postData.excavation_start = task.startDate || '';
-      scope.postData.excavation_end = task.endDate || '';
-      scope.postData.excavation_link = '';
+    scope.$apply(function(){
+      scope.postData.legal_company_name      = 'EnergoLT';
+      scope.postData.legal_manager_name      = task.manager || '';
+      scope.postData.legal_manager_phone     = phone;
+      scope.postData.acceptance_email        = task.email || '';
+      scope.postData.obj_address             = task.location || '';
+      scope.postData.excavation_purpose      = 'Elektros tinklų įrengimas';
+      scope.postData.excavation_start        = task.startDate || '';
+      scope.postData.excavation_end          = task.endDate   || '';
+      scope.postData.excavation_link         = '';
       scope.postData.technical_eso_investment_nr = task.investNo || '';
-      scope.postData.agree_to_terms = true;
+      scope.postData.agree_to_terms          = true;
     });
 
-    // 4. Savivaldybė — Kauno m. sav.
     setMunicipality(scope);
 
-    // 5. Fiziškai pažymime checkbox (Angular gali neatnaujinti vizualiai)
     await sleep(300);
-    var cb = document.querySelector('input[id="terms"]');
+    var cb = document.querySelector('input#terms');
     if (cb && !cb.checked) cb.click();
 
-    // 6. Slinkame aukštyn kad forma matytųsi
     window.scrollTo(0, 0);
-    await sleep(200);
-    window.scrollTo(0, 400);
 
-    // 7. Pašaliname iš užduočių sąrašo
-    removeTask(task.permitId);
+    await removeTask(task.permitId);
 
-    showOverlay(
+    overlay(
       '✅ <b>Forma užpildyta!</b><br>' +
-      '<small style="opacity:.9">' + (task.location || task.manager || '') + '</small><br>' +
-      '<small style="opacity:.7">Patikrinkite ir paspauskite <b>Siųsti</b></small>',
+      '<span style="font-size:12px">' + (task.location || task.manager || task.permitId) + '</span><br>' +
+      '<span style="font-size:11px;opacity:.8">Patikrinkite ir paspauskite <b>Siųsti</b></span>',
       '#059669'
     );
-
-    setTimeout(function() {
-      var el = document.getElementById('dp-eso-overlay');
-      if (el) el.remove();
-    }, 60000);
   }
 
-  /* ── Startas ──────────────────────────────────────────────── */
-  window.addEventListener('load', async function() {
-    await sleep(2500); // Laukiame AngularJS inicializacijos
+  /* ── Main ────────────────────────────────────────────────── */
+  async function main() {
+    // Pirmas ženklas — skriptas veikia
+    overlay('🔌 Digpoint ESO skriptas veikia, tikrinama...', '#6366f1');
 
-    // Uždariame slapukų bannerį jei yra
-    var cookieBtn = document.querySelector('.save_all_cookies');
-    if (cookieBtn) { cookieBtn.click(); await sleep(500); }
+    await sleep(2000);
 
-    var task = await fetchTask();
-    if (!task) return; // Nėra laukiančių užduočių
+    // Uždaryti slapukų bannerį
+    var cookieBtn = document.querySelector('.save_all_cookies, button[class*="cookie"]');
+    if (cookieBtn) { cookieBtn.click(); await sleep(400); }
 
-    showOverlay('🔄 Digpoint: rasta užduotis — ' + (task.location || task.manager || task.permitId), '#1a56db');
-    await sleep(400);
+    // Gauti užduotį
+    var task;
+    try {
+      task = await fetchTask();
+    } catch(e) {
+      overlay('❌ Serveris nepasiekiamas: ' + e.message + '<br><small>' + API + '</small>', '#dc2626');
+      return;
+    }
+
+    if (!task) {
+      // Nėra užduočių — tyliai išsivalom
+      var el = document.getElementById('dp-eso');
+      if (el) setTimeout(function(){ el.remove(); }, 3000);
+      return;
+    }
+
+    overlay('📋 Rasta užduotis: ' + (task.location || task.manager || task.permitId), '#1a56db');
+    await sleep(500);
+
     await fillForm(task);
-  });
+  }
+
+  // Paleidžiame kai puslapis įkeltas
+  if (document.readyState === 'complete') {
+    main();
+  } else {
+    window.addEventListener('load', main);
+  }
 
 })();
