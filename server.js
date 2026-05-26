@@ -1670,6 +1670,16 @@ app.post('/api/admin/deploy', (req, res) => {
   });
 });
 
+// ── Versija iš package.json ───────────────────────────────────
+app.get('/api/version', (req, res) => {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+    res.json({ version: pkg.version });
+  } catch (e) {
+    res.json({ version: '?' });
+  }
+});
+
 // ── Start server ──────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n  🚧 Kasimo leidimai veikia: http://localhost:${PORT}\n`);
