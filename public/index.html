@@ -1184,6 +1184,46 @@ function PermitForm(p){
     }catch(e){console.error("Pateikimo klaida:",e);}
     sSubmitting(false);
   }
+  // Masinis pateikimas — kiekvienam PDF atskira paraiška
+  async function submitBatch(){
+    var pdfFiles=files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i);});
+    if(pdfFiles.length<2||!ok||submitting)return;
+    sSubmitting(true);
+    try{
+      var orgLabel=orgs.join(", ");
+      for(var i=0;i<pdfFiles.length;i++){
+        var pf=pdfFiles[i];
+        var pInvNo=invNo, pProjNo=projNo, pLoc=esoLoc, pTrFrom=trFrom, pTrTo=trTo;
+        // Ištraukiame duomenis iš kiekvieno PDF atskirai
+        if(pf.data){
+          try{
+            var text=await extractPdfText(pf.data);
+            if(text){
+              var fi=parseInvestNo(text);if(fi)pInvNo=fi;
+              var fp=parseProjectNo(text);if(fp)pProjNo=fp;
+              var fl=parseLocation(text);if(fl)pLoc=fl;
+              var fr=parseTeliaRoute(text);
+              if(fr){pTrFrom=fr.from;pTrTo=fr.to;}
+            }
+          }catch(e){}
+        }
+        var pLoc2=isTelia?(pTrFrom&&pTrTo?pTrFrom+" - "+pTrTo:""):isESO?pLoc:hasSav?pLoc:"";
+        await p.onSubmit({id:uid(),manager:mgr,managerPhone:ph,email:em,location:pLoc2,
+          organization:orgLabel,organizations:orgs,
+          startDate:start,endDate:end,
+          teliaStartDate:isAnyTelia?teliaStart:null,teliaEndDate:isAnyTelia?teliaEnd:null,
+          keStartDate:isKE?keStart:null,keEndDate:isKE?keEnd:null,
+          description:desc,files:[pf],projectNo:pProjNo,
+          investNo:pInvNo,teliaRouteFrom:pTrFrom,teliaRouteTo:pTrTo,
+          workType:hasSav?workType:null,
+          sourcePermitId:hasSav&&srcPermitId?srcPermitId:null,
+          createdBy:p.user.id,status:"Laukiama tvirtinimo",assignedTo:null,
+          createdAt:fmtDate(new Date()),history:[{status:"Laukiama tvirtinimo",date:fmtDate(new Date())}]});
+      }
+    }catch(e){console.error("Masinis pateikimas klaida:",e);}
+    sSubmitting(false);
+  }
+  var batchPdfs=files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i);});
   return <div style={{maxWidth:560}}>
     <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:4}}>Nauja kasimo leidimo paraiska</h2>
     <p style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:20}}>Uzpildykite forma ir pateikite dokumentacijai.</p>
@@ -1288,6 +1328,9 @@ function PermitForm(p){
       {p.onCancel&&<Btn v="secondary" onClick={p.onCancel} disabled={submitting}>Atsaukti</Btn>}
       {p.onMore&&<Btn v="secondary" onClick={submitAndMore} disabled={!ok||submitting} title="Pateikti ir sukurti papildomą paraišką tam pačiam užsakovui">
         📋 Papildoma
+      </Btn>}
+      {batchPdfs.length>=2&&<Btn v="secondary" onClick={submitBatch} disabled={!ok||submitting} title={"Kiekvienam PDF sukurti atskirą paraišką ("+batchPdfs.length+" vnt.)"}>
+        🗂️ Po paraišką ({batchPdfs.length})
       </Btn>}
       <Btn onClick={submit} disabled={!ok||submitting}>{submitting?"Siunčiama...":"Pateikti paraiskas"}</Btn>
     </div>
@@ -3819,7 +3862,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.97</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.2.98</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -4042,7 +4085,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.97</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.2.98</div>
         </div>
       </div>
     </div>
