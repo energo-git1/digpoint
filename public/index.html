@@ -4271,7 +4271,12 @@ function App(){
     if(someHave)return "Gautas dalinai";
     return permit.status;
   }
-  function savePermits(arr){var checked=checkExpired(arr);setPermits(checked);}
+  function savePermits(arrOrFn){
+    setPermits(function(prev){
+      var arr=typeof arrOrFn==="function"?arrOrFn(prev):arrOrFn;
+      return checkExpired(arr);
+    });
+  }
   function clearPermits(){_clearIntent.current=true;setPermits([]);}
 
   function handleLogin(u){
@@ -4327,7 +4332,7 @@ function App(){
     }
     // Pranešimas apie naują paraišką — visoms paraiškoms
     await sendCombinedReviewNotification(finalPermit);
-    savePermits(permits.concat([finalPermit]));
+    savePermits(function(prev){return prev.concat([finalPermit]);});
     // Po pateikimo: orderer → mano paraiškos, kiti → inbox
     setView(user.role==="orderer"?"mine":"inbox");
   }
