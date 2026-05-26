@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Digpoint ESO Autofill
 // @namespace    http://10.2.1.115:3001/
-// @version      1.8.0
+// @version      1.9.0
 // @description  Automatiškai užpildo ESO kasimo leidimo formą iš Digpoint sistemos
 // @author       EnergoLT
 // @match        https://www.eso.lt/aktualios-formos/kasimo-darbai/*
@@ -21,7 +21,7 @@
     if (!el) {
       el = document.createElement('div');
       el.id = 'dp-eso';
-      el.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;padding:12px 16px;border-radius:8px;font:14px/1.5 sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.3);max-width:340px;color:#fff;cursor:pointer';
+      el.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;padding:12px 16px;border-radius:8px;font:14px/1.5 sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.3);max-width:360px;color:#fff;cursor:pointer';
       el.onclick = function () { el.remove(); };
       document.body.appendChild(el);
     }
@@ -29,7 +29,7 @@
     el.innerHTML = msg + '<br><small style="opacity:.6">(spausk uždaryti)</small>';
   }
 
-  overlay('🔌 <b>Digpoint ESO v1.6</b> — jungiamasi...', '#6366f1');
+  overlay('🔌 <b>Digpoint ESO v1.9</b> — jungiamasi...', '#6366f1');
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
@@ -65,8 +65,8 @@
         method: 'PUT', url: url,
         headers: { 'Content-Type': 'application/json' },
         data: JSON.stringify(body), timeout: 8000,
-        onload: function () { resolve(); },
-        onerror: function () { resolve(); }
+        onload: function (r) { resolve(r); },
+        onerror: function () { resolve(null); }
       });
     });
   }
@@ -77,8 +77,8 @@
         method: 'POST', url: url,
         headers: { 'Content-Type': 'application/json' },
         data: JSON.stringify(body), timeout: 8000,
-        onload: function () { resolve(); },
-        onerror: function () { resolve(); }
+        onload: function (r) { resolve(r); },
+        onerror: function () { resolve(null); }
       });
     });
   }
@@ -94,28 +94,46 @@
     try {
       var d = await gmJson(API + '/api/store/kl-eso-tasks');
       var list = Array.isArray(d.value) ? d.value : Array.isArray(d) ? d : [];
-      return list.filter(function (t) { return t.status === 'pending'; })[0] || null;
-    } catch (e) { return null; }
+      var pending = list.filter(function (t) { return t.status === 'pending'; });
+      return pending[0] || null;
+    } catch (e) {
+      console.warn('[ESO] taskFromServer klaida:', e);
+      return null;
+    }
   }
 
-  async function removeTask(permitId) {
+  async function markDone(permitId) {
+    if (!permitId) {
+      console.warn('[ESO] markDone: permitId tuščias!');
+      return;
+    }
+
+    // 1. Pašaliname iš eilės
     try {
-      // Pašaliname iš ESO užduočių eilės
       var d = await gmJson(API + '/api/store/kl-eso-tasks');
-      var list = Array.isArray(d.value) ? d.value : [];
-      await gmPut(API + '/api/store/kl-eso-tasks',
-        { value: list.filter(function (t) { return t.permitId !== permitId; }) });
-    } catch (e) { }
+      var list = Array.isArray(d.value) ? d.value : Array.isArray(d) ? d : [];
+      var remaining = list.filter(function (t) { return t.permitId !== permitId; });
+      await gmPut(API + '/api/store/kl-eso-tasks', { value: remaining });
+      console.log('[ESO] Užduotis pašalinta iš eilės, liko:', remaining.length);
+    } catch (e) {
+      console.warn('[ESO] Eilės valymo klaida:', e);
+    }
+
+    // 2. Keičiame statusą į "Pateikta"
     try {
-      // Atnaujiname paraiškos statusą į "Pateikta" Digpoint sistemoje
-      await gmPost(API + '/api/permits/' + permitId + '/status',
-        { status: 'Pateikta', note: 'ESO paraiška pateikta automatiškai' });
-    } catch (e) { }
+      var r = await gmPost(
+        API + '/api/permits/' + permitId + '/status',
+        { status: 'Pateikta', note: 'ESO paraiška pateikta automatiškai' }
+      );
+      console.log('[ESO] Statusas atnaujintas:', r ? r.status : 'neatsakė');
+    } catch (e) {
+      console.warn('[ESO] Statuso atnaujinimo klaida:', e);
+    }
   }
 
-  /* ── Angular scope ───────────────────────────────────────── */
+  /* ── Angular laukų užpildymas ────────────────────────────── */
   function findScope() {
-    var names = ['obj_address', 'acceptance_email', 'excavation_start'];
+    var names = ['obj_address', 'acceptance_email', 'excavation_start', 'legal_company_name'];
     for (var i = 0; i < names.length; i++) {
       var el = document.querySelector('input[name="' + names[i] + '"]');
       if (!el) continue;
@@ -125,14 +143,37 @@
     return null;
   }
 
+  // Užpildo lauką Angular-native būdu (triggerHandler = AngularJS suprantamas event)
+  function setAngularField(name, val) {
+    var el = document.querySelector('input[name="' + name + '"], textarea[name="' + name + '"]');
+    if (!el) { console.warn('[ESO] Laukas nerastas:', name); return false; }
+    try {
+      var $el = angular.element(el);
+      $el.val(val);
+      $el.triggerHandler('input');
+      $el.triggerHandler('change');
+      return true;
+    } catch (e) {
+      console.warn('[ESO] setAngularField klaida (' + name + '):', e);
+      return false;
+    }
+  }
+
   function setMunicipality(scope) {
     var sel = document.querySelector('select#obj_municipality');
     if (!sel) return;
     var opt = Array.from(sel.options).find(function (o) { return o.text.indexOf('Kauno m') !== -1; });
-    if (opt) scope.$apply(function () { scope.postData.obj_municipality = opt.value; });
+    if (!opt) return;
+    try {
+      scope.$apply(function () { scope.postData.obj_municipality = opt.value; });
+    } catch (e) {
+      // Jei jau vyksta digest — tiesiog nustatome reikšmę
+      scope.postData.obj_municipality = opt.value;
+      angular.element(sel).triggerHandler('change');
+    }
   }
 
-  /* ── PDF įkėlimas per DataTransfer ──────────────────────── */
+  /* ── PDF įkėlimas ────────────────────────────────────────── */
   async function uploadPdf(task) {
     if (!task.files || task.files.length === 0) return;
     var pdfs = task.files.filter(function (f) { return f.url || f.filename; });
@@ -158,22 +199,16 @@
       return;
     }
 
-    // Randame brėžinių file input (pirmasis)
     var fileInput = document.querySelector('input[type="file"]');
     if (!fileInput) return;
-
-    // Nustatome failus per DataTransfer
     fileInput.files = dt.files;
     fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-    fileInput.dispatchEvent(new Event('input', { bubbles: true }));
-
-    // Angular gali naudoti ng-change arba watcher — trigeriname
     try {
-      var s = angular.element(fileInput).scope();
-      if (s) s.$apply();
+      var fs = angular.element(fileInput).scope();
+      if (fs) fs.$apply();
     } catch (e) { }
 
-    await sleep(500);
+    await sleep(600);
   }
 
   /* ── ESO rangovas → Toliau ───────────────────────────────── */
@@ -185,7 +220,7 @@
     if (btns.length === 0) return;
     var btn = btns.length >= 3 ? btns[2] : btns[btns.length - 1];
     btn.click();
-    for (var i = 0; i < 12; i++) {
+    for (var i = 0; i < 15; i++) {
       await sleep(500);
       if (document.querySelector('input[name="obj_address"]')) break;
     }
@@ -208,65 +243,69 @@
 
     overlay('✍️ Pildomi laukai...', '#2563eb');
 
-    var phone = (task.managerPhone || '').replace(/^\+370/, '').replace(/\s/g, '').trim();
+    // Telefono formatas: be +370 ir be tarpų
+    var phone = (task.managerPhone || '').replace(/^\+370/, '').replace(/\s+/g, '').trim();
 
-    // Pagalbinė funkcija: užpildo lauką per DOM + Angular events
-    function setField(name, val) {
-      var el = document.querySelector('input[name="' + name + '"], textarea[name="' + name + '"]');
-      if (!el) return;
-      var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-      nativeInputValueSetter.call(el, val);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
+    // 1 žingsnis: scope.$apply — nustato Angular modelio reikšmes
+    try {
+      scope.$apply(function () {
+        scope.postData.legal_company_name          = 'EnergoLT';
+        scope.postData.legal_manager_name          = task.manager || '';
+        scope.postData.legal_manager_phone         = phone;
+        scope.postData.acceptance_email            = task.email || '';
+        scope.postData.obj_address                 = task.location || '';
+        scope.postData.excavation_purpose          = 'Elektros tinklų įrengimas';
+        scope.postData.excavation_start            = task.startDate || '';
+        scope.postData.excavation_end              = task.endDate || '';
+        scope.postData.excavation_link             = '';
+        scope.postData.technical_eso_investment_nr = task.investNo || '';
+        scope.postData.agree_to_terms              = true;
+      });
+    } catch (e) {
+      console.warn('[ESO] scope.$apply klaida (gali būti digest race):', e.message);
     }
 
-    scope.$apply(function () {
-      scope.postData.legal_company_name = 'EnergoLT';
-      scope.postData.legal_manager_name = task.manager || '';
-      scope.postData.legal_manager_phone = phone;
-      scope.postData.acceptance_email = task.email || '';
-      scope.postData.obj_address = task.location || '';
-      scope.postData.excavation_purpose = 'Elektros tinklų įrengimas';
-      scope.postData.excavation_start = task.startDate || '';
-      scope.postData.excavation_end = task.endDate || '';
-      scope.postData.excavation_link = '';
-      scope.postData.technical_eso_investment_nr = task.investNo || '';
-      scope.postData.agree_to_terms = true;
-    });
+    // 2 žingsnis: Angular-native triggerHandler — atnaujina DOM iš modelio
+    await sleep(200);
+    setAngularField('legal_company_name',          'EnergoLT');
+    setAngularField('legal_manager_name',          task.manager || '');
+    setAngularField('legal_manager_phone',         phone);
+    setAngularField('acceptance_email',            task.email || '');
+    setAngularField('obj_address',                 task.location || '');
+    setAngularField('excavation_purpose',          'Elektros tinklų įrengimas');
+    setAngularField('excavation_start',            task.startDate || '');
+    setAngularField('excavation_end',              task.endDate || '');
+    setAngularField('technical_eso_investment_nr', task.investNo || '');
 
-    // Papildomai suveikiame DOM events telefonui ir kitiems laukams (input mask kompatiblumas)
-    setField('legal_manager_phone', phone);
-    setField('legal_company_name', 'EnergoLT');
-    setField('legal_manager_name', task.manager || '');
-    setField('acceptance_email', task.email || '');
-    setField('obj_address', task.location || '');
-    setField('excavation_purpose', 'Elektros tinklų įrengimas');
-    setField('excavation_start', task.startDate || '');
-    setField('excavation_end', task.endDate || '');
-    setField('technical_eso_investment_nr', task.investNo || '');
-
+    // 3 žingsnis: savivaldybė dropdown + terms checkbox
+    await sleep(200);
     setMunicipality(scope);
-
-    await sleep(300);
+    await sleep(200);
     var cb = document.querySelector('input#terms');
     if (cb && !cb.checked) cb.click();
 
-    // PDF įkėlimas
+    // 4 žingsnis: PDF
     if (task.files && task.files.length > 0) {
       await uploadPdf(task);
     }
 
+    // 5 žingsnis: pažymime kaip atlikta Digpoint sistemoje
     window.scrollTo(0, 0);
-    if (task.permitId) await removeTask(task.permitId);
+    await markDone(task.permitId);
 
-    var pdfStatus = (task.files && task.files.length > 0) ? '📎 PDF įkeltas' : '⚠️ Nėra PDF failo';
-    var invStatus = task.investNo ? '🔢 Inv. nr.: ' + task.investNo : '⚠️ Inv. nr. tuščias paraiškoje';
+    // Rezultato overlay
+    var phoneEl = document.querySelector('input[name="legal_manager_phone"]');
+    var phoneVal = phoneEl ? phoneEl.value : '?';
+    var pdfStatus  = (task.files && task.files.length > 0) ? '📎 PDF įkeltas' : '⚠️ Nėra PDF';
+    var invStatus  = task.investNo ? '🔢 ' + task.investNo : '⚠️ Inv. nr. nėra';
+    var idStatus   = task.permitId ? '✅ Pateikta sistemoje' : '⚠️ Nėra permitId';
 
     overlay(
       '✅ <b>Forma užpildyta!</b><br>' +
-      '<span style="font-size:12px">' + (task.location || task.manager || '') + '</span><br>' +
-      '<span style="font-size:11px;opacity:.9">' + pdfStatus + ' · ' + invStatus + '</span><br>' +
-      '<span style="font-size:11px;opacity:.7">Patikrinkite ir paspauskite <b>Siųsti</b></span>',
+      '<span style="font-size:11px">' + (task.location || task.manager || '') + '</span><br>' +
+      '<span style="font-size:10px;opacity:.9">📞 Tel.: ' + phoneVal + ' · ' + pdfStatus + '</span><br>' +
+      '<span style="font-size:10px;opacity:.9">' + invStatus + ' · ' + idStatus + '</span><br>' +
+      '<span style="font-size:10px;opacity:.7">Patikrinkite ir spauskite <b>Siųsti</b></span>',
       '#059669'
     );
   }
@@ -275,12 +314,9 @@
   async function main() {
     await sleep(1200);
 
-    // Pirma hash (greita), tada serveris (pilni duomenys su failų URL)
     var hashTask = taskFromHash();
-    var task = await taskFromServer(); // serveris turi failus
+    var task = await taskFromServer();
 
-    // Jei serveris grąžino užduotį — naudojame ją (pilnesni duomenys)
-    // Jei ne — naudojame hash
     if (!task && hashTask) task = hashTask;
 
     if (!task) {
@@ -289,8 +325,16 @@
       return;
     }
 
-    overlay('📋 ' + (task.location || task.manager || 'Rasta užduotis'), '#1a56db');
-    await sleep(400);
+    console.log('[ESO] Rasta užduotis:', JSON.stringify({
+      permitId: task.permitId,
+      manager: task.manager,
+      phone: task.managerPhone,
+      location: task.location
+    }));
+
+    overlay('📋 ' + (task.location || task.manager || 'Rasta užduotis') +
+      '<br><small style="opacity:.7">ID: ' + (task.permitId || 'nėra!') + '</small>', '#1a56db');
+    await sleep(500);
     await fill(task);
   }
 
