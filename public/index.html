@@ -1427,25 +1427,24 @@ function EsoSubmitBtn(p){
     var tasks=filtered.concat([task]);
     await sSet('kl-eso-tasks',tasks);
 
-    // 4) Atidarome ESO svetainę — Tampermonkey skriptas automatiškai užpildys formą
-    window.open('https://www.eso.lt/aktualios-formos/kasimo-darbai/30','_blank');
+    // 4) Atidarome ESO svetainę su duomenimis URL hash (#dp=...) — veikia ir be Tampermonkey
+    var _esoTaskData={manager:o.manager,managerPhone:o.managerPhone,email:ESO_EMAIL,
+      location:o.location,startDate:esoStart,endDate:esoEnd,investNo:o.investNo||""};
+    var _esoHash="dp="+btoa(unescape(encodeURIComponent(JSON.stringify(_esoTaskData))));
+    window.open('https://www.eso.lt/aktualios-formos/kasimo-darbai/30#'+_esoHash,'_blank');
 
     sSt("ready");
 
   }
 
-  // Ar Tampermonkey skriptas įdiegtas (tikriname per localStorage žymą kurią gali palikti skriptas)
-  var tmInstalled=lsGet('dp-tampermonkey-eso');
+  // Bookmarklet kodas (nuskaito duomenis iš URL hash ir užpildo Angular formą)
+  var _bm="javascript:(function(){var m=location.hash.match(/dp=([A-Za-z0-9+\\/=]+)/);if(!m){alert('Nera duomenu! Atidarykite is Digpoint.');return;}var t=JSON.parse(decodeURIComponent(escape(atob(m[1]))));var el=document.querySelector('input[name=\"obj_address\"]');if(!el){alert('Spauskite ESO rangovas Toliau ir pakartokite!');return;}var s=angular.element(el).scope();while(s&&!s.postData)s=s.$parent;if(!s){alert('Forma nerasta');return;}var ph=(t.managerPhone||'').replace(/^\\+370/,'').replace(/\\s/g,'');s.$apply(function(){s.postData.legal_company_name='EnergoLT';s.postData.legal_manager_name=t.manager||'';s.postData.legal_manager_phone=ph;s.postData.acceptance_email=t.email||'';s.postData.obj_address=t.location||'';s.postData.excavation_purpose='Elektros tinklų įrengimas';s.postData.excavation_start=t.startDate||'';s.postData.excavation_end=t.endDate||'';s.postData.excavation_link='';s.postData.technical_eso_investment_nr=t.investNo||'';s.postData.agree_to_terms=true;});var sel=document.querySelector('select#obj_municipality');if(sel){var o=Array.from(sel.options).find(function(o){return o.text.indexOf('Kauno m')!==-1;});if(o)s.$apply(function(){s.postData.obj_municipality=o.value;});}var cb=document.querySelector('input#terms');if(cb&&!cb.checked)cb.click();})();";
 
   return <div style={{marginBottom:12}}>
     <div style={{background:"#FF6B2B18",border:"1px solid #FF6B2B44",borderRadius:8,padding:"10px 12px"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
         <span style={{fontSize:16}}>🌐</span>
         <div style={{fontSize:12,fontWeight:700,color:"#FF6B2B",fontFamily:F}}>AB ESO Automatinis pateikimas</div>
-        <a href="http://10.2.1.115:3001/eso-autofill.user.js" target="_blank" title="Įdiegti Tampermonkey skriptą (reikia tik vieną kartą)"
-          style={{marginLeft:"auto",fontSize:9,color:C.t3,fontFamily:FM,textDecoration:"underline",cursor:"pointer"}}>
-          ⚙️ Skriptas
-        </a>
       </div>
       {st==="idle"&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
         <Btn onClick={prepareTask} sm style={{background:"#FF6B2B",color:"#fff",border:"none"}}>
@@ -1455,7 +1454,14 @@ function EsoSubmitBtn(p){
         {!hasPdf&&<span style={{fontSize:9,color:C.yl,fontFamily:FM}}>⚠️ Nėra PDF</span>}
       </div>}
       {st==="saving"&&<div style={{fontSize:10,color:C.t2,fontFamily:F}}>⏳ Ruošiama užduotis...</div>}
-      {st==="ready"&&<div style={{fontSize:10,color:C.gn,fontFamily:FM}}>✅ ESO forma atidaryta — skriptas pats užpildys per kelias sekundes</div>}
+      {st==="ready"&&<div>
+        <div style={{fontSize:10,color:C.gn,fontFamily:FM,marginBottom:6}}>✅ ESO forma atidaryta naujame skirtuke</div>
+        <div style={{fontSize:9,color:C.t2,fontFamily:F,marginBottom:4}}>ESO puslapyje: 1) spausk <b>ESO rangovas → Toliau</b>, 2) spausk bookmarklet:</div>
+        <a href={_bm} style={{display:"inline-block",background:"#FF6B2B",color:"#fff",borderRadius:5,padding:"4px 10px",fontSize:10,fontFamily:FM,textDecoration:"none",cursor:"grab"}}
+          title="Vilk šią nuorodą į Bookmarks juostą — vieną kartą. Tada ESO puslapyje spausti.">
+          📋 ESO Užpildyti ← vilk į bookmarks
+        </a>
+      </div>}
     </div>
   </div>
 }
@@ -3866,7 +3872,7 @@ function AuthScreen(p){
       <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#F97316,#EAB308)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px",boxShadow:"0 8px 28px rgba(249,115,22,.3)"}}>🚧</div>
       <h1 style={{fontSize:22,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:2}}>Kasimo leidimai</h1>
       <p style={{color:C.t2,fontSize:11,fontFamily:F,marginBottom:6}}>Zemes darbu leidimo sistema</p>
-      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.3.4</div>
+      <div style={{color:C.t3,fontSize:10,fontFamily:FM,marginBottom:20}}>v1.3.6</div>
       <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden",textAlign:"left"}}>
         <div style={{display:"flex",borderBottom:"1px solid "+C.b1,background:C.s2}}>
           <button style={tabSt("ad")} onClick={function(){sTab("ad");sErr("")}}>Active Directory</button>
@@ -4089,7 +4095,7 @@ function Sidebar(p){
         <span style={{fontSize:20}}>🚧</span>
         <div>
           <div style={{fontSize:12,fontWeight:800,color:C.tx,fontFamily:F}}>Kasimo leidimai</div>
-          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.3.4</div>
+          <div style={{fontSize:9,color:C.t3,fontFamily:FM}}>v1.3.6</div>
         </div>
       </div>
     </div>

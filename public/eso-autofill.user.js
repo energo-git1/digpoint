@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Digpoint ESO Autofill
 // @namespace    http://10.2.1.115:3001/
-// @version      1.4.0
+// @version      1.5.0
 // @description  Automatiškai užpildo ESO kasimo leidimo formą iš Digpoint sistemos
 // @author       EnergoLT
 // @match        https://www.eso.lt/aktualios-formos/kasimo-darbai/*
@@ -15,19 +15,13 @@
 
   var API = 'http://10.2.1.115:3001';
 
-  /* ── Overlay — visada rodomas iš karto ───────────────────── */
+  /* ── Overlay ─────────────────────────────────────────────── */
   function overlay(msg, color) {
     var el = document.getElementById('dp-eso');
     if (!el) {
       el = document.createElement('div');
       el.id = 'dp-eso';
-      Object.assign(el.style, {
-        position: 'fixed', top: '12px', right: '12px',
-        zIndex: '2147483647', padding: '12px 16px',
-        borderRadius: '8px', font: '14px/1.5 sans-serif',
-        boxShadow: '0 4px 16px rgba(0,0,0,.3)',
-        maxWidth: '320px', color: '#fff', cursor: 'pointer'
-      });
+      el.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;padding:12px 16px;border-radius:8px;font:14px/1.5 sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.3);max-width:320px;color:#fff;cursor:pointer';
       el.onclick = function () { el.remove(); };
       document.body.appendChild(el);
     }
@@ -35,48 +29,45 @@
     el.innerHTML = msg + '<br><small style="opacity:.6">(spausk uždaryti)</small>';
   }
 
-  // ── PIRMAS ŽENKLAS — rodome IŠKART, sinchroniškai ──────────
-  overlay('🔌 <b>Digpoint ESO v1.4</b> — jungiamasi...', '#6366f1');
+  // Rodome iš karto — pirmas ženklas kad skriptas veikia
+  overlay('🔌 <b>Digpoint ESO v1.5</b> — tikrinama...', '#6366f1');
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-  function gmFetch(url, method, body) {
-    return new Promise(function (resolve, reject) {
-      GM_xmlhttpRequest({
-        method: method || 'GET',
-        url: url,
-        headers: body ? { 'Content-Type': 'application/json' } : {},
-        data: body ? JSON.stringify(body) : undefined,
-        timeout: 8000,
-        onload: function (r) {
-          try { resolve(JSON.parse(r.responseText)); }
-          catch (e) { resolve(r.responseText); }
-        },
-        onerror: function (r) { reject(new Error('Klaida: ' + (r.statusText || 'network error'))); },
-        ontimeout: function () { reject(new Error('Timeout — serveris neatsako')); }
-      });
+  /* ── Gauti užduotį iš URL hash (#dp=BASE64) ──────────────── */
+  function taskFromHash() {
+    var m = window.location.hash.match(/dp=([A-Za-z0-9+\/=]+)/);
+    if (!m) return null;
+    try { return JSON.parse(decodeURIComponent(escape(atob(m[1])))); }
+    catch (e) { return null; }
+  }
+
+  /* ── Gauti užduotį iš serverio (fallback) ────────────────── */
+  function taskFromServer() {
+    return new Promise(function (resolve) {
+      try {
+        GM_xmlhttpRequest({
+          method: 'GET', url: API + '/api/store/kl-eso-tasks',
+          timeout: 5000,
+          onload: function (r) {
+            try {
+              var d = JSON.parse(r.responseText);
+              var list = Array.isArray(d.value) ? d.value : Array.isArray(d) ? d : [];
+              resolve(list.filter(function (t) { return t.status === 'pending'; })[0] || null);
+            } catch (e) { resolve(null); }
+          },
+          onerror: function () { resolve(null); },
+          ontimeout: function () { resolve(null); }
+        });
+      } catch (e) { resolve(null); }
     });
   }
 
-  async function fetchTask() {
-    var d = await gmFetch(API + '/api/store/kl-eso-tasks');
-    var list = Array.isArray(d.value) ? d.value : Array.isArray(d) ? d : [];
-    return list.filter(function (t) { return t.status === 'pending'; })[0] || null;
-  }
-
-  async function removeTask(id) {
-    try {
-      var d = await gmFetch(API + '/api/store/kl-eso-tasks');
-      var list = Array.isArray(d.value) ? d.value : [];
-      await gmFetch(API + '/api/store/kl-eso-tasks', 'PUT',
-        { value: list.filter(function (t) { return t.permitId !== id; }) });
-    } catch (e) { /* tylu */ }
-  }
-
+  /* ── Angular scope ───────────────────────────────────────── */
   function findScope() {
-    var names = ['obj_address', 'acceptance_email', 'excavation_start'];
-    for (var i = 0; i < names.length; i++) {
-      var el = document.querySelector('input[name="' + names[i] + '"]');
+    var fields = ['obj_address', 'acceptance_email', 'excavation_start'];
+    for (var i = 0; i < fields.length; i++) {
+      var el = document.querySelector('input[name="' + fields[i] + '"]');
       if (!el) continue;
       var s = angular.element(el).scope();
       while (s) { if (s.postData) return s; s = s.$parent; }
@@ -84,37 +75,43 @@
     return null;
   }
 
+  /* ── Savivaldybė ─────────────────────────────────────────── */
   function setMunicipality(scope) {
     var sel = document.querySelector('select#obj_municipality');
     if (!sel) return;
-    var opt = Array.from(sel.options).find(function (o) {
-      return o.text.indexOf('Kauno m') !== -1;
-    });
+    var opt = Array.from(sel.options).find(function (o) { return o.text.indexOf('Kauno m') !== -1; });
     if (opt) scope.$apply(function () { scope.postData.obj_municipality = opt.value; });
   }
 
+  /* ── Spausti ESO rangovas → Toliau ───────────────────────── */
   async function clickEsoRangovas() {
-    var all = Array.from(document.querySelectorAll('button'));
-    var btns = all.filter(function (b) { return b.textContent.trim() === 'Toliau'; });
-    if (btns.length === 0) return; // jau atidaryta
-    var target = btns.length >= 3 ? btns[2] : btns[btns.length - 1];
-    target.click();
-    await sleep(1500);
+    if (document.querySelector('input[name="obj_address"]')) return; // jau atidaryta
+    var btns = Array.from(document.querySelectorAll('button')).filter(function (b) {
+      return b.textContent.trim() === 'Toliau';
+    });
+    if (btns.length === 0) return;
+    var btn = btns.length >= 3 ? btns[2] : btns[btns.length - 1];
+    btn.click();
+    // Laukiam kol forma atsiranda
+    for (var i = 0; i < 12; i++) {
+      await sleep(500);
+      if (document.querySelector('input[name="obj_address"]')) break;
+    }
   }
 
-  async function fillForm(task) {
-    overlay('⏳ Spaudžiama "ESO rangovas → Toliau"...', '#1a56db');
-    await clickEsoRangovas();
+  /* ── Užpildyti formą ─────────────────────────────────────── */
+  async function fill(task) {
+    overlay('⏳ Atidaroma ESO rangovas forma...', '#1a56db');
 
-    // Laukiam kol atsiras laukai (max 6s)
-    for (var i = 0; i < 12; i++) {
-      if (document.querySelector('input[name="obj_address"]')) break;
-      await sleep(500);
-    }
+    // Dismiss cookies
+    var cb2 = document.querySelector('.save_all_cookies');
+    if (cb2) { cb2.click(); await sleep(300); }
+
+    await clickEsoRangovas();
 
     var scope = findScope();
     if (!scope) {
-      overlay('❌ Forma nerasta po "Toliau". Paspaukite rankiniu: ESO rangovas → Toliau', '#dc2626');
+      overlay('❌ Forma nerasta. Spauskite rankiniu: ESO rangovas → Toliau', '#dc2626');
       return;
     }
 
@@ -143,45 +140,38 @@
     if (cb && !cb.checked) cb.click();
 
     window.scrollTo(0, 0);
-    await removeTask(task.permitId);
 
     overlay(
       '✅ <b>Forma užpildyta!</b><br>' +
-      '<span style="font-size:12px">' + (task.location || task.manager || task.permitId) + '</span><br>' +
+      '<span style="font-size:12px">' + (task.location || task.manager || '') + '</span><br>' +
       '<span style="font-size:11px;opacity:.8">Patikrinkite ir paspauskite <b>Siųsti</b></span>',
       '#059669'
     );
   }
 
+  /* ── Pagrindinis srautas ─────────────────────────────────── */
   async function main() {
-    await sleep(1500);
+    await sleep(1000);
 
-    // Dismiss cookies
-    var cb = document.querySelector('.save_all_cookies');
-    if (cb) { cb.click(); await sleep(300); }
+    // 1. Pirma tikriname URL hash — greita, be serverio
+    var task = taskFromHash();
 
-    var task;
-    try {
-      task = await fetchTask();
-    } catch (e) {
-      overlay('❌ Serveris nepasiekiamas (' + API + ')<br><small>' + e.message + '</small>', '#dc2626');
-      return;
+    // 2. Jei nėra hash — bandome serverį
+    if (!task) {
+      overlay('🔌 Hash nėra — bandomas serveris...', '#6366f1');
+      task = await taskFromServer();
     }
 
     if (!task) {
-      overlay('ℹ️ Nėra laukiančių ESO užduočių.<br><small>Digpoint\'e spauskite "Pateikti ESO" ir atidarykite naują tab\'ą</small>', '#6b7280');
-      setTimeout(function () {
-        var el = document.getElementById('dp-eso');
-        if (el) el.remove();
-      }, 6000);
+      overlay('ℹ️ Nėra ESO užduočių.<br><small>Digpoint\'e spauskite "🚀 Pateikti ESO"</small>', '#6b7280');
+      setTimeout(function () { var e = document.getElementById('dp-eso'); if (e) e.remove(); }, 7000);
       return;
     }
 
-    overlay('📋 Rasta: ' + (task.location || task.manager || task.permitId), '#1a56db');
+    overlay('📋 ' + (task.location || task.manager || task.permitId || 'Rasta užduotis'), '#1a56db');
     await sleep(400);
-    await fillForm(task);
+    await fill(task);
   }
 
   main();
-
 })();
