@@ -866,12 +866,24 @@ async function checkImapMail() {
                           : org === 'Kauno vandenys'  ? 'vandenys'
                           : org === 'AB ESO'           ? 'eso'
                           : null;
+            // Telia domenui priskiriame abi Telia organizacijas
+            const matchOrgs = org === 'Telia, Kaunas'
+              ? ['Telia, Kaunas', 'Telia, investiciniai']
+              : [org];
             const pendingForOrg = allPermitsEarly.filter((p) => {
               if (TRULY_FINAL.has(p.status)) return false;
               const orgs = Array.isArray(p.organizations) && p.organizations.length > 0
                 ? p.organizations : p.organization ? [p.organization] : [];
-              if (!orgs.includes(org)) return false;
+              if (!matchOrgs.some((o) => orgs.includes(o))) return false;
               // Jei žinome orgKey — tikrinti ar jau turi šios institucijos PDF
+              // Telia: tikrinti pagal konkrečią organizacijos rūšį
+              if (org === 'Telia, Kaunas') {
+                const hasTelia    = p.permitPdfs && p.permitPdfs.telia    && p.permitPdfs.telia.name;
+                const hasTeliaInv = p.permitPdfs && p.permitPdfs.telia_inv && p.permitPdfs.telia_inv.name;
+                if (orgs.includes('Telia, Kaunas')        && hasTelia)    return false;
+                if (orgs.includes('Telia, investiciniai') && hasTeliaInv) return false;
+                return true;
+              }
               if (orgKey0 && p.permitPdfs && p.permitPdfs[orgKey0] && p.permitPdfs[orgKey0].name) return false;
               return true;
             });
@@ -1072,8 +1084,13 @@ async function checkImapMail() {
               if (org === 'AB ESO' && esoDates.start) {
                 console.log(`[IMAP] AB ESO datos iš PDF: pradžia=${esoDates.start} pabaiga=${esoDates.end||'(nėra)'}`);
               }
-              // Nustatome permitPdfs raktą pagal instituciją
-              const orgKey = org === 'Telia, Kaunas' ? 'telia'
+              // Nustatome permitPdfs raktą pagal RASTOS PARAIŠKOS organizaciją
+              // (Telia domenui gali priklausyti ir Telia, Kaunas, ir Telia, investiciniai)
+              const bestOrgs = Array.isArray(bestPermit.organizations) && bestPermit.organizations.length > 0
+                ? bestPermit.organizations : [bestPermit.organization || ''];
+              const orgKey = bestOrgs.includes('Telia, investiciniai') && !bestOrgs.includes('Telia, Kaunas')
+                           ? 'telia_inv'
+                           : (bestOrgs.includes('Telia, Kaunas') || org === 'Telia, Kaunas') ? 'telia'
                            : org === 'Kauno energija' ? 'ke'
                            : org === 'Kauno vandenys'  ? 'vandenys'
                            : org === 'AB ESO'           ? 'eso'
@@ -1089,18 +1106,20 @@ async function checkImapMail() {
                   ? p.organizations
                   : p.organization ? [p.organization] : [];
                 const teliaNeed    = orgs.includes('Telia, Kaunas');
+                const teliaInvNeed = orgs.includes('Telia, investiciniai');
                 const keNeed       = orgs.includes('Kauno energija');
                 const vandenysNeed = orgs.includes('Kauno vandenys');
                 const esoNeed      = orgs.includes('AB ESO');
-                const teliaDone    = updatedPermitPdfs.telia    && updatedPermitPdfs.telia.name;
-                const keDone       = updatedPermitPdfs.ke       && updatedPermitPdfs.ke.name;
-                const vandenysDone = updatedPermitPdfs.vandenys && updatedPermitPdfs.vandenys.name;
-                const esoDone      = updatedPermitPdfs.eso      && updatedPermitPdfs.eso.name;
-                const allDone  = (!teliaNeed || teliaDone) && (!keNeed || keDone)
-                               && (!vandenysNeed || vandenysDone) && (!esoNeed || esoDone);
-                const someDone = (teliaNeed && teliaDone) || (keNeed && keDone)
-                               || (vandenysNeed && vandenysDone) || (esoNeed && esoDone);
-                const anyNeed  = teliaNeed || keNeed || vandenysNeed || esoNeed;
+                const teliaDone    = updatedPermitPdfs.telia     && updatedPermitPdfs.telia.name;
+                const teliaInvDone = updatedPermitPdfs.telia_inv && updatedPermitPdfs.telia_inv.name;
+                const keDone       = updatedPermitPdfs.ke        && updatedPermitPdfs.ke.name;
+                const vandenysDone = updatedPermitPdfs.vandenys  && updatedPermitPdfs.vandenys.name;
+                const esoDone      = updatedPermitPdfs.eso       && updatedPermitPdfs.eso.name;
+                const allDone  = (!teliaNeed || teliaDone) && (!teliaInvNeed || teliaInvDone)
+                               && (!keNeed || keDone) && (!vandenysNeed || vandenysDone) && (!esoNeed || esoDone);
+                const someDone = (teliaNeed && teliaDone) || (teliaInvNeed && teliaInvDone)
+                               || (keNeed && keDone) || (vandenysNeed && vandenysDone) || (esoNeed && esoDone);
+                const anyNeed  = teliaNeed || teliaInvNeed || keNeed || vandenysNeed || esoNeed;
                 const newStatus = anyNeed
                   ? (allDone ? 'Gautas leidimas' : (someDone ? 'Gautas dalinai' : p.status))
                   : 'Gautas leidimas';
