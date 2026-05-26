@@ -50,6 +50,23 @@ const LDAP_SVC_PASS   = process.env.LDAP_SVC_PASS || '';
 // Middleware
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// index.html — įterpiame APP_VERSION iš package.json
+app.get('/', (req, res) => {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+    let html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+    html = html.replace(
+      '<script type="text/babel">',
+      `<script>window.APP_VERSION="${pkg.version}";</script>\n  <script type="text/babel">`
+    );
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (e) {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Database setup ────────────────────────────────────────────

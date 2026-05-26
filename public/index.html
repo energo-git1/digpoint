@@ -3848,10 +3848,7 @@ function AuthScreen(p){
   var _ap=useState("");var ap=_ap[0],sAP=_ap[1];
   var _err=useState("");var err=_err[0],sErr=_err[1];
   var _ld=useState(false);var ld=_ld[0],sLd=_ld[1];
-  var _ver=useState("...");var ver=_ver[0],sVer=_ver[1];
-  useEffect(function(){
-    fetch("/api/version").then(function(r){return r.json();}).then(function(d){if(d.version)sVer("v"+d.version);}).catch(function(){});
-  },[]);
+  var ver=window.APP_VERSION?"v"+window.APP_VERSION:"";
   function loginAD(){
     sErr("");
     if(!un||!ap){sErr("Iveskite prisijungimo duomenis.");return}
@@ -4111,10 +4108,7 @@ function SystemTools(){
 // ═════════════════════════════════════════════════════════════
 function Sidebar(p){
   var role=p.user.role;
-  var _sver=useState("...");var sverVal=_sver[0],setSver=_sver[1];
-  useEffect(function(){
-    fetch("/api/version").then(function(r){return r.json();}).then(function(d){if(d.version)setSver("v"+d.version);}).catch(function(){});
-  },[]);
+  var sverVal=window.APP_VERSION?"v"+window.APP_VERSION:"";
   var items=[];
   if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"mine",icon:"📋",label:"Mano paraiškos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
   else if(role==="dokumentacija") items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];

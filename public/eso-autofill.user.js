@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Digpoint ESO Autofill
 // @namespace    http://10.2.1.115:3001/
-// @version      1.9.0
+// @version      2.0.0
 // @description  Automatiškai užpildo ESO kasimo leidimo formą iš Digpoint sistemos
 // @author       EnergoLT
 // @match        https://www.eso.lt/aktualios-formos/kasimo-darbai/*
@@ -29,7 +29,7 @@
     el.innerHTML = msg + '<br><small style="opacity:.6">(spausk uždaryti)</small>';
   }
 
-  overlay('🔌 <b>Digpoint ESO v1.9</b> — jungiamasi...', '#6366f1');
+  overlay('🔌 <b>Digpoint ESO v2.0</b> — jungiamasi...', '#6366f1');
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
@@ -143,7 +143,6 @@
     return null;
   }
 
-  // Užpildo lauką Angular-native būdu (triggerHandler = AngularJS suprantamas event)
   function setAngularField(name, val) {
     var el = document.querySelector('input[name="' + name + '"], textarea[name="' + name + '"]');
     if (!el) { console.warn('[ESO] Laukas nerastas:', name); return false; }
@@ -167,13 +166,12 @@
     try {
       scope.$apply(function () { scope.postData.obj_municipality = opt.value; });
     } catch (e) {
-      // Jei jau vyksta digest — tiesiog nustatome reikšmę
       scope.postData.obj_municipality = opt.value;
       angular.element(sel).triggerHandler('change');
     }
   }
 
-  /* ── PDF įkėlimas ────────────────────────────────────────── */
+  /* ── PDF įkėlimas (AngularJS-native) ────────────────────── */
   async function uploadPdf(task) {
     if (!task.files || task.files.length === 0) return;
     var pdfs = task.files.filter(function (f) { return f.url || f.filename; });
@@ -188,6 +186,7 @@
       try {
         var blob = await gmBlob(fileUrl);
         dt.items.add(new File([blob], pf.name || 'kasimo_leidimas.pdf', { type: 'application/pdf' }));
+        console.log('[ESO] PDF blob gautas:', pf.name, blob.size, 'bytes');
       } catch (e) {
         console.warn('[ESO] PDF fetch failed:', e);
       }
@@ -200,44 +199,130 @@
     }
 
     var fileInput = document.querySelector('input[type="file"]');
-    if (!fileInput) return;
+    if (!fileInput) {
+      console.warn('[ESO] File input nerastas!');
+      overlay('⚠️ File input nerastas — įkelkite PDF rankiniu būdu', '#d97706');
+      await sleep(3000);
+      return;
+    }
+
+    // Nustatome failus per DataTransfer
     fileInput.files = dt.files;
-    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    console.log('[ESO] fileInput.files.length:', fileInput.files.length);
+
+    // AngularJS-native event (ne dispatchEvent — jis AngularJS neveikia)
+    try {
+      angular.element(fileInput).triggerHandler('change');
+      console.log('[ESO] triggerHandler(change) atliktas');
+    } catch (e) {
+      console.warn('[ESO] triggerHandler klaida:', e);
+      // Fallback
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // Paleidžiame Angular digest
     try {
       var fs = angular.element(fileInput).scope();
       if (fs) fs.$apply();
-    } catch (e) { }
+    } catch (e) { /* digest jau vyksta – gerai */ }
 
-    await sleep(600);
+    await sleep(800);
+    console.log('[ESO] PDF įkėlimas baigtas');
   }
 
-  /* ── ESO rangovas → Toliau ───────────────────────────────── */
-  async function clickEsoRangovas() {
-    if (document.querySelector('input[name="obj_address"]')) return;
-    var btns = Array.from(document.querySelectorAll('button')).filter(function (b) {
-      return b.textContent.trim() === 'Toliau';
-    });
-    if (btns.length === 0) return;
-    var btn = btns.length >= 3 ? btns[2] : btns[btns.length - 1];
-    btn.click();
-    for (var i = 0; i < 15; i++) {
+  /* ── Auto-navigacija iki ESO rangovas formos ─────────────── */
+  async function navigateToEsoRangovas() {
+    // Jei forma jau atidaryta — nieko nedaryti
+    if (document.querySelector('input[name="obj_address"]')) return true;
+
+    overlay('🔍 Ieškoma ESO rangovas bloko...', '#6366f1');
+
+    // Laukiame kol puslapis pilnai įkraunamas (iki 5 sek.)
+    for (var w = 0; w < 10; w++) {
+      if (document.querySelectorAll('button').length > 0) break;
       await sleep(500);
-      if (document.querySelector('input[name="obj_address"]')) break;
     }
+
+    // Slapukų patvirtinimas
+    var cb2 = document.querySelector('.save_all_cookies');
+    if (cb2) { cb2.click(); await sleep(400); }
+
+    // 1 bandymas: rasti "ESO rangovas" tekstą ir artimiausią "Toliau" mygtuką
+    var clicked = false;
+    var allEls = Array.from(document.querySelectorAll('*'));
+    var rangovasEl = null;
+
+    // Ieškome tikslaus teksto "ESO rangovas" lapiniuose elementuose
+    for (var i = 0; i < allEls.length; i++) {
+      var el = allEls[i];
+      if (el.childElementCount > 0) continue; // tik lapiniai elementai
+      var txt = el.textContent.trim();
+      if (txt === 'ESO rangovas' || txt.indexOf('ESO rangovas') !== -1) {
+        rangovasEl = el;
+        break;
+      }
+    }
+
+    if (rangovasEl) {
+      console.log('[ESO] Rastas "ESO rangovas" elementas:', rangovasEl.tagName, rangovasEl.className);
+      // Einame aukštyn DOM medžiu ieškodami "Toliau" mygtuko tame pačiame bloke
+      var parent = rangovasEl;
+      for (var depth = 0; depth < 8; depth++) {
+        parent = parent.parentElement;
+        if (!parent) break;
+        var btnsInBlock = Array.from(parent.querySelectorAll('button')).filter(function (b) {
+          return b.textContent.trim() === 'Toliau';
+        });
+        if (btnsInBlock.length > 0) {
+          btnsInBlock[0].click();
+          clicked = true;
+          console.log('[ESO] Spaudžiamas "Toliau" ESO rangovas bloke (depth=' + depth + ')');
+          break;
+        }
+      }
+    }
+
+    // 2 bandymas (fallback): spaudžiame trečią arba paskutinį "Toliau"
+    if (!clicked) {
+      console.warn('[ESO] "ESO rangovas" blokas nerastas, naudojamas fallback');
+      var allBtns = Array.from(document.querySelectorAll('button')).filter(function (b) {
+        return b.textContent.trim() === 'Toliau';
+      });
+      if (allBtns.length === 0) {
+        overlay('❌ Nerasta "Toliau" mygtukų. Atidarykite ESO formą rankiniu būdu.', '#dc2626');
+        return false;
+      }
+      var target = allBtns.length >= 3 ? allBtns[2] : allBtns[allBtns.length - 1];
+      target.click();
+      console.log('[ESO] Fallback: spaudžiamas Toliau[' + (allBtns.length >= 3 ? 2 : allBtns.length - 1) + ']');
+    }
+
+    // Laukiame kol forma atsidaro (iki 10 sek.)
+    overlay('⏳ Laukiama ESO rangovas formos...', '#1a56db');
+    for (var j = 0; j < 20; j++) {
+      await sleep(500);
+      if (document.querySelector('input[name="obj_address"]')) {
+        console.log('[ESO] Forma atsidaro po', (j + 1) * 500, 'ms');
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /* ── Formos užpildymas ───────────────────────────────────── */
   async function fill(task) {
-    overlay('⏳ Atidaroma ESO rangovas forma...', '#1a56db');
+    overlay('⏳ Navigacija iki ESO rangovas formos...', '#1a56db');
 
-    var cb2 = document.querySelector('.save_all_cookies');
-    if (cb2) { cb2.click(); await sleep(300); }
-
-    await clickEsoRangovas();
+    var formReady = await navigateToEsoRangovas();
+    if (!formReady) {
+      overlay('❌ Forma nerasta po 10 sek. Atidarykite ESO rangovas → Toliau', '#dc2626');
+      return;
+    }
 
     var scope = findScope();
     if (!scope) {
-      overlay('❌ Forma nerasta. Spauskite: ESO rangovas → Toliau', '#dc2626');
+      overlay('❌ Angular scope nerastas. Perkraukite puslapį.', '#dc2626');
       return;
     }
 
@@ -262,10 +347,10 @@
         scope.postData.agree_to_terms              = true;
       });
     } catch (e) {
-      console.warn('[ESO] scope.$apply klaida (gali būti digest race):', e.message);
+      console.warn('[ESO] scope.$apply klaida:', e.message);
     }
 
-    // 2 žingsnis: Angular-native triggerHandler — atnaujina DOM iš modelio
+    // 2 žingsnis: Angular-native triggerHandler — atnaujina DOM
     await sleep(200);
     setAngularField('legal_company_name',          'EnergoLT');
     setAngularField('legal_manager_name',          task.manager || '');
@@ -296,9 +381,9 @@
     // Rezultato overlay
     var phoneEl = document.querySelector('input[name="legal_manager_phone"]');
     var phoneVal = phoneEl ? phoneEl.value : '?';
-    var pdfStatus  = (task.files && task.files.length > 0) ? '📎 PDF įkeltas' : '⚠️ Nėra PDF';
-    var invStatus  = task.investNo ? '🔢 ' + task.investNo : '⚠️ Inv. nr. nėra';
-    var idStatus   = task.permitId ? '✅ Pateikta sistemoje' : '⚠️ Nėra permitId';
+    var pdfStatus = (task.files && task.files.length > 0) ? '📎 PDF įkeltas' : '⚠️ Nėra PDF';
+    var invStatus = task.investNo ? '🔢 ' + task.investNo : '⚠️ Inv. nr. nėra';
+    var idStatus  = task.permitId ? '✅ Pateikta sistemoje' : '⚠️ Nėra permitId';
 
     overlay(
       '✅ <b>Forma užpildyta!</b><br>' +
@@ -312,7 +397,7 @@
 
   /* ── Main ────────────────────────────────────────────────── */
   async function main() {
-    await sleep(1200);
+    await sleep(1500);
 
     var hashTask = taskFromHash();
     var task = await taskFromServer();
@@ -329,7 +414,8 @@
       permitId: task.permitId,
       manager: task.manager,
       phone: task.managerPhone,
-      location: task.location
+      location: task.location,
+      files: (task.files || []).length
     }));
 
     overlay('📋 ' + (task.location || task.manager || 'Rasta užduotis') +
