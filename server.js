@@ -965,7 +965,44 @@ async function checkImapMail() {
               const hasApproval =
                 /suteikiam[as]*\s+leidim|leidžiama\s+vykdyti|suderint[a]\s+kasimo|leisti\s+kasimo|kasimo\s+leidim[as]*\s+suteikt|leidimas\s+išduot|išduodam[as]*\s+leidim/i.test(allEsoText);
               if (isInfoConfirm && !hasApproval) {
-                console.log(`[IMAP] AB ESO: ⏭️ informacinis patvirtinimas (ne leidimas) — žymima matyta, statusas nekeičiamas. Tema: "${subject}"`);
+                console.log(`[IMAP] AB ESO: ⏭️ informacinis patvirtinimas (prašymas gautas) — keičiame statusą į Pateikta. Tema: "${subject}"`);
+
+                // Bandome surasti atitinkančias paraiškas pagal investicinį numerį
+                const confirmInvNos = extractAllInvestNos(allEsoText);
+                const allPermitsNow = dbGet('kl-permits') || [];
+                const today = fmtDateSrv(new Date());
+                let updatedCount = 0;
+
+                const updatedPermits = allPermitsNow.map((pm) => {
+                  const pmOrgs = Array.isArray(pm.organizations) && pm.organizations.length > 0
+                    ? pm.organizations : pm.organization ? [pm.organization] : [];
+                  if (!pmOrgs.includes('AB ESO')) return pm;
+                  if (pm.status === 'Pateikta' || pm.status === 'Gautas leidimas' || pm.status === 'Atmestas' || pm.status === 'Nebegalioja') return pm;
+
+                  // Atitikimas pagal inv. nr. (jei rastas laiške) arba bet kuri laukianti ESO paraiška
+                  const pmInv = (pm.investNo || '').trim();
+                  const invMatch = confirmInvNos.length === 0 || !pmInv || confirmInvNos.includes(pmInv);
+                  if (!invMatch) return pm;
+
+                  updatedCount++;
+                  return {
+                    ...pm,
+                    status: 'Pateikta',
+                    history: [...(pm.history || []), {
+                      status: 'Pateikta',
+                      date: today,
+                      note: `ESO patvirtino prašymo gavimą (automatiškai iš pašto: "${subject}")`
+                    }]
+                  };
+                });
+
+                if (updatedCount > 0) {
+                  dbSet('kl-permits', updatedPermits);
+                  console.log(`[IMAP] AB ESO: ✅ ${updatedCount} paraišk(-a/-ų) perkelta į "Pateikta"`);
+                } else {
+                  console.log(`[IMAP] AB ESO: ℹ️ Atitinkančių paraiškų nerasta (inv. nr.: ${confirmInvNos.join(', ') || 'nerasta'})`);
+                }
+
                 doneIds.add(msgId);
                 dbSet('kl-imap-done', [...doneIds]);
                 await client.messageFlagsAdd(seq, ['\\Seen']);
