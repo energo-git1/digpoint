@@ -1170,8 +1170,8 @@ async function checkImapMail() {
                   location:         p.location || pdfLocExtracted || '',
                   startDate:        p.startDate || pdfStart || '',
                   endDate:          p.endDate   || pdfEnd   || '',
-                  permitValidFrom:  p.permitValidFrom || pdfStart || p.startDate || today,
-                  permitValidUntil: p.permitValidUntil || pdfEnd  || p.endDate   || '',
+                  permitValidFrom:  p.permitValidFrom  || pdfStart || p.startDate    || p.teliaStartDate || p.keStartDate || today,
+                  permitValidUntil: p.permitValidUntil || pdfEnd   || p.endDate      || p.teliaEndDate   || p.keEndDate   || '',
                   history: [...(p.history || []), {
                     status: newStatus,
                     date:   today,
@@ -1698,6 +1698,22 @@ app.get('*', (req, res) => {
 });
 
 // ── Deploy endpoint — git pull + pm2 restart ─────────────────
+// Pataisymas: Telia/KE paraiškoms su tuščiu permitValidUntil — užpildome iš teliaEndDate/keEndDate
+app.post('/api/admin/fix-permit-dates', (req, res) => {
+  const permits = dbGet('kl-permits') || [];
+  let fixed = 0;
+  const updated = permits.map((p) => {
+    if (p.permitValidUntil && p.permitValidUntil.trim()) return p; // jau turi
+    if (p.status !== 'Gautas leidimas' && p.status !== 'Gautas dalinai') return p;
+    const fallback = p.teliaEndDate || p.keEndDate || p.endDate || '';
+    if (!fallback) return p;
+    fixed++;
+    return { ...p, permitValidUntil: fallback };
+  });
+  if (fixed > 0) dbSet('kl-permits', updated);
+  res.json({ ok: true, fixed });
+});
+
 app.post('/api/admin/deploy', (req, res) => {
   const dir = __dirname;
   exec(`cd ${dir} && git pull && pm2 restart digpoint`, { timeout: 30000 }, (err, stdout, stderr) => {

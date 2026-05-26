@@ -3928,6 +3928,8 @@ function SystemTools(){
   var _imapBusy=useState(false);var imapBusy=_imapBusy[0],sImapBusy=_imapBusy[1];
   var _reprocBusy=useState(false);var reprocBusy=_reprocBusy[0],sReprocBusy=_reprocBusy[1];
   var _reprocRes=useState(null);var reprocRes=_reprocRes[0],sReprocRes=_reprocRes[1];
+  var _fixDatesBusy=useState(false);var fixDatesBusy=_fixDatesBusy[0],sFixDatesBusy=_fixDatesBusy[1];
+  var _fixDatesRes=useState(null);var fixDatesRes=_fixDatesRes[0],sFixDatesRes=_fixDatesRes[1];
 
   function checkMail(){
     sMailBusy(true);sMailRes(null);
@@ -3971,6 +3973,13 @@ function SystemTools(){
       .then(function(d){sReprocRes(d);sReprocBusy(false)})
       .catch(function(e){sReprocRes({error:e.message});sReprocBusy(false)});
   }
+  function fixPermitDates(){
+    sFixDatesBusy(true);sFixDatesRes(null);
+    fetch("/api/admin/fix-permit-dates",{method:"POST"})
+      .then(function(r){return r.json()})
+      .then(function(d){sFixDatesRes(d);sFixDatesBusy(false)})
+      .catch(function(e){sFixDatesRes({error:e.message});sFixDatesBusy(false)});
+  }
 
   var section={marginBottom:24,padding:"16px 18px",background:C.s2,border:"1px solid "+C.b1,borderRadius:10};
   var secTitle={fontSize:10,fontWeight:700,color:C.t3,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1};
@@ -4008,7 +4017,11 @@ function SystemTools(){
         <Btn sm onClick={debugMail} disabled={dbgBusy}>{dbgBusy?"⏳ Kraunama...":"🔍 Rodyti pašto turinį"}</Btn>
         <Btn v="danger" sm onClick={clearImapDone} disabled={clearBusy}>{clearBusy?"⏳ Valoma...":"🗑️ Išvalyti apdorotus"}</Btn>
         <Btn v="primary" sm onClick={reprocessUnattached} disabled={reprocBusy}>{reprocBusy?"⏳ Priskiriama...":"🔗 Priskirti nepriskirtus PDF"}</Btn>
+        <Btn v="secondary" sm onClick={fixPermitDates} disabled={fixDatesBusy}>{fixDatesBusy?"⏳ Taisoma...":"📅 Taisyti galiojimo datas"}</Btn>
       </div>
+      {fixDatesRes&&<div style={{padding:"8px 12px",borderRadius:8,background:fixDatesRes.ok?C.gnD:C.rdD,border:"1px solid "+(fixDatesRes.ok?C.gn:C.rd)+"44",fontSize:11,fontFamily:FM,marginTop:6}}>
+        {fixDatesRes.ok?("✅ Pataisyta paraiškų: "+fixDatesRes.fixed):"❌ Klaida: "+(fixDatesRes.error||"?")}
+      </div>}
       {imapRes&&<div style={{marginBottom:8,padding:"10px 12px",borderRadius:8,background:imapRes.ok?C.gnD:C.rdD,border:"1px solid "+(imapRes.ok?C.gn:C.rd)+"44",fontSize:11,fontFamily:FM}}>
         <div style={{fontWeight:700,color:imapRes.ok?C.gn:C.rd,marginBottom:6}}>{imapRes.ok?"✅ IMAP prisijungta":"❌ IMAP klaida"}</div>
         <div style={{display:"grid",gridTemplateColumns:"120px 1fr",gap:"3px 8px",color:C.tx}}>
