@@ -1427,21 +1427,25 @@ function EsoSubmitBtn(p){
     var tasks=filtered.concat([task]);
     await sSet('kl-eso-tasks',tasks);
 
-    // 4) Paleidžiame ESO agentą automatiškai
-    setTimeout(function(){
-      if(typeof window.sendPrompt==='function'){
-        window.sendPrompt('Pateik ESO');
-      }
-    },1500);
+    // 4) Atidarome ESO svetainę — Tampermonkey skriptas automatiškai užpildys formą
+    window.open('https://www.eso.lt/aktualios-formos/kasimo-darbai/30','_blank');
 
     sSt("ready");
+
   }
+
+  // Ar Tampermonkey skriptas įdiegtas (tikriname per localStorage žymą kurią gali palikti skriptas)
+  var tmInstalled=lsGet('dp-tampermonkey-eso');
 
   return <div style={{marginBottom:12}}>
     <div style={{background:"#FF6B2B18",border:"1px solid #FF6B2B44",borderRadius:8,padding:"10px 12px"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
         <span style={{fontSize:16}}>🌐</span>
         <div style={{fontSize:12,fontWeight:700,color:"#FF6B2B",fontFamily:F}}>AB ESO Automatinis pateikimas</div>
+        <a href="http://10.2.1.115:3001/eso-autofill.user.js" target="_blank" title="Įdiegti Tampermonkey skriptą (reikia tik vieną kartą)"
+          style={{marginLeft:"auto",fontSize:9,color:C.t3,fontFamily:FM,textDecoration:"underline",cursor:"pointer"}}>
+          ⚙️ Skriptas
+        </a>
       </div>
       {st==="idle"&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
         <Btn onClick={prepareTask} sm style={{background:"#FF6B2B",color:"#fff",border:"none"}}>
@@ -1450,8 +1454,8 @@ function EsoSubmitBtn(p){
         {hasPdf&&<span style={{fontSize:9,color:C.t3,fontFamily:FM}}>{pdfFiles.length} PDF</span>}
         {!hasPdf&&<span style={{fontSize:9,color:C.yl,fontFamily:FM}}>⚠️ Nėra PDF</span>}
       </div>}
-      {st==="saving"&&<div style={{fontSize:10,color:C.t2,fontFamily:F}}>⏳ Siunčiami laiškai, paleidžiamas agentas...</div>}
-      {st==="ready"&&<div style={{fontSize:10,color:C.gn,fontFamily:FM}}>✅ Pateikta — ESO forma atidaryta Cowork lange</div>}
+      {st==="saving"&&<div style={{fontSize:10,color:C.t2,fontFamily:F}}>⏳ Ruošiama užduotis...</div>}
+      {st==="ready"&&<div style={{fontSize:10,color:C.gn,fontFamily:FM}}>✅ ESO forma atidaryta — skriptas pats užpildys per kelias sekundes</div>}
     </div>
   </div>
 }
