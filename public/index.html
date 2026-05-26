@@ -1323,6 +1323,12 @@ function PermitForm(p){
       </div>
       <FileDropZone files={files} onAdd={addFile} onRemove={removeFile}/>
     </div>
+    {(isESO||hasSav)&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Objekto vieta / adresas</div>
+      <Inp label="Adresas" value={esoLoc} onChange={sEsoLoc} ph="Pvz.: Gedimino g. 5, Kaunas"/>
+      {!esoLoc&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginTop:-6,marginBottom:4}}>⚠️ Adresas tuščias — paprastai užpildomas automatiškai iš PDF. Jei ne — įveskite rankiniu būdu.</div>}
+      {esoLoc&&<div style={{fontSize:10,color:C.gn,fontFamily:F,marginTop:-6,marginBottom:4}}>✓ Adresas rastas</div>}
+    </div>}
     <Inp label="Papildomas aprasas (neprivaloma)" value={desc} onChange={sDesc} ml rows={3} ph="Papildoma informacija apie darbus..."/>
     <div style={{display:"flex",gap:6,marginTop:14,justifyContent:"flex-end"}}>
       {p.onCancel&&<Btn v="secondary" onClick={p.onCancel} disabled={submitting}>Atsaukti</Btn>}
@@ -2188,6 +2194,7 @@ function PermitDetail(p){
   var _teliaInvFromIn=useState(o.teliaRouteFrom||"");var teliaInvFromIn=_teliaInvFromIn[0],sTeliaInvFromIn=_teliaInvFromIn[1];
   var _teliaInvToIn=useState(o.teliaRouteTo||"");var teliaInvToIn=_teliaInvToIn[0],sTeliaInvToIn=_teliaInvToIn[1];
   var _teliaInvEmailIn=useState(o.teliaInvEmail||"");var teliaInvEmailIn=_teliaInvEmailIn[0],sTeliaInvEmailIn=_teliaInvEmailIn[1];
+  var _locIn=useState(o.location||"");var locIn=_locIn[0],sLocIn=_locIn[1];
   var _knownInvEmails=useState([]);var knownInvEmails=_knownInvEmails[0],sKnownInvEmails=_knownInvEmails[1];
   var _showInvEmailDrop=useState(false);var showInvEmailDrop=_showInvEmailDrop[0],sShowInvEmailDrop=_showInvEmailDrop[1];
   useEffect(function(){
@@ -2231,6 +2238,8 @@ function PermitDetail(p){
 
   function save(){
     var u=Object.assign({},o);
+    // Adresas — leidžiama redaguoti ir adminui ir dokumentacija
+    if((isA||isD)&&locIn.trim()!==o.location){u.location=locIn.trim();}
     if(isA){
       if(at&&at!==o.assignedTo){
         var aw=p.users.find(function(u){return u.id===at});
@@ -2314,7 +2323,11 @@ function PermitDetail(p){
       </div>
       <div>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:3,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbu vykdymo vieta</div>
-        <div style={{fontSize:13,color:C.tx,fontFamily:F}}>{o.location}</div>
+        {(isA||isD)
+          ?<input type="text" value={locIn} onChange={function(e){sLocIn(e.target.value)}} placeholder="Pvz.: Gedimino g. 5, Kaunas"
+              style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:F,background:C.bg,color:locIn?C.tx:C.rd,border:"1px solid "+(locIn?C.b1:C.rd),borderRadius:6}}/>
+          :<div style={{fontSize:13,color:o.location?C.tx:C.rd,fontFamily:F}}>{o.location||"⚠️ Adresas nenurodytas"}</div>}
+        {(isA||isD)&&!locIn&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:3}}>⚠️ Adresas nenurodytas — reikia užpildyti prieš pateikiant ESO</div>}
       </div>
       <div style={{display:"flex",gap:12}}>
         <div style={{flex:1}}>
