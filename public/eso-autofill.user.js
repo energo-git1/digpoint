@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Digpoint ESO Autofill
 // @namespace    http://10.2.1.115:3001/
-// @version      1.6.0
+// @version      1.8.0
 // @description  Automatiškai užpildo ESO kasimo leidimo formą iš Digpoint sistemos
 // @author       EnergoLT
 // @match        https://www.eso.lt/aktualios-formos/kasimo-darbai/*
@@ -71,6 +71,18 @@
     });
   }
 
+  function gmPost(url, body) {
+    return new Promise(function (resolve) {
+      GM_xmlhttpRequest({
+        method: 'POST', url: url,
+        headers: { 'Content-Type': 'application/json' },
+        data: JSON.stringify(body), timeout: 8000,
+        onload: function () { resolve(); },
+        onerror: function () { resolve(); }
+      });
+    });
+  }
+
   /* ── Gauti užduotį ───────────────────────────────────────── */
   function taskFromHash() {
     var m = window.location.hash.match(/dp=([A-Za-z0-9+\/=]+)/);
@@ -88,10 +100,16 @@
 
   async function removeTask(permitId) {
     try {
+      // Pašaliname iš ESO užduočių eilės
       var d = await gmJson(API + '/api/store/kl-eso-tasks');
       var list = Array.isArray(d.value) ? d.value : [];
       await gmPut(API + '/api/store/kl-eso-tasks',
         { value: list.filter(function (t) { return t.permitId !== permitId; }) });
+    } catch (e) { }
+    try {
+      // Atnaujiname paraiškos statusą į "Pateikta" Digpoint sistemoje
+      await gmPost(API + '/api/permits/' + permitId + '/status',
+        { status: 'Pateikta', note: 'ESO paraiška pateikta automatiškai' });
     } catch (e) { }
   }
 
@@ -192,6 +210,16 @@
 
     var phone = (task.managerPhone || '').replace(/^\+370/, '').replace(/\s/g, '').trim();
 
+    // Pagalbinė funkcija: užpildo lauką per DOM + Angular events
+    function setField(name, val) {
+      var el = document.querySelector('input[name="' + name + '"], textarea[name="' + name + '"]');
+      if (!el) return;
+      var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      nativeInputValueSetter.call(el, val);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
     scope.$apply(function () {
       scope.postData.legal_company_name = 'EnergoLT';
       scope.postData.legal_manager_name = task.manager || '';
@@ -205,6 +233,17 @@
       scope.postData.technical_eso_investment_nr = task.investNo || '';
       scope.postData.agree_to_terms = true;
     });
+
+    // Papildomai suveikiame DOM events telefonui ir kitiems laukams (input mask kompatiblumas)
+    setField('legal_manager_phone', phone);
+    setField('legal_company_name', 'EnergoLT');
+    setField('legal_manager_name', task.manager || '');
+    setField('acceptance_email', task.email || '');
+    setField('obj_address', task.location || '');
+    setField('excavation_purpose', 'Elektros tinklų įrengimas');
+    setField('excavation_start', task.startDate || '');
+    setField('excavation_end', task.endDate || '');
+    setField('technical_eso_investment_nr', task.investNo || '');
 
     setMunicipality(scope);
 
