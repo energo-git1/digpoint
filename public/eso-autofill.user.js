@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Digpoint ESO Autofill
 // @namespace    http://10.2.1.115:3001/
-// @version      2.2.0
+// @version      2.3.0
 // @description  Automatiškai užpildo ESO kasimo leidimo formą iš Digpoint sistemos
 // @author       EnergoLT
 // @match        https://www.eso.lt/aktualios-formos/kasimo-darbai/*
@@ -29,29 +29,18 @@
     el.innerHTML = msg + '<br><small style="opacity:.6">(spausk uždaryti)</small>';
   }
 
-  overlay('🔌 <b>Digpoint ESO v2.2</b> — jungiamasi...', '#6366f1');
+  overlay('🔌 <b>Digpoint ESO v2.3</b> — jungiamasi...', '#6366f1');
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
   /* ── Laukia kol forma atsiranda DOM'e ────────────────────── */
-  // Naudoja MutationObserver — tikrina kol input[name="obj_address"] atsiranda.
-  // Timeout: 120 sek. (2 min.) — pakankamai laiko rankiniam atidarymui.
   function waitForForm() {
     return new Promise(function (resolve) {
-      // Jei jau yra — iš karto
-      if (document.querySelector('input[name="obj_address"]')) {
-        resolve(); return;
-      }
-      var timeout = setTimeout(function () {
-        observer.disconnect();
-        resolve(); // tęsiame net jei nepavyko rasti
-      }, 120000);
-
+      if (document.querySelector('input[name="obj_address"]')) { resolve(); return; }
+      var timeout = setTimeout(function () { observer.disconnect(); resolve(); }, 120000);
       var observer = new MutationObserver(function () {
         if (document.querySelector('input[name="obj_address"]')) {
-          clearTimeout(timeout);
-          observer.disconnect();
-          resolve();
+          clearTimeout(timeout); observer.disconnect(); resolve();
         }
       });
       observer.observe(document.body, { childList: true, subtree: true });
@@ -63,10 +52,7 @@
     return new Promise(function (resolve, reject) {
       GM_xmlhttpRequest({
         method: 'GET', url: url, timeout: 8000,
-        onload: function (r) {
-          try { resolve(JSON.parse(r.responseText)); }
-          catch (e) { reject(new Error('JSON parse error')); }
-        },
+        onload: function (r) { try { resolve(JSON.parse(r.responseText)); } catch (e) { reject(new Error('JSON parse error')); } },
         onerror: function () { reject(new Error('Network error')); },
         ontimeout: function () { reject(new Error('Timeout')); }
       });
@@ -87,11 +73,9 @@
   function gmPut(url, body) {
     return new Promise(function (resolve) {
       GM_xmlhttpRequest({
-        method: 'PUT', url: url,
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT', url: url, headers: { 'Content-Type': 'application/json' },
         data: JSON.stringify(body), timeout: 8000,
-        onload: function (r) { resolve(r); },
-        onerror: function () { resolve(null); }
+        onload: function (r) { resolve(r); }, onerror: function () { resolve(null); }
       });
     });
   }
@@ -99,11 +83,9 @@
   function gmPost(url, body) {
     return new Promise(function (resolve) {
       GM_xmlhttpRequest({
-        method: 'POST', url: url,
-        headers: { 'Content-Type': 'application/json' },
-        data: JSON.stringify(body), timeout: 8000,
-        onload: function (r) { resolve(r); },
-        onerror: function () { resolve(null); }
+        method: 'POST', url: url, headers: { 'Content-Type': 'application/json' },
+        data: JSON.stringify(body), timeout: 10000,
+        onload: function (r) { resolve(r); }, onerror: function () { resolve(null); }
       });
     });
   }
@@ -119,22 +101,16 @@
     try {
       var d = await gmJson(API + '/api/store/kl-eso-tasks');
       var list = Array.isArray(d.value) ? d.value : Array.isArray(d) ? d : [];
-      var pending = list.filter(function (t) { return t.status === 'pending'; });
-      return pending[0] || null;
-    } catch (e) {
-      console.warn('[ESO] taskFromServer klaida:', e);
-      return null;
-    }
+      return list.filter(function (t) { return t.status === 'pending'; })[0] || null;
+    } catch (e) { console.warn('[ESO] taskFromServer:', e); return null; }
   }
 
   async function markDone(permitId) {
-    if (!permitId) { console.warn('[ESO] markDone: permitId tuščias!'); return; }
+    if (!permitId) return;
     try {
       var d = await gmJson(API + '/api/store/kl-eso-tasks');
       var list = Array.isArray(d.value) ? d.value : Array.isArray(d) ? d : [];
-      var remaining = list.filter(function (t) { return t.permitId !== permitId; });
-      await gmPut(API + '/api/store/kl-eso-tasks', { value: remaining });
-      console.log('[ESO] Eilė: liko', remaining.length);
+      await gmPut(API + '/api/store/kl-eso-tasks', { value: list.filter(function (t) { return t.permitId !== permitId; }) });
     } catch (e) { console.warn('[ESO] Eilės klaida:', e); }
     try {
       await gmPost(API + '/api/permits/' + permitId + '/status',
@@ -160,26 +136,102 @@
     if (!el) { console.warn('[ESO] Laukas nerastas:', name); return false; }
     try {
       var $el = angular.element(el);
-      $el.val(val);
-      $el.triggerHandler('input');
-      $el.triggerHandler('change');
+      $el.val(val); $el.triggerHandler('input'); $el.triggerHandler('change');
       return true;
     } catch (e) { console.warn('[ESO] setAngularField(' + name + '):', e); return false; }
   }
 
-  function setMunicipality(scope) {
+  /* ── Savivaldybė — iš PDF arba adresas ──────────────────── */
+
+  // 1. Klausia serverio ištraukti savivaldybę iš PDF
+  async function getMunFromPdf(task) {
+    if (!task.files || task.files.length === 0) return null;
+    var pdfs = task.files.filter(function (f) { return f.url || f.filename; });
+    if (pdfs.length === 0) return null;
+    try {
+      var pf = pdfs[0];
+      var r = await gmPost(API + '/api/extract-municipality', {
+        url: pf.url || null,
+        filename: pf.filename || null
+      });
+      if (r && r.responseText) {
+        var d = JSON.parse(r.responseText);
+        if (d.municipality) { console.log('[ESO] PDF savivaldybė:', d.municipality); return d.municipality; }
+        if (d.error) console.warn('[ESO] PDF mun klaida:', d.error);
+      }
+    } catch (e) { console.warn('[ESO] getMunFromPdf:', e); }
+    return null;
+  }
+
+  // 2. Ištraukia savivaldybę iš adreso teksto
+  function munFromText(text) {
+    if (!text) return null;
+    // "X r. sav." arba "X m. sav."
+    var m = text.match(/[^\s,\.()]+(?:\s+[^\s,\.()]+)?\s+[rm]\.\s*sav\./i);
+    if (m) return m[0].trim().replace(/\s+/g, ' ');
+    // "X sav." (pvz. Marijampolės sav.)
+    var m2 = text.match(/[^\s,\.()]{4,}\s+sav\./i);
+    if (m2) return m2[0].trim();
+    return null;
+  }
+
+  // 3. Ieško atitinkančios opcijos dropdown'e
+  function findMunOption(sel, mun) {
+    if (!mun) return null;
+    var opts = Array.from(sel.options);
+    var munL = mun.toLowerCase().replace(/\s+/g, ' ');
+
+    // Pilnas sutapimas
+    var opt = opts.find(function (o) { return o.text.toLowerCase().replace(/\s+/g, ' ') === munL; });
+    if (opt) return opt;
+
+    // Pirmasis žodis + tipas (m./r.)
+    var isM = /\bm\b/i.test(mun);
+    var isR = /\br\b/i.test(mun);
+    var word1 = munL.split(/\s+/)[0]; // pvz. "kauno", "alytaus", "jonavos"
+    opt = opts.find(function (o) {
+      var t = o.text.toLowerCase();
+      if (t.indexOf(word1) === -1) return false;
+      if (isM) return t.indexOf(' m.') !== -1;
+      if (isR) return t.indexOf(' r.') !== -1;
+      return true;
+    });
+    if (opt) return opt;
+
+    // Tik pirmieji 5 simboliai
+    opt = opts.find(function (o) { return o.text.toLowerCase().indexOf(word1.slice(0, 5)) !== -1; });
+    return opt || null;
+  }
+
+  // Pagrindinis savivaldybės nustatymas
+  async function setMunicipality(scope, task) {
     var sel = document.querySelector('select#obj_municipality')
            || document.querySelector('select[name="obj_municipality"]')
            || document.querySelector('select[ng-model*="municipality"]');
     if (!sel) {
+      // Ieškome bet kokio select su daug opcijų (savivaldybių > 20)
       sel = Array.from(document.querySelectorAll('select')).find(function (s) {
-        return Array.from(s.options).some(function (o) { return o.text.indexOf('Kauno') !== -1; });
+        return s.options.length > 20;
       }) || null;
     }
     if (!sel) { console.warn('[ESO] Savivaldybės select nerastas'); return; }
-    var opt = Array.from(sel.options).find(function (o) { return o.text.indexOf('Kauno m') !== -1; });
-    if (!opt) { console.warn('[ESO] Kauno m opcija nerasta'); return; }
-    console.log('[ESO] Savivaldybė → opt.value =', opt.value);
+
+    // Prioritetai: PDF → task.municipality → task.location
+    var mun = await getMunFromPdf(task);
+    if (!mun) mun = task.municipality || munFromText(task.location);
+    console.log('[ESO] Savivaldybė (rastas tekstas):', mun || '(nerasta)');
+
+    var opt = findMunOption(sel, mun);
+
+    if (!opt) {
+      // Fallback: Kauno m.
+      opt = Array.from(sel.options).find(function (o) { return o.text.indexOf('Kauno m') !== -1; });
+      console.warn('[ESO] Savivaldybė "' + mun + '" nerasta dropdown\'e — naudojama Kauno m.');
+    } else {
+      console.log('[ESO] Savivaldybė nustatyta:', opt.text);
+    }
+
+    if (!opt) return;
     try { scope.$apply(function () { scope.postData.obj_municipality = opt.value; }); }
     catch (e) { scope.postData.obj_municipality = opt.value; }
     angular.element(sel).triggerHandler('change');
@@ -192,18 +244,16 @@
     if (pdfs.length === 0) return;
 
     overlay('📎 PDF įkeliamas...', '#7c3aed');
-
     var dt = new DataTransfer();
     for (var i = 0; i < pdfs.length; i++) {
       var pf = pdfs[i];
       var fileUrl = API + (pf.url || '/uploads/' + pf.filename);
-      console.log('[ESO] Kraunamas:', fileUrl);
       try {
         var blob = await gmBlob(fileUrl);
         var fname = pf.name || pf.filename || ('kasimo_leidimas_' + i + '.pdf');
         dt.items.add(new File([blob], fname, { type: 'application/pdf' }));
         console.log('[ESO] PDF OK:', fname, blob.size, 'bytes');
-      } catch (e) { console.warn('[ESO] PDF fetch klaida:', e.message); }
+      } catch (e) { console.warn('[ESO] PDF fetch:', e.message); }
     }
 
     if (dt.files.length === 0) {
@@ -213,38 +263,28 @@
 
     var fileInput = document.querySelector('input[type="file"]');
     if (!fileInput) {
-      console.warn('[ESO] input[type="file"] nerastas');
-      overlay('⚠️ File input nerastas', '#d97706');
-      await sleep(2000); return;
+      overlay('⚠️ File input nerastas', '#d97706'); await sleep(2000); return;
     }
-
     try { fileInput.files = dt.files; } catch (e) { console.warn('[ESO] files assign:', e); }
     try { angular.element(fileInput).triggerHandler('change'); } catch (e) { }
     try { angular.element(fileInput).triggerHandler('input'); } catch (e) { }
     fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-    try {
-      var fs = angular.element(fileInput).scope();
-      if (fs) { try { fs.$apply(); } catch (e) { } }
-    } catch (e) { }
-
+    try { var fs = angular.element(fileInput).scope(); if (fs) { try { fs.$apply(); } catch (e) { } } } catch (e) { }
     await sleep(800);
   }
 
-  /* ── Navigacija (tik bandoma, neblokuoja) ────────────────── */
+  /* ── Navigacija (bando auto, neblokuoja) ─────────────────── */
   async function tryAutoNavigate() {
-    // Jei forma jau matoma — nieko nedaryti
     if (document.querySelector('input[name="obj_address"]')) return;
-
-    // Slapukai
     var cb2 = document.querySelector('.save_all_cookies');
     if (cb2) { cb2.click(); await sleep(300); }
 
-    // Ieškome "ESO rangovas" bloko
-    var allEls = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,div,span,p,label'));
+    // Ieškome "ESO rangovas" elemento
     var rangovasEl = null;
+    var allEls = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,div,span,p,label'));
     for (var i = 0; i < allEls.length; i++) {
-      if (allEls[i].textContent.trim().indexOf('ESO rangovas') !== -1
-          && allEls[i].childElementCount === 0) {
+      if (allEls[i].childElementCount === 0 &&
+          allEls[i].textContent.trim().indexOf('ESO rangovas') !== -1) {
         rangovasEl = allEls[i]; break;
       }
     }
@@ -253,21 +293,16 @@
     if (rangovasEl) {
       var par = rangovasEl.parentElement;
       for (var d = 0; d < 10 && par; d++) {
-        var btn = Array.from(par.querySelectorAll('button')).find(function (b) {
-          return b.textContent.trim() === 'Toliau';
-        });
-        if (btn) { btn.click(); clicked = true; console.log('[ESO] Auto-click Toliau (depth=' + d + ')'); break; }
+        var btn = Array.from(par.querySelectorAll('button')).find(function (b) { return b.textContent.trim() === 'Toliau'; });
+        if (btn) { btn.click(); clicked = true; console.log('[ESO] Auto-click Toliau depth=' + d); break; }
         par = par.parentElement;
       }
     }
     if (!clicked) {
-      var allBtns = Array.from(document.querySelectorAll('button')).filter(function (b) {
-        return b.textContent.trim() === 'Toliau';
-      });
+      var allBtns = Array.from(document.querySelectorAll('button')).filter(function (b) { return b.textContent.trim() === 'Toliau'; });
       if (allBtns.length > 0) {
         var t = allBtns.length >= 3 ? allBtns[2] : allBtns[allBtns.length - 1];
-        t.click();
-        console.log('[ESO] Fallback Toliau idx', allBtns.indexOf(t));
+        t.click(); console.log('[ESO] Fallback Toliau idx', allBtns.indexOf(t));
       }
     }
   }
@@ -275,14 +310,11 @@
   /* ── Formos užpildymas ───────────────────────────────────── */
   async function fill(task) {
     var scope = findScope();
-    if (!scope) {
-      overlay('❌ Angular scope nerastas', '#dc2626'); return;
-    }
+    if (!scope) { overlay('❌ Angular scope nerastas', '#dc2626'); return; }
 
     overlay('✍️ Pildomi laukai...', '#2563eb');
     var phone = (task.managerPhone || '').replace(/^\+370/, '').replace(/\s+/g, '').trim();
-
-    console.log('[ESO] Pildoma:', { manager: task.manager, phone: phone, location: task.location, investNo: task.investNo });
+    console.log('[ESO] Duomenys:', { manager: task.manager, phone: phone, location: task.location, investNo: task.investNo, municipality: task.municipality });
 
     try {
       scope.$apply(function () {
@@ -312,7 +344,10 @@
     setAngularField('technical_eso_investment_nr', task.investNo || '');
 
     await sleep(200);
-    setMunicipality(scope);
+
+    // Savivaldybė — tikrina PDF, tada adresą
+    await setMunicipality(scope, task);
+
     await sleep(200);
     var cb = document.querySelector('input#terms');
     if (cb && !cb.checked) cb.click();
@@ -323,15 +358,17 @@
     await markDone(task.permitId);
 
     var phoneEl  = document.querySelector('input[name="legal_manager_phone"]');
-    var phoneVal = phoneEl ? phoneEl.value : '?';
+    var selEl    = document.querySelector('select#obj_municipality') || document.querySelector('select[name="obj_municipality"]');
+    var munText  = selEl ? (selEl.options[selEl.selectedIndex] || {}).text || '?' : '?';
+
     overlay(
       '✅ <b>Forma užpildyta!</b><br>' +
       '<span style="font-size:11px">' + (task.location || task.manager || '') + '</span><br>' +
-      '<span style="font-size:10px;opacity:.9">📞 ' + phoneVal +
-        ' · ' + (task.files && task.files.length > 0 ? '📎 PDF įkeltas' : '⚠️ Nėra PDF') + '</span><br>' +
+      '<span style="font-size:10px;opacity:.9">📞 ' + (phoneEl ? phoneEl.value : '?') +
+        ' · 🏛 ' + munText + '</span><br>' +
       '<span style="font-size:10px;opacity:.9">' +
         (task.investNo ? '🔢 ' + task.investNo : '⚠️ Inv. nr. nėra') +
-        ' · ' + (task.permitId ? '✅ Pateikta' : '⚠️ Nėra ID') + '</span><br>' +
+        ' · ' + (task.files && task.files.length > 0 ? '📎 PDF' : '⚠️ Nėra PDF') + '</span><br>' +
       '<span style="font-size:10px;opacity:.7">Patikrinkite ir spauskite <b>Siųsti</b></span>',
       '#059669'
     );
@@ -340,7 +377,6 @@
   /* ── Main ────────────────────────────────────────────────── */
   async function main() {
     await sleep(1200);
-
     var hashTask = taskFromHash();
     var task = await taskFromServer();
     if (!task && hashTask) task = hashTask;
@@ -351,30 +387,25 @@
       return;
     }
 
+    console.log('[ESO] Rasta užduotis:', { permitId: task.permitId, manager: task.manager, municipality: task.municipality, files: (task.files || []).length });
+
     overlay(
       '📋 <b>' + (task.location || task.manager || 'Rasta užduotis') + '</b>' +
-      '<br><small style="opacity:.8">Inv: ' + (task.investNo || '⚠️ nėra') + ' · ID: ' + (task.permitId || '⚠️') + '</small>' +
-      '<br><small style="opacity:.6">Laukiama ESO rangovas formos...</small>',
+      '<br><small style="opacity:.8">Inv: ' + (task.investNo || '⚠️ nėra') + '</small>' +
+      '<br><small style="opacity:.6">⏳ Laukiama formos...</small>',
       '#1a56db'
     );
 
-    // Bandome auto-naviguoti, bet neblokuojame
     await tryAutoNavigate();
 
-    // *** Pagrindinė logika: laukiame kol forma atsiranda ***
-    // Nesvarbu ar auto-navigacija pavyko ar ne — laukiame iki 2 min.
     overlay(
-      '⏳ <b>Laukiama formos...</b>' +
-      '<br><small style="opacity:.8">' + (task.location || task.manager || '') + '</small>' +
-      '<br><small style="opacity:.6">Spauskite ESO rangovas → Toliau</small>',
+      '⏳ <b>Laukiama ESO rangovas formos...</b>' +
+      '<br><small style="opacity:.7">Spauskite ESO rangovas → Toliau</small>',
       '#1a56db'
     );
 
     await waitForForm();
-
-    // Forma atsiranda — palaukiame dar 400ms kol Angular inicializuojasi
     await sleep(400);
-
     await fill(task);
   }
 

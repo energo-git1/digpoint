@@ -1740,6 +1740,49 @@ app.post('/api/admin/deploy', (req, res) => {
   });
 });
 
+// ── Savivaldybės ištraukimas iš PDF ──────────────────────────
+// Patikrina PDF failo tekstą ir grąžina savivaldybės pavadinimą.
+// POST /api/extract-municipality  { filename: "..." arba url: "/uploads/..." }
+app.post('/api/extract-municipality', async (req, res) => {
+  const { filename, url } = req.body || {};
+  try {
+    let fpath;
+    if (filename) {
+      fpath = path.join(__dirname, 'uploads', path.basename(filename));
+    } else if (url) {
+      // url gali būti "/uploads/xxx.pdf" arba "/public/xxx.pdf"
+      const rel = url.replace(/^\/+/, '');
+      fpath = path.join(__dirname, rel);
+      if (!fs.existsSync(fpath)) fpath = path.join(__dirname, 'public', rel);
+    }
+    if (!fpath || !fs.existsSync(fpath)) {
+      return res.json({ municipality: null, error: 'Failas nerastas: ' + (fpath || '?') });
+    }
+    const buf = fs.readFileSync(fpath);
+    const parsed = await pdfParse(buf);
+    const text = parsed.text || '';
+
+    // Ieškome savivaldybės pavadinimo PDF tekste
+    const municipality = extractMunicipalityFromText(text);
+    console.log('[MUN] Iš PDF:', path.basename(fpath), '→', municipality || 'nerasta');
+    res.json({ municipality, text: text.slice(0, 800) });
+  } catch (e) {
+    console.warn('[MUN] Klaida:', e.message);
+    res.json({ municipality: null, error: e.message });
+  }
+});
+
+function extractMunicipalityFromText(text) {
+  if (!text) return null;
+  // 1. Ieškome "X r. sav." arba "X m. sav." (pilnas pavadinimas)
+  const m1 = text.match(/([A-ZŠŽČĘĖĮŪĄ][a-ząšžčęėįūąA-ZŠŽČĘĖĮŪĄ\-]+(?: [a-ząšžčęėįūą]+)?)\s+(?:r|m)\.\s*sav\./);
+  if (m1) return m1[0].replace(/\s+/g, ' ').trim();
+  // 2. Ieškome "X sav." (pvz. Marijampolės sav., Elektrėnų sav.)
+  const m2 = text.match(/([A-ZŠŽČĘĖĮŪĄ][a-ząšžčęėįūąA-ZŠŽČĘĖĮŪĄ\-]+(?: [a-ząšžčęėįūą]+)?)\s+sav\./);
+  if (m2) return m2[0].replace(/\s+/g, ' ').trim();
+  return null;
+}
+
 // ── Versija iš package.json ───────────────────────────────────
 app.get('/api/version', (req, res) => {
   try {

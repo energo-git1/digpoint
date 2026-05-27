@@ -1425,6 +1425,14 @@ function EsoSubmitBtn(p){
       url:ESO_URL,
       description:o.description||"",
       investNo:o.investNo||"",
+      municipality:(function(loc){
+        if(!loc)return'';
+        var m=loc.match(/[^\s,\.]+(?:\s+[^\s,\.]+)?\s+[rm]\.\s*sav\./i);
+        if(m)return m[0].trim().replace(/\s+/g,' ');
+        var m2=loc.match(/[^\s,\.]+\s+sav\./i);
+        if(m2)return m2[0].trim();
+        return'';
+      })(o.location),
       files:pdfFiles.map(function(f){return {name:f.name,size:f.size,url:f.url||null,filename:f.filename||null}}),
       createdAt:new Date().toISOString(),
       status:"pending"
