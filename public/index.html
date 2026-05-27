@@ -3498,7 +3498,11 @@ function ScheduleView(p){
               permits.forEach(function(permit){
                 var orgsInst=(permit.organizations||[]).filter(function(o){return o==="Telia, Kaunas"||o==="Telia, investiciniai"||o==="Kauno energija"||o==="AB ESO"||o==="Kauno miesto savivaldybe";});
                 if(orgsInst.length<=1){
-                  rows.push({permit:permit,org:permit.organization,startDate:permit.startDate,endDate:permit.endDate});
+                  // Vieno-org paraiška — naudoti org-specifines datas jei yra
+                  var org0=orgsInst[0]||permit.organization;
+                  var sd0=(org0==="Telia, Kaunas"||org0==="Telia, investiciniai")?(permit.teliaStartDate||permit.startDate):org0==="Kauno energija"?(permit.keStartDate||permit.startDate):permit.startDate;
+                  var ed0=(org0==="Telia, Kaunas"||org0==="Telia, investiciniai")?(permit.teliaEndDate||permit.endDate):org0==="Kauno energija"?(permit.keEndDate||permit.endDate):permit.endDate;
+                  rows.push({permit:permit,org:org0,startDate:sd0,endDate:ed0});
                 }else{
                   orgsInst.forEach(function(org){
                     var sd=(org==="Telia, Kaunas"||org==="Telia, investiciniai")?(permit.teliaStartDate||permit.startDate):org==="Kauno energija"?(permit.keStartDate||permit.startDate):permit.startDate;
@@ -3537,7 +3541,9 @@ function ScheduleView(p){
                     {todayPct>=0&&<div style={{position:"absolute",left:todayPct+"%",top:0,bottom:0,width:2,background:C.ac,opacity:.4,zIndex:1}}/>}
                     {bs&&<div style={Object.assign({position:"absolute",top:8,height:BAR_H,borderRadius:3,opacity:.85,zIndex:2,minWidth:3},bs)}>
                       <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",paddingLeft:3,overflow:"hidden"}}>
-                        <span style={{fontSize:7,color:"#fff",fontFamily:FM,whiteSpace:"nowrap",textShadow:"0 1px 2px rgba(0,0,0,.5)"}}>{row.startDate} — {row.endDate}</span>
+                        <span style={{fontSize:7,color:"#fff",fontFamily:FM,whiteSpace:"nowrap",textShadow:"0 1px 2px rgba(0,0,0,.5)"}}>
+                          {(row.startDate||permit.permitValidFrom||"")} — {(row.endDate||permit.permitValidUntil||"")}
+                        </span>
                       </div>
                     </div>}
                     {ps&&<div style={{position:"absolute",left:ps.left,width:ps.width,top:30,height:PERMIT_H,borderRadius:ps.noUntil?3:2,background:ps.color,opacity:.9,zIndex:2,minWidth:ps.noUntil?6:3,boxShadow:ps.noUntil?"0 0 4px "+ps.color:"none"}}/>}
