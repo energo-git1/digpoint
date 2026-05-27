@@ -893,17 +893,43 @@ async function checkImapMail() {
 
             console.log(`[IMAP] ${org} | "${subject}" | ${fromAddr} | paraiškų be PDF: ${pendingForOrg.length}`);
 
-            // ── AB ESO: atsisiųsti laiško kūną informaciniam filtrui ──
-            let esoBodyText = '';
+            // ── AB ESO: informacinio laiško filtras (PRIEŠ PDF atsisiuntimą) ──
+            // ESO siunčia: (1) patvirtinimas „prašymas gautas" su projekto PDF (ne leidimas)
+            // (2) tikrasis leidimas/atsakymas su leidimo PDF.
+            // Pirmą reikia praleisti — pažymėti skaitytą ir NEBEPRISKIRTI.
             if (org === 'AB ESO') {
-              const textParts = findTextPart(msg.bodyStructure);
-              for (const tp of textParts.slice(0, 2)) {
+              let esoBodyTextEarly = '';
+              const textPartsEarly = findTextPart(msg.bodyStructure);
+              for (const tp of textPartsEarly.slice(0, 2)) {
                 try {
                   const dl = await client.download(seq, tp.part);
                   const chunks = [];
                   for await (const chunk of dl.content) chunks.push(chunk);
-                  esoBodyText += ' ' + Buffer.concat(chunks).toString('utf8').slice(0, 3000);
+                  esoBodyTextEarly += ' ' + Buffer.concat(chunks).toString('utf8').slice(0, 3000);
                 } catch (_) {}
+              }
+              const esoEarlyText = esoBodyTextEarly + ' ' + subject;
+              const isInfoConfirm =
+                /gavome.*praším|praším.*gauta|pateiksime.*ne\s+v[eė]liau|automatinis\s+prane[sš]im|neatsakin[eė]ti.*šį.*laišk|prašom[ao].*neatsakin[eė]ti/i.test(esoEarlyText);
+              const hasApproval =
+                /suteikiam[as]*\s+leidim|leidžiama\s+vykdyti|suderint[a]\s+kasimo|leisti\s+kasimo|kasimo\s+leidim[as]*\s+suteikt|leidimas\s+išduot|išduodam[as]*\s+leidim/i.test(esoEarlyText);
+              if (isInfoConfirm && !hasApproval) {
+                // Išsaugoti reg. nr. → investNo sąsają, kad vėliau pagal "Sutikimas {regNo}" rastume paraišką
+                const regNoMatch = esoEarlyText.match(/registracijos\s+numeris[^A-Z0-9]*([A-Z][0-9]+)/i);
+                const regNo = regNoMatch ? regNoMatch[1].trim() : null;
+                const invNosFromBody = extractAllInvestNos(esoEarlyText);
+                const invNoFromBody = invNosFromBody.length > 0 ? invNosFromBody[0] : null;
+                if (regNo) {
+                  const regMap = dbGet('kl-eso-reg-map') || {};
+                  regMap[regNo] = { investNo: invNoFromBody, date: fmtDateSrv(new Date()) };
+                  dbSet('kl-eso-reg-map', regMap);
+                  console.log(`[IMAP] AB ESO: 📋 reg. nr. ${regNo} → inv. nr. ${invNoFromBody || '(nerasta)'} išsaugota sąsajų lentelėje`);
+                }
+                console.log(`[IMAP] AB ESO: ⏭️ informacinis patvirtinimas (prašymas gautas) — PDF neparsisiunčiamas, praleidžiama. Tema: "${subject}"`);
+                doneIds.add(msgId);
+                dbSet('kl-imap-done', [...doneIds]);
+                await client.messageFlagsAdd(seq, ['\\Seen']);
+                continue;
               }
             }
 
@@ -912,6 +938,7 @@ async function checkImapMail() {
             if (!pdfParts.length) {
               console.log(`[IMAP] ${org}: laiškas be PDF priedo, praleidžiama.`);
               doneIds.add(msgId);
+              await client.messageFlagsAdd(seq, ['\\Seen']);
               continue;
             }
 
@@ -952,24 +979,6 @@ async function checkImapMail() {
               console.log(`[IMAP] ${org}: ⚠️ PDF raktažodžiai nerasti — gali būti ne leidimas, bet tęsiama.`);
             }
 
-            // ── AB ESO: informacinio laiško filtras ───────────────────
-            // ESO siunčia du laiškus: (1) patvirtinimas apie gautą paraišką (NE leidimas),
-            // (2) tikrasis leidimas/atsakymas. Pirmą reikia praleisti.
-            if (org === 'AB ESO') {
-              const allEsoText = (esoBodyText + ' ' + subject + ' ' + fullPdfText);
-              const isInfoConfirm =
-                /gavome.*praším|praším.*gauta|pateiksime.*ne\s+v[eė]liau|automatinis\s+prane[sš]im|neatsakin[eė]ti.*šį.*laišk|prašom[ao].*neatsakin[eė]ti/i.test(allEsoText);
-              const hasApproval =
-                /suteikiam[as]*\s+leidim|leidžiama\s+vykdyti|suderint[a]\s+kasimo|leisti\s+kasimo|kasimo\s+leidim[as]*\s+suteikt|leidimas\s+išduot|išduodam[as]*\s+leidim/i.test(allEsoText);
-              if (isInfoConfirm && !hasApproval) {
-                console.log(`[IMAP] AB ESO: ⏭️ informacinis patvirtinimas (prašymas gautas) — praleidžiama, statusas nekeičiamas. Tema: "${subject}"`);
-                doneIds.add(msgId);
-                dbSet('kl-imap-done', [...doneIds]);
-                await client.messageFlagsAdd(seq, ['\\Seen']);
-                continue;
-              }
-            }
-
             // ── ŽINGSNIS 2b: Kauno vandenys skaitytuvas — daugiaobjektinis PDF ──
             // Jei viename PDF yra keli investiciniai numeriai — priskirti kiekvienam
             if (org === 'Kauno vandenys' && fullPdfText) {
@@ -1006,9 +1015,30 @@ async function checkImapMail() {
             }
 
             // ── ŽINGSNIS 3: surasti atitinkančią paraišką ────────────
-            // Visoms org: pirma bandyti pagal investicinį numerį iš PDF
+            // AB ESO: pirma patikrinti ar tema "Sutikimas {regNo}" — naudoti saugomą reg→inv sąsają
             let bestPermitByInvNo = null;
-            if (fullPdfText) {
+            if (org === 'AB ESO') {
+              const sutikimasMatch = subject.match(/Sutikimas\s+([A-Z][0-9]+)/i);
+              if (sutikimasMatch) {
+                const subjectRegNo = sutikimasMatch[1].trim();
+                const regMap = dbGet('kl-eso-reg-map') || {};
+                const mapped = regMap[subjectRegNo];
+                if (mapped && mapped.investNo) {
+                  const found = pendingForOrg.find((p) => (p.investNo || '').trim() === mapped.investNo);
+                  if (found) {
+                    bestPermitByInvNo = found;
+                    console.log(`[IMAP] AB ESO: ✅ surastas pagal reg. nr. ${subjectRegNo} → inv. nr. ${mapped.investNo}`);
+                  } else {
+                    console.log(`[IMAP] AB ESO: reg. nr. ${subjectRegNo} → inv. nr. ${mapped.investNo} — paraiška nerasta tarp kandidačių`);
+                  }
+                } else {
+                  console.log(`[IMAP] AB ESO: tema "Sutikimas ${subjectRegNo}" — reg. nr. ${subjectRegNo} sąsajų lentelėje nerastas`);
+                }
+              }
+            }
+
+            // Visoms org: bandyti pagal investicinį numerį iš PDF teksto
+            if (!bestPermitByInvNo && fullPdfText) {
               const invNos = extractAllInvestNos(fullPdfText);
               if (invNos.length >= 1) {
                 // Ieškome paraišką kurios investNo sutampa su kuriuo nors iš PDF nr.
