@@ -1277,7 +1277,8 @@ function PermitForm(p){
           style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid "+C.b1,background:C.bg,color:srcPermitId?C.tx:C.t3,fontFamily:F,fontSize:13,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
           <option value="">— pasirinkti objektą —</option>
           {permitSources.map(function(x){
-            var label=(x.investNo||x.id.slice(-5).toUpperCase())+(x.location?" — "+x.location:"")+(x.status?" ("+x.status+")":"");
+            var _lParts=[];if(x.investNo)_lParts.push(x.investNo);if(x.location)_lParts.push(x.location);
+            var label=(_lParts.length>0?_lParts.join(" — "):(x.manager||x.id.slice(-6).toUpperCase()))+(x.status?" ("+x.status+")":"");
             return <option key={x.id} value={x.id}>{label}</option>;
           })}
         </select>
