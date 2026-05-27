@@ -3919,6 +3919,228 @@ function AuthScreen(p){
 }
 
 // ═════════════════════════════════════════════════════════════
+// DOCUMENT LIBRARY — Šablonų biblioteka
+// ═════════════════════════════════════════════════════════════
+function DocLibrary(){
+  var _groups=useState(null);var groups=_groups[0],sGroups=_groups[1];
+  var _busy=useState(false);var busy=_busy[0],sBusy=_busy[1];
+  var _addGrp=useState(false);var addGrp=_addGrp[0],sAddGrp=_addGrp[1];
+  var _newGrpName=useState("");var newGrpName=_newGrpName[0],sNewGrpName=_newGrpName[1];
+  var _editGrpId=useState(null);var editGrpId=_editGrpId[0],sEditGrpId=_editGrpId[1];
+  var _editGrpName=useState("");var editGrpName=_editGrpName[0],sEditGrpName=_editGrpName[1];
+  var _addDocGrpId=useState(null);var addDocGrpId=_addDocGrpId[0],sAddDocGrpId=_addDocGrpId[1];
+  var _newDocName=useState("");var newDocName=_newDocName[0],sNewDocName=_newDocName[1];
+  var _uploadBusy=useState(false);var uploadBusy=_uploadBusy[0],sUploadBusy=_uploadBusy[1];
+  var _editDocId=useState(null);var editDocId=_editDocId[0],sEditDocId=_editDocId[1];
+  var _editDocName=useState("");var editDocName=_editDocName[0],sEditDocName=_editDocName[1];
+  var fileRef=useRef(null);
+
+  useEffect(function(){
+    sGet('kl-doc-library').then(function(d){sGroups(d||[]);});
+  },[]);
+
+  async function save(newGroups){
+    await sSet('kl-doc-library',newGroups);
+    sGroups(newGroups);
+  }
+
+  async function addGroup(){
+    if(!newGrpName.trim())return;
+    var g={id:uid(),name:newGrpName.trim(),documents:[],createdAt:new Date().toISOString()};
+    await save((groups||[]).concat([g]));
+    sNewGrpName("");sAddGrp(false);
+  }
+
+  async function saveGroupName(grpId){
+    if(!editGrpName.trim())return;
+    await save((groups||[]).map(function(g){return g.id===grpId?Object.assign({},g,{name:editGrpName.trim()}):g;}));
+    sEditGrpId(null);
+  }
+
+  async function deleteGroup(grpId){
+    if(!confirm("Ištrinti grupę ir visus jos dokumentus?"))return;
+    await save((groups||[]).filter(function(g){return g.id!==grpId;}));
+  }
+
+  async function uploadDoc(grpId){
+    var file=fileRef.current&&fileRef.current.files[0];
+    if(!file||!newDocName.trim()){alert("Įveskite dokumento pavadinimą ir pasirinkite failą.");return;}
+    sUploadBusy(true);
+    try{
+      var fd=new FormData();fd.append("file",file);
+      var r=await fetch("/api/upload",{method:"POST",body:fd});
+      var d=await r.json();
+      var doc={id:uid(),name:newDocName.trim(),url:d.url||null,filename:d.filename||null,
+        originalName:file.name,size:file.size,uploadedAt:new Date().toISOString()};
+      var newGroups=(groups||[]).map(function(g){
+        return g.id===grpId?Object.assign({},g,{documents:(g.documents||[]).concat([doc])}):g;
+      });
+      await save(newGroups);
+      sNewDocName("");sAddDocGrpId(null);
+      if(fileRef.current)fileRef.current.value="";
+    }catch(e){alert("Klaida įkeliant failą: "+e.message);}
+    sUploadBusy(false);
+  }
+
+  async function deleteDoc(grpId,docId){
+    if(!confirm("Ištrinti šį dokumentą?"))return;
+    var newGroups=(groups||[]).map(function(g){
+      return g.id===grpId?Object.assign({},g,{documents:(g.documents||[]).filter(function(d){return d.id!==docId;})}):g;
+    });
+    await save(newGroups);
+  }
+
+  async function saveDocName(grpId,docId){
+    if(!editDocName.trim())return;
+    var newGroups=(groups||[]).map(function(g){
+      if(g.id!==grpId)return g;
+      return Object.assign({},g,{documents:(g.documents||[]).map(function(d){
+        return d.id===docId?Object.assign({},d,{name:editDocName.trim()}):d;
+      })});
+    });
+    await save(newGroups);
+    sEditDocId(null);
+  }
+
+  function fmtSize(bytes){
+    if(!bytes)return"";
+    if(bytes<1024)return bytes+"B";
+    if(bytes<1024*1024)return(bytes/1024).toFixed(0)+"KB";
+    return(bytes/1024/1024).toFixed(1)+"MB";
+  }
+
+  function docIcon(name){
+    if(!name)return"📄";
+    var n=name.toLowerCase();
+    if(n.endsWith(".docx")||n.endsWith(".doc"))return"📝";
+    if(n.endsWith(".pdf"))return"📋";
+    return"📄";
+  }
+
+  if(groups===null)return<div style={{padding:32,color:C.t2,fontFamily:F}}>Kraunama...</div>;
+
+  return<div style={{padding:24,maxWidth:800}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+      <div>
+        <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,margin:0}}>📁 Šablonų biblioteka</h2>
+        <div style={{fontSize:11,color:C.t2,fontFamily:F,marginTop:2}}>Dokumentų šablonai paraiškų prašymams generuoti</div>
+      </div>
+      {!addGrp&&<Btn v="primary" sm onClick={function(){sAddGrp(true);sNewGrpName("");}}>+ Nauja grupė</Btn>}
+    </div>
+
+    {/* Naujos grupės forma */}
+    {addGrp&&<div style={{background:C.s2,border:"1px solid "+C.ac,borderRadius:10,padding:14,marginBottom:16,display:"flex",gap:8,alignItems:"center"}}>
+      <input autoFocus value={newGrpName} onChange={function(e){sNewGrpName(e.target.value)}}
+        onKeyDown={function(e){if(e.key==="Enter")addGroup();if(e.key==="Escape")sAddGrp(false);}}
+        placeholder="Grupės pavadinimas (pvz. LitGrid, Jonavos r. sav.)"
+        style={{flex:1,padding:"8px 10px",borderRadius:7,border:"1.5px solid "+C.ac,background:C.bg,color:C.tx,fontFamily:F,fontSize:13,outline:"none"}}/>
+      <Btn v="primary" sm onClick={addGroup}>Sukurti</Btn>
+      <Btn v="secondary" sm onClick={function(){sAddGrp(false);}}>Atšaukti</Btn>
+    </div>}
+
+    {groups.length===0&&!addGrp&&<div style={{textAlign:"center",padding:"48px 24px",color:C.t3,fontFamily:F}}>
+      <div style={{fontSize:32,marginBottom:12}}>📂</div>
+      <div style={{fontSize:14,fontWeight:600,color:C.t2,marginBottom:6}}>Nėra grupių</div>
+      <div style={{fontSize:12}}>Sukurkite grupę (pvz. "LitGrid") ir pridėkite šablonų dokumentų</div>
+    </div>}
+
+    {groups.map(function(grp){
+      var isEditGrp=editGrpId===grp.id;
+      var isAddDoc=addDocGrpId===grp.id;
+      return<div key={grp.id} style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,marginBottom:12,overflow:"hidden"}}>
+        {/* Grupės antraštė */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:C.s2,borderBottom:"1px solid "+C.b1}}>
+          {isEditGrp
+            ?<div style={{display:"flex",gap:6,flex:1,marginRight:8}}>
+              <input autoFocus value={editGrpName} onChange={function(e){sEditGrpName(e.target.value)}}
+                onKeyDown={function(e){if(e.key==="Enter")saveGroupName(grp.id);if(e.key==="Escape")sEditGrpId(null);}}
+                style={{flex:1,padding:"5px 8px",borderRadius:6,border:"1.5px solid "+C.ac,background:C.bg,color:C.tx,fontFamily:F,fontSize:13,outline:"none"}}/>
+              <Btn v="primary" sm onClick={function(){saveGroupName(grp.id);}}>✓</Btn>
+              <Btn v="secondary" sm onClick={function(){sEditGrpId(null);}}>✕</Btn>
+            </div>
+            :<div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:16}}>📁</span>
+              <span style={{fontSize:14,fontWeight:700,color:C.tx,fontFamily:F}}>{grp.name}</span>
+              <span style={{fontSize:11,color:C.t3,fontFamily:F}}>({(grp.documents||[]).length} dok.)</span>
+            </div>}
+          <div style={{display:"flex",gap:5}}>
+            {!isEditGrp&&<Btn v="secondary" sm onClick={function(){sEditGrpId(grp.id);sEditGrpName(grp.name);}}>✏️</Btn>}
+            {!isEditGrp&&<Btn v="danger" sm onClick={function(){deleteGroup(grp.id);}}>🗑</Btn>}
+          </div>
+        </div>
+
+        {/* Dokumentų sąrašas */}
+        <div style={{padding:"10px 14px"}}>
+          {(grp.documents||[]).length===0&&!isAddDoc&&
+            <div style={{fontSize:12,color:C.t3,fontFamily:F,padding:"8px 0",textAlign:"center"}}>
+              Nėra dokumentų — pridėkite šabloną
+            </div>}
+
+          {(grp.documents||[]).map(function(doc){
+            var isEditDoc=editDocId===doc.id;
+            return<div key={doc.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:C.s2,border:"1px solid "+C.b1,marginBottom:6}}>
+              <span style={{fontSize:18,flexShrink:0}}>{docIcon(doc.originalName)}</span>
+              <div style={{flex:1,minWidth:0}}>
+                {isEditDoc
+                  ?<div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <input autoFocus value={editDocName} onChange={function(e){sEditDocName(e.target.value)}}
+                      onKeyDown={function(e){if(e.key==="Enter")saveDocName(grp.id,doc.id);if(e.key==="Escape")sEditDocId(null);}}
+                      style={{flex:1,padding:"4px 8px",borderRadius:6,border:"1.5px solid "+C.ac,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none"}}/>
+                    <Btn v="primary" sm onClick={function(){saveDocName(grp.id,doc.id);}}>✓</Btn>
+                    <Btn v="secondary" sm onClick={function(){sEditDocId(null);}}>✕</Btn>
+                  </div>
+                  :<div style={{fontWeight:600,fontSize:13,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{doc.name}</div>}
+                {!isEditDoc&&<div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:1}}>
+                  {doc.originalName}{doc.size?" · "+fmtSize(doc.size):""}
+                </div>}
+              </div>
+              {!isEditDoc&&<div style={{display:"flex",gap:4,flexShrink:0}}>
+                {doc.url&&<a href={"http://10.2.1.115:3001"+doc.url} target="_blank"
+                  style={{padding:"4px 8px",borderRadius:6,background:C.acD,color:C.ac,fontSize:11,fontFamily:F,fontWeight:600,textDecoration:"none",cursor:"pointer"}}>⬇ Atsisiųsti</a>}
+                <Btn v="secondary" sm onClick={function(){sEditDocId(doc.id);sEditDocName(doc.name);}}>✏️</Btn>
+                <Btn v="danger" sm onClick={function(){deleteDoc(grp.id,doc.id);}}>🗑</Btn>
+              </div>}
+            </div>;
+          })}
+
+          {/* Naujo dokumento forma */}
+          {isAddDoc&&<div style={{background:C.s2,border:"1px dashed "+C.ac,borderRadius:8,padding:12,marginTop:6}}>
+            <div style={{fontSize:11,fontWeight:600,color:C.t2,fontFamily:F,marginBottom:8}}>Naujas dokumentas</div>
+            <input value={newDocName} onChange={function(e){sNewDocName(e.target.value)}}
+              placeholder="Dokumento pavadinimas (pvz. Prašymas darbams apsaugos zonoje)"
+              style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1.5px solid "+C.b2,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box",marginBottom:8}}/>
+            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+              <input ref={fileRef} type="file" accept=".docx,.doc,.pdf"
+                style={{flex:1,fontSize:11,fontFamily:F,color:C.t2}}/>
+              <Btn v="primary" sm onClick={function(){uploadDoc(grp.id);}} disabled={uploadBusy}>
+                {uploadBusy?"Įkeliama...":"⬆ Įkelti"}
+              </Btn>
+              <Btn v="secondary" sm onClick={function(){sAddDocGrpId(null);sNewDocName("");if(fileRef.current)fileRef.current.value="";}}>Atšaukti</Btn>
+            </div>
+          </div>}
+
+          {!isAddDoc&&<button onClick={function(){sAddDocGrpId(grp.id);sNewDocName("");}}
+            style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px dashed "+C.b2,background:"transparent",color:C.t2,fontFamily:F,fontSize:12,cursor:"pointer",marginTop:4,transition:"all .15s"}}
+            onMouseOver={function(e){e.target.style.borderColor=C.ac;e.target.style.color=C.ac;}}
+            onMouseOut={function(e){e.target.style.borderColor=C.b2;e.target.style.color=C.t2;}}>
+            + Pridėti dokumentą
+          </button>}
+        </div>
+      </div>;
+    })}
+
+    <div style={{marginTop:16,padding:"12px 14px",background:C.s2,borderRadius:8,border:"1px solid "+C.b1}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:4}}>ℹ️ Kaip naudoti šablonus</div>
+      <div style={{fontSize:11,color:C.t3,fontFamily:FM,lineHeight:1.6}}>
+        Grupės pavadinimas turi atitikti organizaciją (pvz. <b style={{color:C.t2}}>LitGrid</b>).<br/>
+        Word šablone naudokite <b style={{color:C.ac}}>{"{{vieta}}"}</b>, <b style={{color:C.ac}}>{"{{vadovas}}"}</b>, <b style={{color:C.ac}}>{"{{data_nuo}}"}</b>, <b style={{color:C.ac}}>{"{{data_iki}}"}</b>, <b style={{color:C.ac}}>{"{{tel}}"}</b>, <b style={{color:C.ac}}>{"{{investNo}}"}</b> ir kt.<br/>
+        Sistema automatiškai sugeneruos prašymą ir pridės siunčiant laišką.
+      </div>
+    </div>
+  </div>;
+}
+
+// ═════════════════════════════════════════════════════════════
 // SYSTEM TOOLS
 // ═════════════════════════════════════════════════════════════
 function SystemTools(){
@@ -4120,8 +4342,8 @@ function Sidebar(p){
   var sverVal=window.APP_VERSION?"v"+window.APP_VERSION:"";
   var items=[];
   if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"mine",icon:"📋",label:"Mano paraiškos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="dokumentacija") items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"all",icon:"📋",label:"Visos paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"system",icon:"⚙️",label:"Sistema"},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="dokumentacija") items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"library",icon:"📁",label:"Šablonai"},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"all",icon:"📋",label:"Visos paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"library",icon:"📁",label:"Šablonai"},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"system",icon:"⚙️",label:"Sistema"},{id:"profile",icon:"👤",label:"Mano profilis"}];
   return <div style={{width:200,background:C.s1,borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",height:"100vh",flexShrink:0}}>
     <div style={{padding:"18px 16px 10px",borderBottom:"1px solid "+C.b1}}>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -4554,6 +4776,8 @@ function App(){
     main=<ProfilePage user={user} onUpdated={function(u){var upd=Object.assign({},user,u);setUser(upd);try{localStorage.setItem('kl-session',JSON.stringify(upd))}catch(e){}}} onCancel={function(){setView(defView)}}/>;
   }else if(view==="users"){
     main=<UserMgmt users={users} permits={permits} onAddUser={addUser} onAssignRole={assignRole} onDeleteUser={deleteUser} onUpdateContact={updateContact} onOpenPermit={function(id){var pm=permits.find(function(x){return x.id===id});if(pm){setDetail(pm);setView("all")}}}/>;
+  }else if(view==="library"){
+    main=<DocLibrary/>;
   }else if(view==="system"){
     main=<SystemTools/>;
   }else{
