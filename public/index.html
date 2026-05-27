@@ -4441,6 +4441,10 @@ function App(){
   var _filter=useState("");var filter=_filter[0],setFilter=_filter[1];
   var _prefill=useState(null);var prefill=_prefill[0],setPrefill=_prefill[1];
   var _loaded=useState(false);var loaded=_loaded[0],sL=_loaded[1];
+  // Rankinis objektų sujungimas
+  var _dragId=useState(null);var dragId=_dragId[0],sDragId=_dragId[1];
+  var _dropId=useState(null);var dropId=_dropId[0],sDropId=_dropId[1];
+  var _mergeConfirm=useState(null);var mergeConfirm=_mergeConfirm[0],sMergeConfirm=_mergeConfirm[1];
 
   useEffect(function(){(async function(){
     try{
@@ -4767,11 +4771,6 @@ function App(){
   var permitStatuses=["Gautas leidimas","Gautas dalinai","Laukia patvirtinimo leidimo","Gautas","Nebegalioja"];
   // Pateiktų paraiškų statusai
   var submittedStatuses=["Pateikta"];
-
-  // ── Rankinis objektų sujungimas (drag-and-drop) ──
-  var _dragId=useState(null);var dragId=_dragId[0],sDragId=_dragId[1];
-  var _dropId=useState(null);var dropId=_dropId[0],sDropId=_dropId[1];
-  var _mergeConfirm=useState(null);var mergeConfirm=_mergeConfirm[0],sMergeConfirm=_mergeConfirm[1];
 
   function doMerge(aId,bId){
     if(!aId||!bId||aId===bId)return;
