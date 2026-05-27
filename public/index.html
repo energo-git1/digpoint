@@ -3239,9 +3239,21 @@ function PermitRow(p){
   if(!isPermits&&cr)subParts.push(cr.name);
   var subLine=subParts.join(" · ");
 
-  return <div onClick={p.onClick} onMouseEnter={function(){sH(true)}} onMouseLeave={function(){sH(false)}}
-    style={{padding:"10px 14px",background:h?C.s3:rowBg,border:rowBorderW+" solid "+(h?C.b2:rowBorder),borderRadius:10,cursor:"pointer",transition:"all .15s",marginBottom:4}}>
+  var isDrop=p.isDragOver;
+  return <div
+    draggable={p.draggable||false}
+    onDragStart={p.onDragStart||undefined}
+    onDragOver={p.onDragOver||undefined}
+    onDragLeave={p.onDragLeave||undefined}
+    onDrop={p.onDrop||undefined}
+    onClick={p.onClick} onMouseEnter={function(){sH(true)}} onMouseLeave={function(){sH(false)}}
+    style={{padding:"10px 14px",
+      background:isDrop?C.acD:(h?C.s3:rowBg),
+      border:isDrop?"2px dashed "+C.ac:(rowBorderW+" solid "+(h?C.b2:rowBorder)),
+      borderRadius:10,cursor:p.draggable?"grab":"pointer",transition:"all .15s",marginBottom:4,
+      boxShadow:isDrop?"0 0 0 2px "+C.ac+"55":"none"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+      {p.draggable&&<span style={{fontSize:10,color:C.t3,cursor:"grab",flexShrink:0,userSelect:"none",paddingRight:2}} title="Vilkti ir sujungti">⠿</span>}
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:13,fontWeight:700,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{addrLine||o.organization}</div>
         <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:1}}>{subLine}</div>
@@ -3291,8 +3303,13 @@ function PermitGroup(p){
     {/* Išskleistos eilutės */}
     {open&&<div style={{border:"1px solid "+C.b2,borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"hidden"}}>
       {group.map(function(pm,idx){
-        return <div key={pm.id} style={{borderTop:idx>0?"1px solid "+C.b1:"none"}}>
+        return <div key={pm.id} style={{borderTop:idx>0?"1px solid "+C.b1:"none",position:"relative"}}>
           <PermitRow permit={pm} users={p.users} viewMode={p.viewMode} onClick={function(){p.onSelect(pm);}} nested/>
+          {p.manual&&p.onUnmerge&&<button onClick={function(e){e.stopPropagation();p.onUnmerge(pm.id);}}
+            title="Atjungti iš grupės"
+            style={{position:"absolute",top:10,right:8,background:C.rdD,border:"1px solid "+C.rd+"55",borderRadius:5,color:C.rd,fontSize:9,fontWeight:700,padding:"2px 6px",cursor:"pointer",lineHeight:1.4,fontFamily:F}}>
+            ✕ atjungti
+          </button>}
         </div>;
       })}
     </div>}
@@ -4751,6 +4768,32 @@ function App(){
   // Pateiktų paraiškų statusai
   var submittedStatuses=["Pateikta"];
 
+  // ── Rankinis objektų sujungimas (drag-and-drop) ──
+  var _dragId=useState(null);var dragId=_dragId[0],sDragId=_dragId[1];
+  var _dropId=useState(null);var dropId=_dropId[0],sDropId=_dropId[1];
+  var _mergeConfirm=useState(null);var mergeConfirm=_mergeConfirm[0],sMergeConfirm=_mergeConfirm[1];
+
+  function doMerge(aId,bId){
+    if(!aId||!bId||aId===bId)return;
+    var a=permits.find(function(x){return x.id===aId});
+    var b=permits.find(function(x){return x.id===bId});
+    if(!a||!b)return;
+    var groupId=b.manualGroupId||a.manualGroupId||b.id;
+    savePermits(permits.map(function(pm){
+      if(pm.id===aId||pm.id===bId||
+         (b.manualGroupId&&pm.manualGroupId===b.manualGroupId)||
+         (a.manualGroupId&&pm.manualGroupId===a.manualGroupId))
+        return Object.assign({},pm,{manualGroupId:groupId});
+      return pm;
+    }));
+  }
+  function doUnmerge(permitId){
+    savePermits(permits.map(function(pm){
+      if(pm.id!==permitId)return pm;
+      var u=Object.assign({},pm);delete u.manualGroupId;return u;
+    }));
+  }
+
   var visible=[];
   if(view==="mine") visible=permits.filter(function(p){return p.createdBy===user.id});
   else if(view==="inbox") visible=permits.filter(function(p){return inboxStatuses.indexOf(p.status)!==-1});
@@ -4809,28 +4852,79 @@ function App(){
             <div style={{fontSize:9,color:C.t2,fontFamily:F,display:"flex",alignItems:"center",gap:3}}><span style={{width:4,height:4,borderRadius:"50%",background:STATUS_MAP[s].dot}}/>{SL[s]||s}</div>
           </div>})}
       </div>}
+      {/* Merge patvirtinimo modalas */}
+      {mergeConfirm&&(function(){
+        var a=permits.find(function(x){return x.id===mergeConfirm.aId});
+        var b=permits.find(function(x){return x.id===mergeConfirm.bId});
+        if(!a||!b)return null;
+        var aLoc=a.location||a.teliaRouteTo||a.investNo||a.id.slice(-5).toUpperCase();
+        var bLoc=b.location||b.teliaRouteTo||b.investNo||b.id.slice(-5).toUpperCase();
+        return <div onClick={function(){sMergeConfirm(null)}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div onClick={function(e){e.stopPropagation()}} style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:14,padding:24,maxWidth:380,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,.3)"}}>
+            <div style={{fontSize:16,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:6}}>🔗 Sujungti objektus?</div>
+            <div style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:14}}>Šios dvi paraiškos bus rodomos kaip vienas objektas.</div>
+            <div style={{background:C.s2,borderRadius:8,padding:"8px 12px",marginBottom:6,border:"1px solid "+C.b1}}>
+              <div style={{fontSize:11,color:C.tx,fontFamily:F,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{aLoc}</div>
+              <div style={{fontSize:9,color:C.t3,fontFamily:F}}>{a.organization} · {a.status}</div>
+            </div>
+            <div style={{textAlign:"center",fontSize:10,color:C.t3,margin:"2px 0"}}>⬇</div>
+            <div style={{background:C.s2,borderRadius:8,padding:"8px 12px",marginBottom:16,border:"1px solid "+C.b1}}>
+              <div style={{fontSize:11,color:C.tx,fontFamily:F,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{bLoc}</div>
+              <div style={{fontSize:9,color:C.t3,fontFamily:F}}>{b.organization} · {b.status}</div>
+            </div>
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+              <Btn v="secondary" sm onClick={function(){sMergeConfirm(null)}}>Atšaukti</Btn>
+              <Btn sm onClick={function(){doMerge(mergeConfirm.aId,mergeConfirm.bId);sMergeConfirm(null);}}>🔗 Sujungti</Btn>
+            </div>
+          </div>
+        </div>;
+      })()}
       {visible.length===0?<Empty icon="&#128077;" title="Paraiškų nėra."/>:(function(){
-        // Grupuojame pagal investNo
+        // Grupuojame pagal manualGroupId, tada pagal investNo
         var grouped=[];
-        var invMap={};
+        var keyMap={};
         visible.forEach(function(pm){
+          var mgid=pm.manualGroupId&&pm.manualGroupId.trim();
           var inv=pm.investNo&&pm.investNo.trim();
-          if(inv){
-            if(!invMap[inv]){invMap[inv]=[];grouped.push({type:"group",inv:inv,items:invMap[inv]});}
-            invMap[inv].push(pm);
+          var key=mgid?('mg:'+mgid):(inv?('inv:'+inv):null);
+          if(key){
+            if(!keyMap[key]){
+              keyMap[key]=[];
+              var dispInv=inv||(mgid&&mgid.slice(-5).toUpperCase());
+              grouped.push({type:"group",key:key,inv:dispInv,items:keyMap[key],manual:!!mgid});
+            }
+            keyMap[key].push(pm);
           } else {
             grouped.push({type:"single",permit:pm});
           }
         });
+        // Ar drag-and-drop aktyvus šiame view
+        var canMerge=view==="all"||view==="inbox"||view==="permits"||view==="submitted"||view==="mine";
         return grouped.map(function(entry){
           if(entry.type==="single"){
-            return <PermitRow key={entry.permit.id} permit={entry.permit} users={users} viewMode={view} onClick={function(){setDetail(entry.permit)}}/>;
+            var pm=entry.permit;
+            return <PermitRow key={pm.id} permit={pm} users={users} viewMode={view}
+              draggable={canMerge}
+              onDragStart={canMerge?function(e){e.dataTransfer.setData("permitId",pm.id);sDragId(pm.id);}:undefined}
+              onDragOver={canMerge&&dragId&&dragId!==pm.id?function(e){e.preventDefault();sDropId(pm.id);}:undefined}
+              onDragLeave={canMerge?function(){if(dropId===pm.id)sDropId(null);}:undefined}
+              onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");if(src&&src!==pm.id){sMergeConfirm({aId:src,bId:pm.id});}sDragId(null);sDropId(null);}:undefined}
+              isDragOver={dropId===pm.id&&dragId!==pm.id}
+              onClick={function(){setDetail(pm)}}/>;
           }
           if(entry.items.length===1){
             var pm=entry.items[0];
-            return <PermitRow key={pm.id} permit={pm} users={users} viewMode={view} onClick={function(){setDetail(pm)}}/>;
+            return <PermitRow key={pm.id} permit={pm} users={users} viewMode={view}
+              draggable={canMerge}
+              onDragStart={canMerge?function(e){e.dataTransfer.setData("permitId",pm.id);sDragId(pm.id);}:undefined}
+              onDragOver={canMerge&&dragId&&dragId!==pm.id?function(e){e.preventDefault();sDropId(pm.id);}:undefined}
+              onDragLeave={canMerge?function(){if(dropId===pm.id)sDropId(null);}:undefined}
+              onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");if(src&&src!==pm.id){sMergeConfirm({aId:src,bId:pm.id});}sDragId(null);sDropId(null);}:undefined}
+              isDragOver={dropId===pm.id&&dragId!==pm.id}
+              onClick={function(){setDetail(pm)}}/>;
           }
-          return <PermitGroup key={entry.inv} group={entry.items} users={users} viewMode={view} onSelect={setDetail}/>;
+          return <PermitGroup key={entry.key} group={entry.items} users={users} viewMode={view} onSelect={setDetail}
+            manual={entry.manual} onUnmerge={entry.manual?doUnmerge:undefined}/>;
         });
       })()}
     </div>;
