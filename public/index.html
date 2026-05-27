@@ -3278,10 +3278,19 @@ function PermitGroup(p){
   var worstStatus=ORDER[worstIdx]||group[0].status;
   var sm=STATUS_MAP[worstStatus]||STATUS_MAP["Laukiama tvirtinimo"];
 
+  var _grpDrop=useState(false);var grpDrop=_grpDrop[0],sGrpDrop=_grpDrop[1];
+
   return <div style={{marginBottom:4}}>
-    {/* Grupės antraštė */}
+    {/* Grupės antraštė — taip pat drop zona */}
     <div onClick={function(){sOpen(!open);}}
-      style={{padding:"8px 12px",background:open?C.s3:C.s2,border:"1px solid "+(open?C.b2:C.b1),borderRadius:open?"10px 10px 0 0":10,cursor:"pointer",display:"flex",alignItems:"center",gap:8,transition:"all .15s"}}>
+      onDragOver={p.onDragOver?function(e){e.preventDefault();sGrpDrop(true);}:undefined}
+      onDragLeave={p.onDragOver?function(){sGrpDrop(false);}:undefined}
+      onDrop={p.onDrop?function(e){e.preventDefault();sGrpDrop(false);p.onDrop(e);}:undefined}
+      style={{padding:"8px 12px",
+        background:grpDrop?C.acD:(open?C.s3:C.s2),
+        border:grpDrop?"2px dashed "+C.ac:"1px solid "+(open?C.b2:C.b1),
+        borderRadius:open?"10px 10px 0 0":10,cursor:"pointer",display:"flex",alignItems:"center",gap:8,transition:"all .15s",
+        boxShadow:grpDrop?"0 0 0 2px "+C.ac+"55":"none"}}>
       <span style={{fontSize:9,color:C.t3,transition:"transform .15s",display:"inline-block",transform:open?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
       <div style={{flex:1,minWidth:0}}>
         <span style={{fontSize:12,fontWeight:700,color:C.tx,fontFamily:FM}}>{invNo}</span>
@@ -3299,12 +3308,16 @@ function PermitGroup(p){
         })}
       </div>
       <span style={{fontSize:9,color:C.t3,fontFamily:F,flexShrink:0,marginLeft:2}}>{group.length} par.</span>
+      {grpDrop&&<span style={{fontSize:9,color:C.ac,fontFamily:F,fontWeight:700}}>+ pridėti</span>}
     </div>
     {/* Išskleistos eilutės */}
     {open&&<div style={{border:"1px solid "+C.b2,borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"hidden"}}>
       {group.map(function(pm,idx){
         return <div key={pm.id} style={{borderTop:idx>0?"1px solid "+C.b1:"none",position:"relative"}}>
-          <PermitRow permit={pm} users={p.users} viewMode={p.viewMode} onClick={function(){p.onSelect(pm);}} nested/>
+          <PermitRow permit={pm} users={p.users} viewMode={p.viewMode} onClick={function(){p.onSelect(pm);}} nested
+            draggable={!!p.onDragStart}
+            onDragStart={p.onDragStart?function(e){p.onDragStart(e,pm.id);}:undefined}
+            isDragOver={false}/>
           {p.manual&&p.onUnmerge&&<button onClick={function(e){e.stopPropagation();p.onUnmerge(pm.id);}}
             title="Atjungti iš grupės"
             style={{position:"absolute",top:10,right:8,background:C.rdD,border:"1px solid "+C.rd+"55",borderRadius:5,color:C.rd,fontSize:9,fontWeight:700,padding:"2px 6px",cursor:"pointer",lineHeight:1.4,fontFamily:F}}>
@@ -4923,7 +4936,11 @@ function App(){
               onClick={function(){setDetail(pm)}}/>;
           }
           return <PermitGroup key={entry.key} group={entry.items} users={users} viewMode={view} onSelect={setDetail}
-            manual={entry.manual} onUnmerge={entry.manual?doUnmerge:undefined}/>;
+            manual={entry.manual} onUnmerge={entry.manual?doUnmerge:undefined}
+            onDragStart={canMerge?function(e,pmId){e.dataTransfer.setData("permitId",pmId);sDragId(pmId);}:undefined}
+            onDragOver={canMerge&&dragId?function(e){e.preventDefault();}:undefined}
+            onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");var tgt=entry.items[0].id;if(src&&src!==tgt){sMergeConfirm({aId:src,bId:tgt});}sDragId(null);sDropId(null);}:undefined}
+            dragId={dragId}/>;
         });
       })()}
     </div>;
