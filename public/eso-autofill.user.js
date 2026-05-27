@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Digpoint ESO Autofill
 // @namespace    http://10.2.1.115:3001/
-// @version      2.3.0
+// @version      2.3.1
 // @description  Automatiškai užpildo ESO kasimo leidimo formą iš Digpoint sistemos
 // @author       EnergoLT
 // @match        https://www.eso.lt/aktualios-formos/kasimo-darbai/*
@@ -29,7 +29,7 @@
     el.innerHTML = msg + '<br><small style="opacity:.6">(spausk uždaryti)</small>';
   }
 
-  overlay('🔌 <b>Digpoint ESO v2.3</b> — jungiamasi...', '#6366f1');
+  overlay('🔌 <b>Digpoint ESO v2.3.1</b> — jungiamasi...', '#6366f1');
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
@@ -151,8 +151,7 @@
     try {
       var pf = pdfs[0];
       var r = await gmPost(API + '/api/extract-municipality', {
-        url: pf.url || null,
-        filename: pf.filename || null
+        url: pf.url || null, filename: pf.filename || null
       });
       if (r && r.responseText) {
         var d = JSON.parse(r.responseText);
@@ -163,33 +162,56 @@
     return null;
   }
 
-  // 2. Ištraukia savivaldybę iš adreso teksto
+  // 2. Ištraukia savivaldybę iš teksto
   function munFromText(text) {
     if (!text) return null;
-    // "X r. sav." arba "X m. sav."
     var m = text.match(/[^\s,\.()]+(?:\s+[^\s,\.()]+)?\s+[rm]\.\s*sav\./i);
     if (m) return m[0].trim().replace(/\s+/g, ' ');
-    // "X sav." (pvz. Marijampolės sav.)
     var m2 = text.match(/[^\s,\.()]{4,}\s+sav\./i);
     if (m2) return m2[0].trim();
     return null;
   }
 
-  // 3. Ieško atitinkančios opcijos dropdown'e
+  // 3. Randa savivaldybių select'ą (ieško pagal opcijų turinį)
+  function findMunSelect() {
+    // Bandome selektorius
+    var sel = document.querySelector('select#obj_municipality')
+           || document.querySelector('select[name="obj_municipality"]')
+           || document.querySelector('select[ng-model="postData.obj_municipality"]')
+           || document.querySelector('select[ng-model*="municipality"]');
+    if (sel) { console.log('[ESO] Select rastas selektoriumi, ng-model:', sel.getAttribute('ng-model')); return sel; }
+
+    // Ieškome pagal opcijų turinį — savivaldybės visada turi "sav."
+    var allSels = Array.from(document.querySelectorAll('select'));
+    console.log('[ESO] Visi select elementai puslapyje:', allSels.length);
+    allSels.forEach(function(s, i) {
+      console.log('[ESO]   select[' + i + ']: id=' + s.id + ' name=' + s.name + ' ng-model=' + s.getAttribute('ng-model') + ' opcijų=' + s.options.length);
+    });
+
+    sel = allSels.find(function(s) {
+      return Array.from(s.options).some(function(o) { return o.text.indexOf('sav.') !== -1; });
+    });
+    if (sel) { console.log('[ESO] Select rastas pagal "sav." opcijas, opcijų:', sel.options.length); return sel; }
+
+    // Paskutinis bandymas: select su >15 opcijų
+    sel = allSels.find(function(s) { return s.options.length > 15; });
+    if (sel) { console.log('[ESO] Select rastas pagal opcijų kiekį:', sel.options.length); }
+    return sel || null;
+  }
+
+  // 4. Ieško atitinkančios opcijos
   function findMunOption(sel, mun) {
     if (!mun) return null;
     var opts = Array.from(sel.options);
     var munL = mun.toLowerCase().replace(/\s+/g, ' ');
 
-    // Pilnas sutapimas
-    var opt = opts.find(function (o) { return o.text.toLowerCase().replace(/\s+/g, ' ') === munL; });
+    var opt = opts.find(function(o) { return o.text.toLowerCase().replace(/\s+/g, ' ') === munL; });
     if (opt) return opt;
 
-    // Pirmasis žodis + tipas (m./r.)
     var isM = /\bm\b/i.test(mun);
     var isR = /\br\b/i.test(mun);
-    var word1 = munL.split(/\s+/)[0]; // pvz. "kauno", "alytaus", "jonavos"
-    opt = opts.find(function (o) {
+    var word1 = munL.split(/\s+/)[0];
+    opt = opts.find(function(o) {
       var t = o.text.toLowerCase();
       if (t.indexOf(word1) === -1) return false;
       if (isM) return t.indexOf(' m.') !== -1;
@@ -198,43 +220,37 @@
     });
     if (opt) return opt;
 
-    // Tik pirmieji 5 simboliai
-    opt = opts.find(function (o) { return o.text.toLowerCase().indexOf(word1.slice(0, 5)) !== -1; });
+    opt = opts.find(function(o) { return o.text.toLowerCase().indexOf(word1.slice(0, 5)) !== -1; });
     return opt || null;
   }
 
   // Pagrindinis savivaldybės nustatymas
   async function setMunicipality(scope, task) {
-    var sel = document.querySelector('select#obj_municipality')
-           || document.querySelector('select[name="obj_municipality"]')
-           || document.querySelector('select[ng-model*="municipality"]');
-    if (!sel) {
-      // Ieškome bet kokio select su daug opcijų (savivaldybių > 20)
-      sel = Array.from(document.querySelectorAll('select')).find(function (s) {
-        return s.options.length > 20;
-      }) || null;
-    }
-    if (!sel) { console.warn('[ESO] Savivaldybės select nerastas'); return; }
+    var sel = findMunSelect();
+    if (!sel) { console.warn('[ESO] Savivaldybės select NERASTAS'); return; }
 
     // Prioritetai: PDF → task.municipality → task.location
     var mun = await getMunFromPdf(task);
     if (!mun) mun = task.municipality || munFromText(task.location);
-    console.log('[ESO] Savivaldybė (rastas tekstas):', mun || '(nerasta)');
+    console.log('[ESO] Ieškoma savivaldybė:', mun || '(nerasta — bus Kauno m.)');
 
     var opt = findMunOption(sel, mun);
-
     if (!opt) {
-      // Fallback: Kauno m.
-      opt = Array.from(sel.options).find(function (o) { return o.text.indexOf('Kauno m') !== -1; });
-      console.warn('[ESO] Savivaldybė "' + mun + '" nerasta dropdown\'e — naudojama Kauno m.');
-    } else {
-      console.log('[ESO] Savivaldybė nustatyta:', opt.text);
+      opt = Array.from(sel.options).find(function(o) { return o.text.indexOf('Kauno m') !== -1; });
+      if (mun) console.warn('[ESO] "' + mun + '" nerasta dropdown\'e, naudojama Kauno m.');
     }
+    if (!opt) { console.warn('[ESO] Nė viena savivaldybė nerasta'); return; }
 
-    if (!opt) return;
-    try { scope.$apply(function () { scope.postData.obj_municipality = opt.value; }); }
+    console.log('[ESO] Savivaldybė → "' + opt.text + '" (value=' + opt.value + ')');
+
+    // Nustatome ir DOM reikšmę, ir Angular scope
+    sel.value = opt.value;
+    try { scope.$apply(function() { scope.postData.obj_municipality = opt.value; }); }
     catch (e) { scope.postData.obj_municipality = opt.value; }
-    angular.element(sel).triggerHandler('change');
+    // Trigeriname Angular change event
+    var $sel = angular.element(sel);
+    $sel.triggerHandler('change');
+    $sel.triggerHandler('input');
   }
 
   /* ── PDF įkėlimas ────────────────────────────────────────── */
