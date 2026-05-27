@@ -3969,6 +3969,8 @@ function DocLibrary(){
   var _uploadBusy=useState(false);var uploadBusy=_uploadBusy[0],sUploadBusy=_uploadBusy[1];
   var _editDocId=useState(null);var editDocId=_editDocId[0],sEditDocId=_editDocId[1];
   var _editDocName=useState("");var editDocName=_editDocName[0],sEditDocName=_editDocName[1];
+  var _selectedFile=useState(null);var selectedFile=_selectedFile[0],sSelectedFile=_selectedFile[1];
+  var _dropOver=useState(false);var dropOver=_dropOver[0],sDropOver=_dropOver[1];
   var fileRef=useRef(null);
 
   useEffect(function(){
@@ -3998,9 +4000,20 @@ function DocLibrary(){
     await save((groups||[]).filter(function(g){return g.id!==grpId;}));
   }
 
+  function pickFile(file){
+    if(!file)return;
+    sSelectedFile(file);
+    // Auto-fill pavadinimas iš failo vardo (be plėtinio)
+    if(!newDocName.trim()){
+      var baseName=file.name.replace(/\.[^.]+$/,"").replace(/[_-]+/g," ").trim();
+      sNewDocName(baseName);
+    }
+  }
+
   async function uploadDoc(grpId){
-    var file=fileRef.current&&fileRef.current.files[0];
-    if(!file||!newDocName.trim()){alert("Įveskite dokumento pavadinimą ir pasirinkite failą.");return;}
+    var file=selectedFile||(fileRef.current&&fileRef.current.files[0]);
+    if(!file){alert("Pasirinkite failą.");return;}
+    if(!newDocName.trim()){alert("Įveskite dokumento pavadinimą.");return;}
     sUploadBusy(true);
     try{
       var fd=new FormData();fd.append("file",file);
@@ -4012,10 +4025,15 @@ function DocLibrary(){
         return g.id===grpId?Object.assign({},g,{documents:(g.documents||[]).concat([doc])}):g;
       });
       await save(newGroups);
-      sNewDocName("");sAddDocGrpId(null);
+      sNewDocName("");sAddDocGrpId(null);sSelectedFile(null);
       if(fileRef.current)fileRef.current.value="";
     }catch(e){alert("Klaida įkeliant failą: "+e.message);}
     sUploadBusy(false);
+  }
+
+  function cancelUpload(){
+    sAddDocGrpId(null);sNewDocName("");sSelectedFile(null);sDropOver(false);
+    if(fileRef.current)fileRef.current.value="";
   }
 
   async function deleteDoc(grpId,docId){
@@ -4140,26 +4158,48 @@ function DocLibrary(){
           })}
 
           {/* Naujo dokumento forma */}
-          {isAddDoc&&<div style={{background:C.s2,border:"1px dashed "+C.ac,borderRadius:8,padding:12,marginTop:6}}>
-            <div style={{fontSize:11,fontWeight:600,color:C.t2,fontFamily:F,marginBottom:8}}>Naujas dokumentas</div>
-            <input value={newDocName} onChange={function(e){sNewDocName(e.target.value)}}
-              placeholder="Dokumento pavadinimas (pvz. Prašymas darbams apsaugos zonoje)"
-              style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1.5px solid "+C.b2,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box",marginBottom:8}}/>
-            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          {isAddDoc&&<div style={{background:C.s2,border:"1.5px solid "+C.ac,borderRadius:10,padding:14,marginTop:8}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.ac,fontFamily:F,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>📎 Pridėti dokumentą</div>
+            {/* Drag-and-drop zona */}
+            <div
+              onDragOver={function(e){e.preventDefault();sDropOver(true);}}
+              onDragLeave={function(){sDropOver(false);}}
+              onDrop={function(e){e.preventDefault();sDropOver(false);var f=e.dataTransfer.files[0];if(f)pickFile(f);}}
+              onClick={function(){fileRef.current&&fileRef.current.click();}}
+              style={{border:"2px dashed "+(dropOver?C.ac:selectedFile?C.gn:C.b2),borderRadius:8,padding:"16px 12px",textAlign:"center",cursor:"pointer",background:dropOver?C.acD:selectedFile?C.gnD:C.bg,transition:"all .15s",marginBottom:10}}>
+              {selectedFile
+                ?<div>
+                  <div style={{fontSize:20,marginBottom:4}}>{docIcon(selectedFile.name)}</div>
+                  <div style={{fontSize:12,fontWeight:700,color:C.gn,fontFamily:F}}>{selectedFile.name}</div>
+                  <div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:2}}>{fmtSize(selectedFile.size)} · Paspauskite norėdami pakeisti</div>
+                </div>
+                :<div>
+                  <div style={{fontSize:24,marginBottom:6}}>📂</div>
+                  <div style={{fontSize:12,fontWeight:600,color:dropOver?C.ac:C.t2,fontFamily:F}}>Nuvilkite failą čia arba paspauskite</div>
+                  <div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:3}}>.docx · .doc · .pdf</div>
+                </div>}
               <input ref={fileRef} type="file" accept=".docx,.doc,.pdf"
-                style={{flex:1,fontSize:11,fontFamily:F,color:C.t2}}/>
-              <Btn v="primary" sm onClick={function(){uploadDoc(grp.id);}} disabled={uploadBusy}>
+                style={{display:"none"}}
+                onChange={function(e){var f=e.target.files[0];if(f)pickFile(f);}}/>
+            </div>
+            {/* Pavadinimas */}
+            <input value={newDocName} onChange={function(e){sNewDocName(e.target.value)}}
+              placeholder="Dokumento pavadinimas..."
+              autoFocus
+              style={{width:"100%",padding:"8px 10px",borderRadius:7,border:"1.5px solid "+C.b2,background:C.bg,color:C.tx,fontFamily:F,fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:10}}/>
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+              <Btn v="secondary" sm onClick={cancelUpload}>Atšaukti</Btn>
+              <Btn v="primary" sm onClick={function(){uploadDoc(grp.id);}} disabled={uploadBusy||!selectedFile}>
                 {uploadBusy?"Įkeliama...":"⬆ Įkelti"}
               </Btn>
-              <Btn v="secondary" sm onClick={function(){sAddDocGrpId(null);sNewDocName("");if(fileRef.current)fileRef.current.value="";}}>Atšaukti</Btn>
             </div>
           </div>}
 
-          {!isAddDoc&&<button onClick={function(){sAddDocGrpId(grp.id);sNewDocName("");}}
-            style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px dashed "+C.b2,background:"transparent",color:C.t2,fontFamily:F,fontSize:12,cursor:"pointer",marginTop:4,transition:"all .15s"}}
-            onMouseOver={function(e){e.target.style.borderColor=C.ac;e.target.style.color=C.ac;}}
-            onMouseOut={function(e){e.target.style.borderColor=C.b2;e.target.style.color=C.t2;}}>
-            + Pridėti dokumentą
+          {!isAddDoc&&<button onClick={function(){sAddDocGrpId(grp.id);sNewDocName("");sSelectedFile(null);}}
+            style={{width:"100%",padding:"8px 10px",borderRadius:7,border:"1px dashed "+C.b2,background:"transparent",color:C.t2,fontFamily:F,fontSize:12,cursor:"pointer",marginTop:4,transition:"all .15s",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}
+            onMouseOver={function(e){e.currentTarget.style.borderColor=C.ac;e.currentTarget.style.color=C.ac;}}
+            onMouseOut={function(e){e.currentTarget.style.borderColor=C.b2;e.currentTarget.style.color=C.t2;}}>
+            <span>+</span><span>Pridėti dokumentą</span>
           </button>}
         </div>
       </div>;
