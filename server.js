@@ -825,16 +825,14 @@ async function checkImapMail() {
     await client.connect();
     const lock = await client.getMailboxLock('INBOX');
     try {
-      // Ieškoti visų laiškų iš paskutinių 30 dienų (ne tik neskaitytų)
-      const since = new Date();
-      since.setDate(since.getDate() - 30);
-      const msgList = await client.search({ since });
+      // Ieškoti tik neskaitytų laiškų
+      const msgList = await client.search({ unseen: true });
       checked = msgList.length;
 
       if (!msgList.length) {
-        console.log('[IMAP] Laiškų paskutinėse 30 dienų nerasta.');
+        console.log('[IMAP] Neskaitytų laiškų nerasta.');
       } else {
-        console.log(`[IMAP] Rasta ${msgList.length} laiškų (30 d.). Jau apdorota: ${doneIds.size}.`);
+        console.log(`[IMAP] Rasta ${msgList.length} neskaitytų laiškų. Jau apdorota: ${doneIds.size}.`);
 
         for (const seq of msgList) {
           try {
@@ -850,29 +848,11 @@ async function checkImapMail() {
             let org        = detectOrgFromEmail(fromAddr);
 
             if (!org) {
-              // Neatpažintas domenas — bandyti iš temos (greita, be atsisiuntimo)
-              org = detectOrgFromText(subject);
-              if (!org) {
-                // Tema irgi be požymių — atsisiųsti laiško tekstą ir patikrinti
-                const textParts = findTextPart(msg.bodyStructure);
-                let bodyText = '';
-                for (const tp of textParts.slice(0, 2)) {
-                  try {
-                    const dl = await client.download(seq, tp.part);
-                    const chunks = [];
-                    for await (const chunk of dl.content) chunks.push(chunk);
-                    bodyText += ' ' + Buffer.concat(chunks).toString('utf8').slice(0, 3000);
-                  } catch (_) {}
-                }
-                org = detectOrgFromText(bodyText);
-                if (!org) {
-                  doneIds.add(msgId);
-                  continue;
-                }
-                console.log(`[IMAP] Aptikta iš teksto: ${org} | "${subject}" | ${fromAddr}`);
-              } else {
-                console.log(`[IMAP] Aptikta iš temos: ${org} | "${subject}" | ${fromAddr}`);
-              }
+              // Neatpažintas domenas — praleisti ir pažymėti kaip skaitytą
+              console.log(`[IMAP] Neatpažintas domenas, praleidžiama: ${fromAddr} | "${subject}"`);
+              doneIds.add(msgId);
+              await client.messageFlagsAdd(seq, ['\\Seen']);
+              continue;
             }
 
             // ── Patikrinti ar yra paraiškų šiai institucijai be PDF ──
@@ -982,44 +962,7 @@ async function checkImapMail() {
               const hasApproval =
                 /suteikiam[as]*\s+leidim|leidžiama\s+vykdyti|suderint[a]\s+kasimo|leisti\s+kasimo|kasimo\s+leidim[as]*\s+suteikt|leidimas\s+išduot|išduodam[as]*\s+leidim/i.test(allEsoText);
               if (isInfoConfirm && !hasApproval) {
-                console.log(`[IMAP] AB ESO: ⏭️ informacinis patvirtinimas (prašymas gautas) — keičiame statusą į Pateikta. Tema: "${subject}"`);
-
-                // Bandome surasti atitinkančias paraiškas pagal investicinį numerį
-                const confirmInvNos = extractAllInvestNos(allEsoText);
-                const allPermitsNow = dbGet('kl-permits') || [];
-                const today = fmtDateSrv(new Date());
-                let updatedCount = 0;
-
-                const updatedPermits = allPermitsNow.map((pm) => {
-                  const pmOrgs = Array.isArray(pm.organizations) && pm.organizations.length > 0
-                    ? pm.organizations : pm.organization ? [pm.organization] : [];
-                  if (!pmOrgs.includes('AB ESO')) return pm;
-                  if (pm.status === 'Pateikta' || pm.status === 'Gautas leidimas' || pm.status === 'Atmestas' || pm.status === 'Nebegalioja') return pm;
-
-                  // Atitikimas pagal inv. nr. (jei rastas laiške) arba bet kuri laukianti ESO paraiška
-                  const pmInv = (pm.investNo || '').trim();
-                  const invMatch = confirmInvNos.length === 0 || !pmInv || confirmInvNos.includes(pmInv);
-                  if (!invMatch) return pm;
-
-                  updatedCount++;
-                  return {
-                    ...pm,
-                    status: 'Pateikta',
-                    history: [...(pm.history || []), {
-                      status: 'Pateikta',
-                      date: today,
-                      note: `ESO patvirtino prašymo gavimą (automatiškai iš pašto: "${subject}")`
-                    }]
-                  };
-                });
-
-                if (updatedCount > 0) {
-                  dbSet('kl-permits', updatedPermits);
-                  console.log(`[IMAP] AB ESO: ✅ ${updatedCount} paraišk(-a/-ų) perkelta į "Pateikta"`);
-                } else {
-                  console.log(`[IMAP] AB ESO: ℹ️ Atitinkančių paraiškų nerasta (inv. nr.: ${confirmInvNos.join(', ') || 'nerasta'})`);
-                }
-
+                console.log(`[IMAP] AB ESO: ⏭️ informacinis patvirtinimas (prašymas gautas) — praleidžiama, statusas nekeičiamas. Tema: "${subject}"`);
                 doneIds.add(msgId);
                 dbSet('kl-imap-done', [...doneIds]);
                 await client.messageFlagsAdd(seq, ['\\Seen']);
