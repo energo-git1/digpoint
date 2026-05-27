@@ -1063,30 +1063,43 @@ async function checkImapMail() {
             }
 
             // ── ŽINGSNIS 3: surasti atitinkančią paraišką ────────────
-            // Kauno vandenys: pirma bandyti pagal investicinį numerį
+            // Visoms org: pirma bandyti pagal investicinį numerį iš PDF
             let bestPermitByInvNo = null;
-            if (org === 'Kauno vandenys' && fullPdfText) {
+            if (fullPdfText) {
               const invNos = extractAllInvestNos(fullPdfText);
-              if (invNos.length === 1) {
-                bestPermitByInvNo = pendingForOrg.find((p) =>
-                  (p.investNo || '').trim() === invNos[0]
-                ) || null;
-                if (bestPermitByInvNo) console.log(`[IMAP] Kauno vandenys: surastas pagal inv. nr. ${invNos[0]}`);
+              if (invNos.length >= 1) {
+                // Ieškome paraišką kurios investNo sutampa su kuriuo nors iš PDF nr.
+                for (const inv of invNos) {
+                  const found = pendingForOrg.find((p) => (p.investNo || '').trim() === inv);
+                  if (found) { bestPermitByInvNo = found; console.log(`[IMAP] ${org}: surastas pagal inv. nr. ${inv}`); break; }
+                }
               }
             }
 
             const pdfLocation = extractLocationFromPdf(fullPdfText);
             const searchText  = subject + ' ' + fullPdfText + (pdfLocation ? ' ' + pdfLocation : '');
-            const candidates  = pendingForOrg;
 
-            console.log(`[IMAP] ${org}: kandidatės — ${candidates.length} paraiška(-os). PDF adresas: "${pdfLocation || '—'}"`);
+            // Rūšiuojame kandidatus: pirmiausia "Pateikta", tada pagal sukūrimo datą (naujausios pirmos)
+            // Tai užtikrina, kad ties lygiomis score'u parenka naujausią/pateiktą paraišką
+            const candidates = [...pendingForOrg].sort((a, b) => {
+              const aSubmitted = a.status === 'Pateikta' ? 1 : 0;
+              const bSubmitted = b.status === 'Pateikta' ? 1 : 0;
+              if (bSubmitted !== aSubmitted) return bSubmitted - aSubmitted; // Pateikta pirma
+              return (b.createdAt || '').localeCompare(a.createdAt || '');   // Naujesnė pirma
+            });
+
+            console.log(`[IMAP] ${org}: kandidatės — ${candidates.length} (po rūšiavimo). PDF adresas: "${pdfLocation || '—'}"`);
+            if (candidates.length > 1) {
+              candidates.forEach((c, i) => console.log(`[IMAP]   [${i}] #${c.id.slice(-5).toUpperCase()} status=${c.status} inv=${c.investNo||'—'} loc=${(c.location||'').slice(0,40)}`));
+            }
 
             let bestPermit = bestPermitByInvNo;
             let bestScore  = bestPermitByInvNo ? 1.0 : 0;
             if (!bestPermit) for (const p of candidates) {
-              // Adresas: teliaRouteTo > teliaRouteFrom > location (paraiškose dažnai location tuščias)
+              // Adresas: teliaRouteTo > teliaRouteFrom > location
               const permitAddr = p.teliaRouteTo || p.teliaRouteFrom || p.location || '';
               const score = calcLocationScore(permitAddr, searchText);
+              // >= leidžia pakeisti tik jei tikrai geresnis (rūšiavimas jau užtikrino prioritetus)
               if (score > bestScore) { bestScore = score; bestPermit = p; }
             }
 
