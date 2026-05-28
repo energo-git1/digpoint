@@ -2477,6 +2477,7 @@ function PermitDetail(p){
   var _lgAprvSt=useState("");var lgAprvSt=_lgAprvSt[0],sLGAprvSt=_lgAprvSt[1];
   var _lgAprvBusy=useState(false);var lgAprvBusy=_lgAprvBusy[0],sLGAprvBusy=_lgAprvBusy[1];
   var _lgEmailIn=useState((o.pendingLitgridEmail||{}).to||getLitgridRegionEmail(o));var lgEmailIn=_lgEmailIn[0],sLGEmailIn=_lgEmailIn[1];
+  var _lgAddrIn=useState((o.pendingLitgridEmail||{}).addr||o.teliaRouteTo||o.location||"");var lgAddrIn=_lgAddrIn[0],sLGAddrIn=_lgAddrIn[1];
   var _locIn=useState(o.location||"");var locIn=_locIn[0],sLocIn=_locIn[1];
   var _knownInvEmails=useState([]);var knownInvEmails=_knownInvEmails[0],sKnownInvEmails=_knownInvEmails[1];
   var _showInvEmailDrop=useState(false);var showInvEmailDrop=_showInvEmailDrop[0],sShowInvEmailDrop=_showInvEmailDrop[1];
@@ -3243,8 +3244,9 @@ function PermitDetail(p){
           try{
             var pageTextsLG=null;
             if(pdfFile){try{var _pdLG=await getPdfDataUrl(pdfFile);if(_pdLG)pageTextsLG=await extractPdfTextByPage(_pdLG);}catch(_){}}
-            var newLG=await preparePendingLitgridEmail(o,pageTextsLG);
-            newLG=Object.assign({},newLG,{to:(lgEmailIn||"").trim()||newLG.to});
+            var _oWithAddr=lgAddrIn?(Object.assign({},o,{location:lgAddrIn,teliaRouteTo:lgAddrIn})):o;
+            var newLG=await preparePendingLitgridEmail(_oWithAddr,pageTextsLG);
+            newLG=Object.assign({},newLG,{to:(lgEmailIn||"").trim()||newLG.to,addr:lgAddrIn||""});
             p.onUpdate(Object.assign({},o,{pendingLitgridEmail:newLG}));
             sLGAprvSt("✓ Laiškas atnaujintas");
             setTimeout(function(){sLGAprvSt("")},2000);
@@ -3272,13 +3274,14 @@ function PermitDetail(p){
           if(!to){alert("Įveskite gavėjo el. pašto adresą.");return;}
           sLGAprvBusy(true);sLGAprvSt("Siunčiama...");
           try{
-            var addr=(o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
+            var addr=(lgAddrIn||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
             var fname=(addr?addr+" kasimo leidimui":"kasimo leidimui")+".pdf";
             var existingLibSrcs=(lg.attachmentSources||[]).filter(function(s){return s.type==="library";});
             var pdfSrcs=lgSel.length>0?[{filename:fname,sourceFileName:pdfFile?pdfFile.name:"",pageNumbers:lgSel}]:
               (lg.attachmentSources||[]).filter(function(s){return s.type!=="library";});
             var finalSrc=existingLibSrcs.concat(pdfSrcs);
-            var permitToSend=Object.assign({},o,{pendingLitgridEmail:Object.assign({},lg,{attachmentSources:finalSrc,to:to})});
+            var _lgWithAddr=lgAddrIn?Object.assign({},lg,{addr:lgAddrIn}):lg;
+            var permitToSend=Object.assign({},o,{location:addr||o.location,teliaRouteTo:addr||o.teliaRouteTo,pendingLitgridEmail:Object.assign({},_lgWithAddr,{attachmentSources:finalSrc,to:to})});
             var attCount=await approveAndSendLitgrid(permitToSend);
             var updated=Object.assign({},o,{pendingLitgridEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"LitGrid laiškas išsiųstas ("+(p.user.name||"-")+", "+attCount+" priedai)"}])});
             var anyPending=updated.pendingEmail||updated.pendingKauoenergijaEmail||updated.pendingTeliaInvEmail;
@@ -3297,8 +3300,12 @@ function PermitDetail(p){
               <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Paruosto laisko perziura</div>
               <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:6}}>Gavejas:</div>
               <input type="text" value={lgEmailIn} onChange={function(e){sLGEmailIn(e.target.value)}}
-                placeholder="pvz.: pietu@litgrid.lt"
+                placeholder="pvz.: info@litgrid.lt"
                 style={{width:"100%",padding:"5px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6,boxSizing:"border-box",marginBottom:8}}/>
+              <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:4}}>Objekto adresas:</div>
+              <input type="text" value={lgAddrIn} onChange={function(e){sLGAddrIn(e.target.value)}}
+                placeholder="pvz.: Gedimino g. 5, Kaunas"
+                style={{width:"100%",padding:"5px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+(lgAddrIn?C.b1:C.rd),borderRadius:6,boxSizing:"border-box",marginBottom:8}}/>
               <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:4}}>Tema:</div>
               <div style={{fontSize:12,color:C.tx,fontFamily:F,fontWeight:600,marginBottom:8}}>{lg.subject||"-"}</div>
               {/* Šablono dokumentas */}
