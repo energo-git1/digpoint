@@ -3432,29 +3432,19 @@ function PermitDetail(p){
               </div>
               {/* Laiško turinys — preview arba redagavimas */}
               {(function(){
-                var currentHtml=(function(){
-                  // Preview mode: visada rodome originalų lg.html (tinkamas formatavimas)
-                  if(!lgBodyEdit||!lgBodyIn.trim())return lg.html||"";
-                  // Redagavimo peržiūra: rekonstruojame iš redaguoto teksto + parašas
-                  var origHtml=(o.pendingLitgridEmail||{}).html||"";
-                  var sigIdx=origHtml.indexOf("Pagarbiai");
-                  var sigHtml=sigIdx>0?origHtml.slice(sigIdx):"";
-                  var bodyLines=lgBodyIn.split("\n").map(function(l){return l.trim()?"<p style='margin:0 0 14px;font-size:14px;font-family:Arial,sans-serif;color:#1F2937'>"+l+"</p>":"";}).join("");
-                  return buildExternalEmailWrapper(bodyLines)+(sigHtml?"":"");
-                })();
                 return <div style={{marginTop:10,borderTop:"1px solid "+C.b1,paddingTop:8}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                     <div style={{fontSize:10,fontWeight:700,color:C.t3,fontFamily:F,textTransform:"uppercase",letterSpacing:1,flex:1}}>Laiško turinys</div>
                     {lgBodyEdit
                       ?<span style={{fontSize:11,color:C.ac,fontFamily:F,cursor:"pointer",fontWeight:600}} onClick={function(){sLGBodyEdit(false);}}>👁 Peržiūrėti</span>
-                      :<span style={{fontSize:11,color:C.t2,fontFamily:F,cursor:"pointer"}} onClick={function(){sLGBodyEdit(true);}}>✎ Redaguoti</span>}
+                      :<span style={{fontSize:11,color:C.t2,fontFamily:F,cursor:"pointer"}} onClick={function(){sLGBodyEdit(true);sLGBodyDirty(false);}}>✎ Redaguoti</span>}
                     {lgBodyEdit&&<span style={{fontSize:11,color:C.t3,fontFamily:F,cursor:"pointer"}} onClick={function(){
                       var html=(o.pendingLitgridEmail||{}).html||"";
                       var idx=html.indexOf("Pagarbiai");
                       var bh=idx>0?html.slice(0,idx):html;
                       var tmp=document.createElement("div");tmp.innerHTML=bh;
-                      sLGBodyIn((tmp.innerText||"").trim());
-                    }}>↺</span>}
+                      sLGBodyIn((tmp.innerText||"").trim());sLGBodyDirty(false);
+                    }}>↺ Atstatyti</span>}
                   </div>
                   {lgBodyEdit
                     ?<textarea
@@ -3464,7 +3454,7 @@ function PermitDetail(p){
                         style={{width:"100%",padding:"8px 10px",fontSize:12,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6,boxSizing:"border-box",resize:"vertical",lineHeight:1.7}}
                       />
                     :<iframe
-                        srcDoc={currentHtml}
+                        srcDoc={lg.html||""}
                         sandbox=""
                         style={{width:"100%",height:220,border:"1px solid "+C.b1,borderRadius:6,background:"#fff"}}
                       />}
