@@ -2069,8 +2069,13 @@ async function generateLitgridPdf(d) {
 
   // 11. Parašas
   t('Prašymą užpildė žemės savininkas/ žemės savininko įgaliotas fizinis ar juridinis asmuo:', ML, y, 9);
-  y -= 38;
-  const sigX = (PW / 2) - 100;
+
+  // Pozicijos: kairėje — vardas, dešinėje — parašo paveiksliukas
+  const nameLineX = 165;
+  const nameLineW = 140;
+  const sigLineX  = 385;
+  const sigLineW  = 90;
+
   // Parašo paveiksliukas — iš signatureFilename (uploads) arba public/signature.png
   let resolvedSigPath = null;
   if (d.signatureFilename) {
@@ -2081,23 +2086,39 @@ async function generateLitgridPdf(d) {
     const defaultSig = path.join(__dirname, 'public', 'signature.png');
     if (fs.existsSync(defaultSig)) resolvedSigPath = defaultSig;
   }
+
+  // Įkelti ir išmatuoti paveikslėlį
+  let _sigImg = null, _sigW = 0, _sigH = 0;
   if (resolvedSigPath) {
     try {
       const sigBytes = fs.readFileSync(resolvedSigPath);
       const ext = resolvedSigPath.toLowerCase();
-      const sigImg = ext.endsWith('.png') ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
-      const sigDims = sigImg.scale(0.35);
-      page.drawImage(sigImg, { x: sigX, y: y - sigDims.height + 14, width: sigDims.width, height: sigDims.height });
+      _sigImg = ext.endsWith('.png') ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
+      const sc = _sigImg.scale(0.30);
+      _sigW = sc.width; _sigH = sc.height;
     } catch (_) {}
   }
-  hl(sigX, sigX + 120, y);
-  hl(sigX + 140, sigX + 220, y);
+
+  // Patraukiame žemyn tiek, kad tilptų paveikslėlis virš linijos
+  y -= Math.max(_sigH + 14, 46);
+
+  // Piešiame parašo paveikslėlį VIRŠ dešinės linijos (centruojame horizontaliai)
+  if (_sigImg) {
+    const imgX = sigLineX + (sigLineW - _sigW) / 2;
+    page.drawImage(_sigImg, { x: imgX, y: y + 3, width: _sigW, height: _sigH });
+  }
+
+  // Horizontalios linijos
+  hl(nameLineX, nameLineX + nameLineW, y);
+  hl(sigLineX, sigLineX + sigLineW, y);
   y -= 8;
-  const nm = d.signatoryName || d.darbu_vadovas || 'Eimutis Šimkus';
-  t(nm, sigX, y, 9); t('.', sigX + 120, y, 9);
+
+  // Pasirašančiojo vardas po vardo linija
+  const nm = d.signatoryName || 'Eimutis Šimkus';
+  t(nm, nameLineX + 5, y, 9);
   y -= 9;
-  t('(vardas, pavardė)', sigX, y, 7, font, GR);
-  t('(parašas)', sigX + 140, y, 7, font, GR);
+  t('(vardas, pavardė)', nameLineX, y, 7, font, GR);
+  t('(parašas)', sigLineX + 8, y, 7, font, GR);
 
   // 2 puslapis — pastaba
   const p2 = pdfDoc.addPage([PW, PH]);
