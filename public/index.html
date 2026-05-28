@@ -2231,10 +2231,18 @@ async function approveAndSendLitgrid(permit){
       }
     }
   }
+  // Jei vartotojas redagavo laiško turinį — rekonstruojame HTML
+  var finalHtml=pe.html||"";
+  if(pe.editedBodyText&&pe.editedBodyText.trim()){
+    var sigIdx=finalHtml.indexOf("Pagarbiai");
+    var sigHtml=sigIdx>0?finalHtml.slice(sigIdx):"";
+    var editedHtml=pe.editedBodyText.split("\n").map(function(l){return l.trim()?"<p style=\"margin:0 0 6px\">"+l+"</p>":"<br>";}).join("");
+    finalHtml=editedHtml+(sigHtml?"<p style=\"margin:8px 0 0\">"+sigHtml:"");
+  }
   var res=await fetch("/api/notify/email",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({to:pe.to,subject:pe.subject,html:pe.html,attachments:attachments})
+    body:JSON.stringify({to:pe.to,subject:pe.subject,html:finalHtml,attachments:attachments})
   });
   if(!res.ok){
     var data=await res.json().catch(function(){return{}});
@@ -2509,6 +2517,15 @@ function PermitDetail(p){
   var _lgAprvBusy=useState(false);var lgAprvBusy=_lgAprvBusy[0],sLGAprvBusy=_lgAprvBusy[1];
   var _lgEmailIn=useState((o.pendingLitgridEmail||{}).to||getLitgridRegionEmail(o));var lgEmailIn=_lgEmailIn[0],sLGEmailIn=_lgEmailIn[1];
   var _lgAddrIn=useState((o.pendingLitgridEmail||{}).addr||o.teliaRouteTo||o.location||"");var lgAddrIn=_lgAddrIn[0],sLGAddrIn=_lgAddrIn[1];
+  var _lgBodyOpen=useState(false);var lgBodyOpen=_lgBodyOpen[0],sLGBodyOpen=_lgBodyOpen[1];
+  var _lgBodyIn=useState(function(){
+    var html=(o.pendingLitgridEmail||{}).html||"";
+    if(!html)return "";
+    var idx=html.indexOf("Pagarbiai");
+    var bodyHtml=idx>0?html.slice(0,idx):html;
+    var tmp=document.createElement("div");tmp.innerHTML=bodyHtml;
+    return (tmp.innerText||"").trim();
+  });var lgBodyIn=_lgBodyIn[0],sLGBodyIn=_lgBodyIn[1];
   var _locIn=useState(o.location||"");var locIn=_locIn[0],sLocIn=_locIn[1];
   var _knownInvEmails=useState([]);var knownInvEmails=_knownInvEmails[0],sKnownInvEmails=_knownInvEmails[1];
   var _showInvEmailDrop=useState(false);var showInvEmailDrop=_showInvEmailDrop[0],sShowInvEmailDrop=_showInvEmailDrop[1];
@@ -3312,7 +3329,7 @@ function PermitDetail(p){
               (lg.attachmentSources||[]).filter(function(s){return s.type!=="library";});
             var finalSrc=existingLibSrcs.concat(pdfSrcs);
             var _lgWithAddr=lgAddrIn?Object.assign({},lg,{addr:lgAddrIn}):lg;
-            var permitToSend=Object.assign({},o,{location:addr||o.location,teliaRouteTo:addr||o.teliaRouteTo,pendingLitgridEmail:Object.assign({},_lgWithAddr,{attachmentSources:finalSrc,to:to})});
+            var permitToSend=Object.assign({},o,{location:addr||o.location,teliaRouteTo:addr||o.teliaRouteTo,pendingLitgridEmail:Object.assign({},_lgWithAddr,{attachmentSources:finalSrc,to:to,editedBodyText:lgBodyIn||null})});
             var attCount=await approveAndSendLitgrid(permitToSend);
             var updated=Object.assign({},o,{pendingLitgridEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"LitGrid laiškas išsiųstas ("+(p.user.name||"-")+", "+attCount+" priedai)"}])});
             var anyPending=updated.pendingEmail||updated.pendingKauoenergijaEmail||updated.pendingTeliaInvEmail;
@@ -3401,10 +3418,33 @@ function PermitDetail(p){
                   </div>
                   :<div style={{fontSize:11,color:C.t2,fontFamily:F}}>Puslapiai nepasirinkti (brėžinys+derinimas bus nustatyta automatiškai)</div>}
               </div>
-              <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:12,marginBottom:6}}>Laiško turinys:</div>
-              {lg.html
-                ?<iframe srcDoc={lg.html} sandbox="" style={{width:"100%",height:300,border:"1px solid "+C.b1,borderRadius:6,background:"#fff"}}/>
-                :<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Laiško turinys neparuoštas</div>}
+              {/* Laiško turinys — collapsible redaktorius */}
+              <div style={{marginTop:10,borderTop:"1px solid "+C.b1,paddingTop:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",userSelect:"none"}} onClick={function(){sLGBodyOpen(!lgBodyOpen);}}>
+                  <div style={{fontSize:10,fontWeight:700,color:C.t3,fontFamily:F,textTransform:"uppercase",letterSpacing:1,flex:1}}>Laiško turinys</div>
+                  <span style={{fontSize:11,color:C.t2,fontFamily:F}}>{lgBodyOpen?"▲ Uždaryti":"✎ Redaguoti"}</span>
+                </div>
+                {lgBodyOpen&&<div style={{marginTop:8}}>
+                  <textarea
+                    value={lgBodyIn}
+                    onChange={function(e){sLGBodyIn(e.target.value);}}
+                    rows={10}
+                    style={{width:"100%",padding:"8px 10px",fontSize:12,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6,boxSizing:"border-box",resize:"vertical",lineHeight:1.6}}
+                  />
+                  <div style={{display:"flex",justifyContent:"flex-end",marginTop:4}}>
+                    <span style={{fontSize:11,color:C.t3,fontFamily:F,cursor:"pointer"}} onClick={function(){
+                      var html=(o.pendingLitgridEmail||{}).html||"";
+                      var idx=html.indexOf("Pagarbiai");
+                      var bh=idx>0?html.slice(0,idx):html;
+                      var tmp=document.createElement("div");tmp.innerHTML=bh;
+                      sLGBodyIn((tmp.innerText||"").trim());
+                    }}>↺ Atstatyti originalą</span>
+                  </div>
+                </div>}
+                {!lgBodyOpen&&<div style={{fontSize:11,color:C.t2,fontFamily:F,marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>
+                  {lgBodyIn.split('\n')[0]||"—"}
+                </div>}
+              </div>
             </div>
             {lgAprvSt&&<div style={{fontSize:11,color:lgAprvSt.startsWith("✗")?C.rd:lgAprvSt.startsWith("✓")?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:lgAprvSt.startsWith("✗")?C.rdD:lgAprvSt.startsWith("✓")?C.gnD:C.acD,borderRadius:6}}>{lgAprvSt}</div>}
             <div style={{display:"flex",gap:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
