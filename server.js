@@ -1740,84 +1740,75 @@ app.post('/api/admin/sync-ad-emails', async (req, res) => {
   }
 });
 
-// ── PDF šablono užpildymas per zlib content stream replacement ────
-// Dirba su PDF failais kuriuose {{kintamieji}} įrašyti kaip paprastas tekstas
-function fillPdfTemplateData(pdfBuf, data) {
-  const pdfStr = pdfBuf.toString('binary');
-  let output = '';
-  let pos = 0;
-  let replacementCount = 0;
+// ── PDF šablono užpildymas su pdf-lib (koordinatinis overlay) ────
+// Uždeda tikras reikšmes tiesiai ant PDF šablono, išsaugant originalų formatavimą.
+// Koordinatės (x, y nuo puslapio apačios kairės) kalibruotos pagal LitGrid prašymą.
+async function fillPdfTemplateAsync(pdfBuf, data) {
+  const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+  const fontkit = require('@pdf-lib/fontkit');
 
-  const applyReplace = (str) => {
-    let s = str;
-    Object.keys(data || {}).forEach(key => {
-      const val = String(data[key] != null ? data[key] : '');
-      [`{{${key}}}`, `{{ ${key}}}`, `{{${key} }}`].forEach(pat => {
-        while (s.includes(pat)) { s = s.replace(pat, val); replacementCount++; }
-      });
-    });
-    s = s.replace(/\{\{[^{}]+\}\}/g, '');
-    return s;
-  };
+  const pdfDoc = await PDFDocument.load(pdfBuf, { ignoreEncryption: true });
+  pdfDoc.registerFontkit(fontkit);
 
-  while (pos < pdfStr.length) {
-    const kw = pdfStr.indexOf('stream', pos);
-    if (kw === -1) { output += pdfStr.slice(pos); break; }
-
-    const c6 = pdfStr[kw + 6], c7 = pdfStr[kw + 7];
-    let dataStart;
-    if (c6 === '\r' && c7 === '\n') dataStart = kw + 8;
-    else if (c6 === '\n') dataStart = kw + 7;
-    else { output += pdfStr.slice(pos, kw + 6); pos = kw + 6; continue; }
-
-    const dictStart = pdfStr.lastIndexOf('<<', kw);
-    const dict = dictStart >= 0 ? pdfStr.slice(dictStart, kw) : '';
-
-    const lenMatch = dict.match(/\/Length\s+(\d+)/);
-    let streamEnd;
-    if (lenMatch && !isNaN(parseInt(lenMatch[1]))) {
-      streamEnd = dataStart + parseInt(lenMatch[1]);
-    } else {
-      const esIdx = pdfStr.indexOf('endstream', dataStart);
-      if (esIdx === -1) { output += pdfStr.slice(pos); break; }
-      streamEnd = esIdx;
-    }
-
-    const rawData = pdfStr.slice(dataStart, streamEnd);
-    const isFlateDecode = dict.includes('/FlateDecode');
-    output += pdfStr.slice(pos, dataStart);
-
-    let processedData = rawData;
-    if (isFlateDecode) {
-      try {
-        const decompressed = require('zlib').inflateSync(Buffer.from(rawData, 'binary')).toString('binary');
-        const replaced = applyReplace(decompressed);
-        if (replaced !== decompressed) {
-          const recompressed = require('zlib').deflateSync(Buffer.from(replaced, 'binary'));
-          processedData = recompressed.toString('binary');
-          // Atnaujiname /Length paskutinėje radimo vietoje output'e
-          const lastLenPos = output.lastIndexOf('/Length ');
-          if (lastLenPos >= 0) {
-            const numStart = lastLenPos + 8;
-            const oldLenMatch = output.slice(numStart).match(/^(\d+)/);
-            if (oldLenMatch) {
-              output = output.slice(0, numStart) + processedData.length + output.slice(numStart + oldLenMatch[1].length);
-            }
-          }
-        }
-      } catch (_) { /* palieka originalą jei klaidinga kompresija */ }
-    } else {
-      processedData = applyReplace(rawData);
-    }
-
-    output += processedData;
-    pos = streamEnd;
+  // Ieškome sistemos Unicode šrifto (su lietuviškų simbolių palaikymu)
+  let font = null;
+  const fontCandidates = [
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+    '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+    '/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf',
+    path.join(__dirname, 'public', 'font.ttf'),
+  ];
+  for (const fp of fontCandidates) {
+    try {
+      if (fs.existsSync(fp)) {
+        font = await pdfDoc.embedFont(fs.readFileSync(fp));
+        console.log('[fill-pdf] Šriftas:', fp);
+        break;
+      }
+    } catch (_) {}
+  }
+  if (!font) {
+    // Fallback: Helvetica (ASCII only — lietuviški simboliai bus praleisti)
+    font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    console.warn('[fill-pdf] Unicode šriftas nerastas — naudojamas Helvetica');
   }
 
-  return replacementCount > 0 ? Buffer.from(output, 'binary') : null;
+  const page = pdfDoc.getPages()[0];
+  const { height } = page.getSize(); // A4 ≈ 841.89 pt
+
+  const SZ = 9;      // pagrindinis teksto dydis dokumente
+  const W = rgb(1, 1, 1); // balta
+  const B = rgb(0, 0, 0); // juoda
+
+  // Koordinatės kalibruotos pagal LitGrid prašymą (A4, matuojamos nuo apačios).
+  // Jei tekstas nesutampa — tikslinti x/y reikšmes (po ~5-10 pt vienu metu).
+  const overlay = [
+    // key(duomenyse)          x     y nuo apačios         width (vietos kiekis)
+    ['regionas',               50,   height - 167,         300 ],
+    ['data',                   225,  height - 200,         120 ],
+    ['adresas',                152,  height - 238,         230 ],
+    // derinimo data šablone yra bet duomenyse nesiųčiama — paliekame tuščią:
+    // ['derinimo data',       318,  height - 259,         120 ],
+    ['darbu_vadovas',          159,  height - 368,         190 ],
+    ['tel',                    402,  height - 368,         120 ],
+    ['nuo',                    267,  height - 384,          80 ],
+    ['iki',                    368,  height - 384,          80 ],
+  ];
+
+  for (const [key, x, y, w] of overlay) {
+    const val = String((data || {})[key] || '');
+    // Piešiame baltą stačiakampį (dengia originalų placeholder tekstą)
+    page.drawRectangle({ x: x - 1, y: y - 2, width: w, height: SZ + 4, color: W, borderWidth: 0 });
+    if (val) {
+      page.drawText(val, { x, y, size: SZ, font, color: B, maxWidth: w - 2 });
+    }
+  }
+
+  return Buffer.from(await pdfDoc.save());
 }
 
-app.post('/api/fill-pdf-template', (req, res) => {
+app.post('/api/fill-pdf-template', async (req, res) => {
   try {
     const { docUrl, data } = req.body || {};
     if (!docUrl) return res.status(400).json({ error: 'Trūksta docUrl' });
@@ -1832,11 +1823,10 @@ app.post('/api/fill-pdf-template', (req, res) => {
     if (!resolvedPath) return res.status(404).json({ error: `Failas nerastas: ${basename}` });
 
     const pdfBuf = fs.readFileSync(resolvedPath);
-    const filled = fillPdfTemplateData(pdfBuf, data || {});
-    const outBuf = filled || pdfBuf;
+    const filled = await fillPdfTemplateAsync(pdfBuf, data || {});
     const outName = basename.replace(/(_filled)?\.pdf$/i, '') + '.pdf';
 
-    res.json({ content: outBuf.toString('base64'), filename: outName, mimeType: 'application/pdf' });
+    res.json({ content: filled.toString('base64'), filename: outName, mimeType: 'application/pdf' });
   } catch (e) {
     console.error('[fill-pdf] Klaida:', e.message);
     res.status(500).json({ error: e.message });
@@ -1875,6 +1865,255 @@ function fixDocxSplitTags(zipFile) {
     } catch (_) {}
   });
 }
+
+// ── LitGrid PDF generavimas nuo nulio (be šablono) ─────────────
+let _cachedFontBytes = null;
+async function loadUnicodeFontBytes() {
+  if (_cachedFontBytes) return _cachedFontBytes;
+  const candidates = [
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+    '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+    '/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf',
+    path.join(__dirname, '.font-cache.ttf'),
+  ];
+  for (const fp of candidates) {
+    try { if (fs.existsSync(fp)) { _cachedFontBytes = fs.readFileSync(fp); return _cachedFontBytes; } } catch (_) {}
+  }
+  // Atsisiunčiame vieną kartą ir talpinime
+  const cacheFile = path.join(__dirname, '.font-cache.ttf');
+  try {
+    const buf = await new Promise((resolve, reject) => {
+      require('https').get('https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io/fonts/NotoSans/hinted/ttf/NotoSans-Regular.ttf', r => {
+        const chunks = []; r.on('data', c => chunks.push(c)); r.on('end', () => resolve(Buffer.concat(chunks))); r.on('error', reject);
+      }).on('error', reject);
+    });
+    fs.writeFileSync(cacheFile, buf);
+    _cachedFontBytes = buf;
+    console.log('[font] Atsisiųstas ir išsaugotas NotoSans');
+  } catch (e) { console.warn('[font] Nepavyko atsisiųsti:', e.message); }
+  return _cachedFontBytes;
+}
+
+async function generateLitgridPdf(d) {
+  const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+  const fontkit = require('@pdf-lib/fontkit');
+
+  const regionas      = d.regionas      || '';
+  const docDate       = d.data          || '';
+  const adresas       = d.adresas       || '';
+  const darbuVadovas  = d.darbu_vadovas || '';
+  const tel           = d.tel           || '';
+  const nuo           = d.nuo           || '';
+  const iki           = d.iki           || '';
+
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.registerFontkit(fontkit);
+
+  const fontBytes = await loadUnicodeFontBytes();
+  let font, fontB;
+  if (fontBytes) {
+    font  = await pdfDoc.embedFont(fontBytes);
+    fontB = font;
+  } else {
+    font  = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    fontB = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  }
+
+  const PW = 595.28, PH = 841.89;
+  const page = pdfDoc.addPage([PW, PH]);
+  const ML = 45, MR = PW - 45;
+  const BK = rgb(0,0,0), GR = rgb(0.35,0.35,0.35), WH = rgb(1,1,1);
+
+  const t = (text, x, y, sz=9, f=font, col=BK) => {
+    if (text == null || text === '') return;
+    page.drawText(String(text), { x, y, size: sz, font: f, color: col });
+  };
+  const tC = (text, y, sz=9, f=font) => {
+    const w = f.widthOfTextAtSize(String(text||''), sz);
+    t(text, (PW - w) / 2, y, sz, f);
+  };
+  const tR = (text, rx, y, sz=9, f=font) => {
+    const w = f.widthOfTextAtSize(String(text||''), sz);
+    t(text, rx - w, y, sz, f);
+  };
+  const hl = (x1, x2, y, th=0.5) => page.drawLine({ start:{x:x1,y}, end:{x:x2,y}, thickness:th, color:BK });
+  const box = (x, y, w, h, th=0.5) => page.drawRectangle({ x, y, width:w, height:h, borderColor:BK, borderWidth:th, color:WH });
+
+  // 1. Viršutinė antraštė (dešinė)
+  ['LITGRID AB leidimų darbams,',
+   'sutikimų statyti statinius elektros linijų apsaugos',
+   'zonose išdavimo tvarkos aprašo priedas Nr. 1'
+  ].forEach((l, i) => tR(l, MR, PH - 28 - i*9, 7));
+
+  // 2. Pareiškėjo lentelė (viršuje)
+  const tblTop = PH - 65, rowH = 20;
+  const tblRows = [
+    ['UAB „EnergoLT" įm.k. 302551560',                    '(fizinio asmens vardas, pavardė; juridinio asmens pavadinimas, įmonės kodas)'],
+    ['V. Krėvės pr. 120, LT-51119 Kaunas',                '(fizinio asmens gyvenamoji vieta; juridinio asmens buveinės adresas, )'],
+    ['eimutis.simkus@energolt.eu, +37068313705',           '(kontaktiniai duomenys: telefonas, faksas, el. pašto adresas)'],
+    ['------',                                             '(atstovo duomenys, jei atstovauja įgaliotas asmuo, įgaliojimo data ir numeris)'],
+  ];
+  box(ML, tblTop - tblRows.length * rowH, MR - ML, tblRows.length * rowH);
+  tblRows.forEach(([main, sub], i) => {
+    const ry = tblTop - (i+1)*rowH;
+    if (i > 0) hl(ML, MR, tblTop - i*rowH);
+    tC(main, ry + 11, 9.5, fontB);
+    tC(sub,  ry + 3,  7,   font);
+  });
+
+  // 3. Gavėjas
+  let y = tblTop - tblRows.length * rowH - 22;
+  t('LITGRID AB', ML, y, 10, fontB);       y -= 12;
+  t('Perdavimo tinklo departamento', ML, y, 10); y -= 12;
+  t('Infrastruktūros priežiūros centro', ML, y, 10); y -= 12;
+  t(regionas, ML, y, 10);
+
+  // 4. Pavadinimas
+  y -= 28;
+  const title = 'PRAŠYMAS LEISTI VYKDYTI DARBUS ELEKTROS LINIJOS APSAUGOS ZONOJE';
+  tC(title, y, 10, fontB);
+
+  // 5. Data / vieta
+  y -= 20;
+  const dW = font.widthOfTextAtSize(docDate||' ', 9);
+  const dX = (PW - dW) / 2;
+  t(docDate, dX, y, 9); hl(dX-5, dX+dW+5, y-1);
+  tC('(data)', y-9, 7); y -= 20;
+  tC('Kaunas', y, 9);
+  const kW = font.widthOfTextAtSize('Kaunas', 9); hl((PW-kW)/2, (PW+kW)/2, y-1);
+  tC('(vieta)', y-9, 7);
+
+  // 6. Pagrindinis tekstas
+  y -= 24;
+  const lh = 12;
+  t('Prašau leisti vykdyti¹ _____elektros tinklų įrengimo___ darbus, žemės sklype, esančiame', ML, y, 9);
+  y -= 8; t('(nurodomas darbų pobūdis)', ML+115, y, 7, font, GR);
+  y -= lh;
+
+  const adLbl = 'adresu ________';
+  const adX = ML + font.widthOfTextAtSize(adLbl, 9);
+  t(adLbl, ML, y, 9);
+  t(adresas, adX, y, 9);
+  const adW = Math.max(font.widthOfTextAtSize(adresas, 9), 150);
+  hl(adX, adX+adW, y-1);
+  t(' kadastrinis -', adX+adW, y, 9);
+  y -= 8; t('(žemės sklypo adresas)', ML, y, 7, font, GR); t('(unikalus numeris)', ML+290, y, 7, font, GR);
+  y -= lh;
+
+  t('sklypo Nr. _-___, koordinatėmis ', ML, y, 9);
+  const skX = ML + font.widthOfTextAtSize('sklypo Nr. _-___, koordinatėmis ', 9);
+  t('prisegtas suderintas brėžinys', skX, y, 9); hl(skX, skX+font.widthOfTextAtSize('prisegtas suderintas brėžinys', 9), y-1);
+  t('. Projekto Litgrid AB', skX+font.widthOfTextAtSize('prisegtas suderintas brėžinys', 9), y, 9);
+  y -= 8; t('(kadastrinis numeris)', ML, y, 7, font, GR); t('(žemės sklypo koordinatės)', ML+190, y, 7, font, GR);
+  y -= lh;
+
+  t('suderinimo numeris ____ bei data _________________ (jei toks derinimas yra).', ML, y, 9);
+  y -= 8; t('(derinimo numeris)', ML, y, 7, font, GR); t('(derinimo išdavimo data)', ML+190, y, 7, font, GR);
+  y -= lh + 6;
+
+  // 7. Priedai
+  t('Priedai:', ML, y, 9, fontB); y -= lh;
+  t('Žemėlapis su nurodyta darbo vieta.', ML, y, 9); y -= lh + 6;
+
+  // 8. Vykdytojas
+  const vyk = 'Darbus vykdys: UAB „EnergoLT" V. Krėvės pr. 120, LT-51119 Kaunas, įm. kodas 302551560';
+  const vykUlX = ML + font.widthOfTextAtSize('Darbus vykdys: ', 9);
+  t(vyk, ML, y, 9);
+  hl(vykUlX, ML+font.widthOfTextAtSize(vyk, 9), y-1);
+  y -= 8; t('(juridinio asmens –pavadinimas, fizinio asmens – vardas pavardė, adresas)', ML+70, y, 7, font, GR);
+  y -= lh + 3;
+
+  // 9. Technika
+  const tech = 'Naudojami kėlimo mechanizmai:   Mini ekskavatorius, kryptinio gręžimo įranga';
+  const techUlX = ML + font.widthOfTextAtSize('Naudojami kėlimo mechanizmai:   ', 9);
+  t(tech, ML, y, 9);
+  hl(techUlX, ML+font.widthOfTextAtSize(tech, 9), y-1);
+  y -= 8; t('(kėlimo kranai ar/ir savaeigiai keltuvai žmonėms kelti)', ML+110, y, 7, font, GR);
+  y -= 8; hl(ML, MR, y, 0.8); y -= 14;
+
+  // 10. Darbų vadovas
+  t('Darbų vadovas: ', ML, y, 9);
+  const vadX = ML + font.widthOfTextAtSize('Darbų vadovas: ', 9);
+  t(darbuVadovas, vadX, y, 9);
+  const vadW = Math.max(font.widthOfTextAtSize(darbuVadovas, 9), 120);
+  hl(vadX, vadX+vadW, y-1);
+  const telLX = vadX + vadW + 2;
+  t(', tel.: ', telLX, y, 9);
+  const telX = telLX + font.widthOfTextAtSize(', tel.: ', 9);
+  t(tel, telX, y, 9);
+  const telW = Math.max(font.widthOfTextAtSize(tel, 9), 80);
+  hl(telX, telX+telW, y-1);
+  y -= 8; t('(vardas, pavardė)', ML+50, y, 7, font, GR); y -= lh;
+
+  t('Pageidaujamas darbų vykdymo laikas nuo ', ML, y, 9);
+  const nuoX = ML + font.widthOfTextAtSize('Pageidaujamas darbų vykdymo laikas nuo ', 9);
+  t(nuo, nuoX, y, 9);
+  const nuoW = Math.max(font.widthOfTextAtSize(nuo, 9), 60);
+  hl(nuoX, nuoX+nuoW, y-1);
+  const ikiLX = nuoX + nuoW + 2;
+  t(' iki ', ikiLX, y, 9);
+  const ikiX = ikiLX + font.widthOfTextAtSize(' iki ', 9);
+  t(iki, ikiX, y, 9);
+  const ikiW = Math.max(font.widthOfTextAtSize(iki, 9), 60);
+  hl(ikiX, ikiX+ikiW, y-1);
+  t(' .', ikiX+ikiW, y, 9);
+  y -= 8; t('(data)', nuoX, y, 7, font, GR); t('(data)', ikiX, y, 7, font, GR);
+  y -= lh + 8;
+
+  // 11. Parašas
+  t('Prašymą užpildė žemės savininkas/ žemės savininko įgaliotas fizinis ar juridinis asmuo:', ML, y, 9);
+  y -= 30;
+  const sigX = PW/2 - 80;
+  hl(sigX, sigX+150, y); hl(sigX+165, sigX+240, y);
+  y -= 8;
+  const nm = 'Eimutis Šimkus';
+  const nmX = sigX + (150 - font.widthOfTextAtSize(nm, 9)) / 2;
+  t(nm, nmX, y, 9); t('.', sigX+150, y, 9);
+  y -= 9; t('(vardas, pavardė)', sigX, y, 7, font, GR); t('(parašas)', sigX+165, y, 7, font, GR);
+  y -= 20;
+
+  // 12. Apatinė lentelė (pareiškėjo duomenys)
+  const bt2Rows = tblRows;
+  const bt2H = bt2Rows.length * rowH;
+  if (y - bt2H > 20) {
+    box(ML, y - bt2H, MR - ML, bt2H);
+    bt2Rows.forEach(([main, sub], i) => {
+      const ry = y - (i+1)*rowH;
+      if (i > 0) hl(ML, MR, y - i*rowH);
+      tC(main, ry+11, 9.5, fontB); tC(sub, ry+3, 7, font);
+    });
+  }
+
+  // 2 puslapis — pastaba
+  const p2 = pdfDoc.addPage([PW, PH]);
+  const footnoteLines = [
+    '¹Darbai, kuriems reikalingas perdavimo tinklų operatoriaus leidimas dirbti oro linijų apsaugos zonoje:',
+    '1.  statinių statyba, remontas, rekonstravimas arba griovimas;',
+    '2.  kalnakasybos, krovimo, dugno gilinimo, žemės kasimo, sprogdinimo, melioravimo, užtvindymo darbai;',
+    '3.  mechanizuotas žemės ūkio kultūrų laistymas, gyvulių laikymo aikštelių, vielinių užtvarų ir metalinių tvorų įrengimas;',
+    '4.  medžių kirtimas arba sodinimas linijų apsaugos zonose, taip pat medžių, galinčių griūti ant laidų ir atramų kirtimas už apsaugos zonos;',
+    '5.  žemės darbai giliau kaip 0,3 metro, taip pat grunto lyginimas požeminių elektros kabelių linijų apsaugos zonoje.',
+  ];
+  let fy = PH - 50;
+  footnoteLines.forEach(line => {
+    p2.drawText(line, { x: ML, y: fy, size: 9, font, color: BK, maxWidth: MR - ML });
+    fy -= 14;
+  });
+
+  return Buffer.from(await pdfDoc.save());
+}
+
+app.post('/api/generate-litgrid-pdf', async (req, res) => {
+  try {
+    const { data } = req.body || {};
+    const pdfBuf = await generateLitgridPdf(data || {});
+    res.json({ content: pdfBuf.toString('base64'), filename: 'LitGrid_prasimas.pdf', mimeType: 'application/pdf' });
+  } catch (e) {
+    console.error('[generate-litgrid-pdf] Klaida:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
 
 app.post('/api/generate-docx-pdf', (req, res) => {
   try {
