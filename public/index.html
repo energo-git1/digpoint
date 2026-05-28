@@ -1703,7 +1703,8 @@ function getLitgridRegion(locationStr){
 
 // LitGrid laiško HTML šablonas
 function buildLitgridEmailHtml(permit){
-  var projNo=permit.projectNo?permit.projectNo:"[proj. nr. iš pdf]";
+  var projNo=permit.projectNo||"";
+  var invNo=permit.investNo||"";
   var lgFrom,lgTo;
   if(permit.litgridStartDate&&permit.litgridEndDate){
     lgFrom=fmtDateDots(permit.litgridStartDate);
@@ -1712,14 +1713,22 @@ function buildLitgridEmailHtml(permit){
     var tdn=new Date();var tdn3=new Date(tdn);tdn3.setMonth(tdn3.getMonth()+2);
     lgFrom=fmtDateDots(fmtDate(tdn));lgTo=fmtDateDots(fmtDate(tdn3));
   }
-  var addr=permit.teliaRouteTo||permit.location||"";
-  var submDate=fmtDateDots(fmtDate(new Date()));
+  // Pirmoji pastraipa: "Norėtume išsiimti... nuo {data}, projekto Nr.: ..., „{aprašymas}"."
+  var firstLine="Norėtume išsiimti žemės kasimo leidimą";
+  if(lgFrom)firstLine+=", nuo "+lgFrom;
+  if(projNo)firstLine+=", projekto Nr.: "+projNo;
+  if(permit.description)firstLine+=", „"+permit.description+"“";
+  else if(!projNo&&(permit.teliaRouteTo||permit.location))firstLine+=", "+( permit.teliaRouteTo||permit.location);
+  firstLine+=".";
+  var p=function(txt,mb){return'<p style="margin:0 0 '+(mb||14)+'px">'+txt+'</p>';};
   return buildExternalEmailWrapper(
-    "<p style=\"margin:0 0 14px\">Laba diena,</p>"
-    +"<p style=\"margin:0 0 14px\">"+submDate+" teikiame prašymą suderinti elektros tinklų kabelio klojimo darbus pagal projekto Nr.: "+projNo+", objekto adresas: "+addr+".</p>"
-    +"<p style=\"margin:0 0 14px\">Darbų vadovas: "+(permit.manager||"")+(permit.managerPhone?", tel.: "+permit.managerPhone:"")+".</p>"
-    +"<p style=\"margin:0 0 14px\">Planuojamas darbų laikotarpis: "+lgFrom+" – "+lgTo+".</p>"
-    +"<p style=\"margin:0\">Pridedu reikalingus dokumentus.</p>"
+    p("Laba diena,")
+    +p(firstLine)
+    +(invNo?p("Inv. projekto nr.: "+invNo):"")
+    +p("Darbus atliks: UAB „EnergoLT“;")
+    +p("Darbų vadovas: "+(permit.manager||"")+(permit.managerPhone?", tel.: "+permit.managerPhone:""))
+    +p("Laikotarpis: "+lgFrom+"-"+lgTo)
+    +p("Pridedu prašymą, suderinimus bei brėžinius.",0)
   );
 }
 
