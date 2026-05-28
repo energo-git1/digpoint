@@ -1646,13 +1646,8 @@ function buildKauoenergijaEmailHtml(permit){
   );
 }
 
-// LitGrid regioninis el. paštas pagal objekto adresą (apskritį)
+// LitGrid el. paštas — visada info@litgrid.lt (regionas nurodomas šablone, ne gavėjo adrese)
 function getLitgridRegionEmail(permit){
-  var loc=(permit.location||"").toLowerCase();
-  if(/kaun|alyt/.test(loc))return"pietu@litgrid.lt";
-  if(/viln|uten/.test(loc))return"rytai@litgrid.lt";
-  if(/siaul|šiaul|panev/.test(loc))return"siaure@litgrid.lt";
-  if(/klaip|tel[sš]|taur/.test(loc))return"vakaru@litgrid.lt";
   return"info@litgrid.lt";
 }
 
