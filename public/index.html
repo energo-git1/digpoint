@@ -1121,9 +1121,9 @@ function PermitForm(p){
       var k=new Date();var k1=new Date(k);k1.setMonth(k1.getMonth()+1);
       sKEStart(fmtDate(k));sKEEnd(fmtDate(k1));
     }
-    // LitGrid — atskiras laikotarpis: šiandien + 3 mėn.
+    // LitGrid — atskiras laikotarpis: šiandien + 2 mėn.
     if(o==="LitGrid"&&!wasSelected){
-      var lg=new Date();var lg3=new Date(lg);lg3.setMonth(lg3.getMonth()+3);
+      var lg=new Date();var lg3=new Date(lg);lg3.setMonth(lg3.getMonth()+2);
       sLGStart(fmtDate(lg));sLGEnd(fmtDate(lg3));
     }
   }
@@ -1659,7 +1659,7 @@ function buildLitgridEmailHtml(permit){
     lgFrom=fmtDateDots(permit.litgridStartDate);
     lgTo=fmtDateDots(permit.litgridEndDate);
   }else{
-    var tdn=new Date();var tdn3=new Date(tdn);tdn3.setMonth(tdn3.getMonth()+3);
+    var tdn=new Date();var tdn3=new Date(tdn);tdn3.setMonth(tdn3.getMonth()+2);
     lgFrom=fmtDateDots(fmtDate(tdn));lgTo=fmtDateDots(fmtDate(tdn3));
   }
   var addr=permit.teliaRouteTo||permit.location||"";
