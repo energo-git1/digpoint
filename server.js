@@ -1743,26 +1743,74 @@ app.post('/api/admin/sync-ad-emails', async (req, res) => {
 // ── LitGrid DOCX šablono užpildymas ir PDF konvertavimas ─────
 // Priima: { docUrl, data: { data, adresas, projekto_nr, darbu_vadovas, tel, nuo, iki } }
 // Grąžina: { content (base64), filename, mimeType }
+// Ištaiso Word padalintus {{tag}} per kelis XML <w:r> elementus
+function fixDocxSplitTags(zipFile) {
+  const xmlFiles = Object.keys(zipFile.files).filter(f =>
+    /word\/(document|header\d*|footer\d*|numbering)\.xml$/i.test(f)
+  );
+  xmlFiles.forEach(fn => {
+    try {
+      let xml = zipFile.files[fn].asText();
+      for (let pass = 0; pass < 8; pass++) {
+        const before = xml;
+        // Suranda pirmąjį <w:t> su atvirais {{ ir jungią su kitu <w:t>
+        xml = xml.replace(
+          /<w:t([^>]*)>([^<]*\{[^<]*)<\/w:t><\/w:r>(?:<w:proofErr[^>]*\/>)*(?:<w:bookmarkStart[^>]*\/>)*(?:<w:bookmarkEnd[^>]*\/>)*<w:r(?:\s[^>]*)?>(?:<w:rPr>[\s\S]*?<\/w:rPr>)?<w:t([^>]*)>([^<]*)<\/w:t>/g,
+          function(m, a1, t1, a2, t2) {
+            // Jungiam tik jei t1 turi neuždarytų {{ (daugiau {{ nei }})
+            var opens = (t1.match(/\{\{/g) || []).length;
+            var closes = (t1.match(/\}\}/g) || []).length;
+            if (opens > closes) return '<w:t' + a1 + '>' + t1 + t2 + '</w:t>';
+            // Arba t1 baigiasi { (padalintas vienas simbolis)
+            if (t1.slice(-1) === '{') return '<w:t' + a1 + '>' + t1 + t2 + '</w:t>';
+            return m;
+          }
+        );
+        if (xml === before) break;
+      }
+      zipFile.file(fn, xml);
+    } catch (_) {}
+  });
+}
+
 app.post('/api/generate-docx-pdf', (req, res) => {
   try {
     const { docUrl, data } = req.body || {};
     if (!docUrl) return res.status(400).json({ error: 'Trūksta docUrl' });
 
-    // Failo kelias — tik uploads aplanke
-    const basename = path.basename(docUrl.replace(/\?.*$/, ''));
+    // Failo kelias — URL decode + tik uploads aplanke
+    const rawBasename = path.basename(docUrl.replace(/\?.*$/, ''));
+    const basename = (() => { try { return decodeURIComponent(rawBasename); } catch(_) { return rawBasename; } })();
     const docxPath = path.join(UPLOAD_DIR, basename);
-    if (!fs.existsSync(docxPath))
+    const docxPathRaw = path.join(UPLOAD_DIR, rawBasename);
+    const resolvedPath = fs.existsSync(docxPath) ? docxPath : fs.existsSync(docxPathRaw) ? docxPathRaw : null;
+    if (!resolvedPath)
       return res.status(404).json({ error: `Failas nerastas: ${basename}` });
 
     // Užpildyti kintamuosius docxtemplater
-    const content = fs.readFileSync(docxPath, 'binary');
+    const content = fs.readFileSync(resolvedPath, 'binary');
     const zip = new PizZip(content);
+
+    // Ištaiso Word padalintus {{tag}} XML runs
+    fixDocxSplitTags(zip);
+
     const doc = new Docxtemplater(zip, {
       paragraphLoop: true,
       linebreaks: true,
       nullGetter: () => '',    // tuščias, jei kintamasis nerastas
     });
-    doc.render(data || {});
+    try {
+      doc.render(data || {});
+    } catch (renderErr) {
+      // Grąžina detales klaidas iš docxtemplater multi-error
+      if (renderErr.properties && renderErr.properties.errors) {
+        const details = renderErr.properties.errors
+          .map(e => (e.properties && e.properties.explanation) ? e.properties.explanation : e.message)
+          .filter(Boolean).join('; ');
+        return res.status(500).json({ error: `Šablono klaida: ${details || renderErr.message}` });
+      }
+      throw renderErr;
+    }
     const filledBuf = doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' });
 
     // Bandome konvertuoti į PDF per LibreOffice
