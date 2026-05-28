@@ -1810,9 +1810,9 @@ app.post('/api/admin/fix-permit-dates', (req, res) => {
 
 app.post('/api/admin/deploy', (req, res) => {
   const dir = __dirname;
-  exec(`cd ${dir} && git pull && pm2 restart digpoint`, { timeout: 30000 }, (err, stdout, stderr) => {
+  exec(`cd ${dir} && git pull && npm install --omit=dev && pm2 restart digpoint`, { timeout: 120000 }, (err, stdout, stderr) => {
     res.json({ ok: !err, stdout, stderr, error: err ? err.message : null });
-    if (!err) console.log('[DEPLOY] git pull + pm2 restart OK');
+    if (!err) console.log('[DEPLOY] git pull + npm install + pm2 restart OK');
     else console.error('[DEPLOY] Klaida:', err.message);
   });
 });
