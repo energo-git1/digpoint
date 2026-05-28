@@ -1740,6 +1740,109 @@ app.post('/api/admin/sync-ad-emails', async (req, res) => {
   }
 });
 
+// ── PDF šablono užpildymas per zlib content stream replacement ────
+// Dirba su PDF failais kuriuose {{kintamieji}} įrašyti kaip paprastas tekstas
+function fillPdfTemplateData(pdfBuf, data) {
+  const pdfStr = pdfBuf.toString('binary');
+  let output = '';
+  let pos = 0;
+  let replacementCount = 0;
+
+  const applyReplace = (str) => {
+    let s = str;
+    Object.keys(data || {}).forEach(key => {
+      const val = String(data[key] != null ? data[key] : '');
+      [`{{${key}}}`, `{{ ${key}}}`, `{{${key} }}`].forEach(pat => {
+        while (s.includes(pat)) { s = s.replace(pat, val); replacementCount++; }
+      });
+    });
+    s = s.replace(/\{\{[^{}]+\}\}/g, '');
+    return s;
+  };
+
+  while (pos < pdfStr.length) {
+    const kw = pdfStr.indexOf('stream', pos);
+    if (kw === -1) { output += pdfStr.slice(pos); break; }
+
+    const c6 = pdfStr[kw + 6], c7 = pdfStr[kw + 7];
+    let dataStart;
+    if (c6 === '\r' && c7 === '\n') dataStart = kw + 8;
+    else if (c6 === '\n') dataStart = kw + 7;
+    else { output += pdfStr.slice(pos, kw + 6); pos = kw + 6; continue; }
+
+    const dictStart = pdfStr.lastIndexOf('<<', kw);
+    const dict = dictStart >= 0 ? pdfStr.slice(dictStart, kw) : '';
+
+    const lenMatch = dict.match(/\/Length\s+(\d+)/);
+    let streamEnd;
+    if (lenMatch && !isNaN(parseInt(lenMatch[1]))) {
+      streamEnd = dataStart + parseInt(lenMatch[1]);
+    } else {
+      const esIdx = pdfStr.indexOf('endstream', dataStart);
+      if (esIdx === -1) { output += pdfStr.slice(pos); break; }
+      streamEnd = esIdx;
+    }
+
+    const rawData = pdfStr.slice(dataStart, streamEnd);
+    const isFlateDecode = dict.includes('/FlateDecode');
+    output += pdfStr.slice(pos, dataStart);
+
+    let processedData = rawData;
+    if (isFlateDecode) {
+      try {
+        const decompressed = require('zlib').inflateSync(Buffer.from(rawData, 'binary')).toString('binary');
+        const replaced = applyReplace(decompressed);
+        if (replaced !== decompressed) {
+          const recompressed = require('zlib').deflateSync(Buffer.from(replaced, 'binary'));
+          processedData = recompressed.toString('binary');
+          // Atnaujiname /Length paskutinėje radimo vietoje output'e
+          const lastLenPos = output.lastIndexOf('/Length ');
+          if (lastLenPos >= 0) {
+            const numStart = lastLenPos + 8;
+            const oldLenMatch = output.slice(numStart).match(/^(\d+)/);
+            if (oldLenMatch) {
+              output = output.slice(0, numStart) + processedData.length + output.slice(numStart + oldLenMatch[1].length);
+            }
+          }
+        }
+      } catch (_) { /* palieka originalą jei klaidinga kompresija */ }
+    } else {
+      processedData = applyReplace(rawData);
+    }
+
+    output += processedData;
+    pos = streamEnd;
+  }
+
+  return replacementCount > 0 ? Buffer.from(output, 'binary') : null;
+}
+
+app.post('/api/fill-pdf-template', (req, res) => {
+  try {
+    const { docUrl, data } = req.body || {};
+    if (!docUrl) return res.status(400).json({ error: 'Trūksta docUrl' });
+
+    const rawBasename = path.basename(docUrl.replace(/\?.*$/, ''));
+    const basename = (() => { try { return decodeURIComponent(rawBasename); } catch(_) { return rawBasename; } })();
+    const p1 = path.join(UPLOAD_DIR, basename);
+    const p2 = path.join(UPLOAD_DIR, rawBasename);
+    const p3 = path.join(__dirname, 'public', basename);
+    const p4 = path.join(__dirname, 'public', rawBasename);
+    const resolvedPath = fs.existsSync(p1) ? p1 : fs.existsSync(p2) ? p2 : fs.existsSync(p3) ? p3 : fs.existsSync(p4) ? p4 : null;
+    if (!resolvedPath) return res.status(404).json({ error: `Failas nerastas: ${basename}` });
+
+    const pdfBuf = fs.readFileSync(resolvedPath);
+    const filled = fillPdfTemplateData(pdfBuf, data || {});
+    const outBuf = filled || pdfBuf;
+    const outName = basename.replace(/(_filled)?\.pdf$/i, '') + '.pdf';
+
+    res.json({ content: outBuf.toString('base64'), filename: outName, mimeType: 'application/pdf' });
+  } catch (e) {
+    console.error('[fill-pdf] Klaida:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── LitGrid DOCX šablono užpildymas ir PDF konvertavimas ─────
 // Priima: { docUrl, data: { data, adresas, projekto_nr, darbu_vadovas, tel, nuo, iki } }
 // Grąžina: { content (base64), filename, mimeType }

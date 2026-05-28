@@ -2180,27 +2180,28 @@ async function approveAndSendLitgrid(permit){
       // Priedas iš šablonų bibliotekos
       if(!src.url)continue;
       try{
+        var today=new Date();
+        var lg2=new Date(today);lg2.setMonth(lg2.getMonth()+2);
+        var lgFromDate=permit.litgridStartDate||fmtDate(today);
+        var lgToDate=permit.litgridEndDate||fmtDate(lg2);
+        var _addr=permit.teliaRouteTo||permit.location||"";
+        var regionas=getLitgridRegion(_addr)+" regionas";
+        var tmplData={
+          data:fmtDateLT(fmtDate(today)),
+          adresas:_addr,
+          projekto_nr:permit.projectNo||"",
+          darbu_vadovas:permit.manager||"",
+          tel:permit.managerPhone||"",
+          nuo:fmtDateDots(lgFromDate),
+          iki:fmtDateDots(lgToDate),
+          regionas:regionas,
+          imone:"UAB EnergoLT",
+          el_pastas:"uzklausos@energolt.eu"
+        };
         var isDocx=/\.docx$/i.test(src.url);
+        var isPdfTmpl=/\.pdf$/i.test(src.url);
         if(isDocx){
-          // DOCX šablonas — užpildome kintamuosius serveryje ir konvertuojame į PDF
-          var today=new Date();
-          var lg2=new Date(today);lg2.setMonth(lg2.getMonth()+2);
-          var lgFromDate=permit.litgridStartDate||fmtDate(today);
-          var lgToDate=permit.litgridEndDate||fmtDate(lg2);
-          var _addr=permit.teliaRouteTo||permit.location||"";
-          var regionas=getLitgridRegion(_addr)+" regionas";
-          var tmplData={
-            data:fmtDateLT(fmtDate(today)),
-            adresas:_addr,
-            projekto_nr:permit.projectNo||"",
-            darbu_vadovas:permit.manager||"",
-            tel:permit.managerPhone||"",
-            nuo:fmtDateDots(lgFromDate),
-            iki:fmtDateDots(lgToDate),
-            regionas:regionas,
-            imone:"UAB EnergoLT",
-            el_pastas:"uzklausos@energolt.eu"
-          };
+          // DOCX šablonas — užpildome kintamuosius serveryje
           var genResp=await fetch("/api/generate-docx-pdf",{
             method:"POST",
             headers:{"Content-Type":"application/json"},
@@ -2210,8 +2211,19 @@ async function approveAndSendLitgrid(permit){
           var genData=await genResp.json();
           if(genData.error)throw new Error(genData.error);
           attachments.push({filename:genData.filename,content:genData.content,encoding:"base64"});
+        }else if(isPdfTmpl){
+          // PDF šablonas — užpildome per zlib content stream replacement
+          var pdfResp=await fetch("/api/fill-pdf-template",{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({docUrl:src.url,data:tmplData})
+          });
+          if(!pdfResp.ok)throw new Error("PDF generavimas: HTTP "+pdfResp.status);
+          var pdfData=await pdfResp.json();
+          if(pdfData.error)throw new Error(pdfData.error);
+          attachments.push({filename:pdfData.filename,content:pdfData.content,encoding:"base64"});
         }else{
-          // PDF ar kitas formatas — tiesiog pridedame
+          // Kitas formatas — tiesiog pridedame
           var resp=await fetch(src.url);
           if(!resp.ok)throw new Error("HTTP "+resp.status);
           var buf=await resp.arrayBuffer();
@@ -3388,31 +3400,43 @@ function PermitDetail(p){
                           imone:"UAB EnergoLT",
                           el_pastas:"uzklausos@energolt.eu"
                         };
-                        // Client-side DOCX generavimas su JSZip (patikimiau nei server docxtemplater)
-                        var docBuf=await fetch(libSrc.url).then(function(r){return r.arrayBuffer();});
-                        var zip2=await JSZip.loadAsync(docBuf);
-                        var xmlFiles2=Object.keys(zip2.files).filter(function(f){return /^word\/(document|header\d*|footer\d*)\.xml$/i.test(f);});
-                        for(var xi=0;xi<xmlFiles2.length;xi++){
-                          var xf=xmlFiles2[xi];
-                          var xc=await zip2.file(xf).async("string");
-                          Object.keys(tmplData).forEach(function(k){xc=xc.split("{{"+k+"}}").join(tmplData[k]||"");});
-                          xc=xc.replace(/\{\{[^{}]+\}\}/g,"");
-                          zip2.file(xf,xc);
+                        var isPdf2=/\.pdf$/i.test(libSrc.url||"");
+                        if(isPdf2){
+                          // PDF šablonas — serveris užpildo per zlib content stream replacement
+                          var pdfR=await fetch("/api/fill-pdf-template",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({docUrl:libSrc.url,data:tmplData})});
+                          if(!pdfR.ok)throw new Error("HTTP "+pdfR.status);
+                          var pdfGD=await pdfR.json();
+                          if(pdfGD.error)throw new Error(pdfGD.error);
+                          var pdfB=Uint8Array.from(atob(pdfGD.content),function(c){return c.charCodeAt(0);});
+                          window.open(URL.createObjectURL(new Blob([pdfB],{type:"application/pdf"})),"_blank");
+                        }else{
+                          // DOCX šablonas — client-side JSZip + mammoth HTML peržiūra
+                          var docBuf=await fetch(libSrc.url).then(function(r){return r.arrayBuffer();});
+                          var zip2=await JSZip.loadAsync(docBuf);
+                          var xmlFiles2=Object.keys(zip2.files).filter(function(f){return /^word\/(document|header\d*|footer\d*)\.xml$/i.test(f);});
+                          for(var xi=0;xi<xmlFiles2.length;xi++){
+                            var xf=xmlFiles2[xi];
+                            var xc=await zip2.file(xf).async("string");
+                            Object.keys(tmplData).forEach(function(k){xc=xc.split("{{"+k+"}}").join(tmplData[k]||"");});
+                            xc=xc.replace(/\{\{[^{}]+\}\}/g,"");
+                            zip2.file(xf,xc);
+                          }
+                          var outBuf=await zip2.generateAsync({type:"arraybuffer",compression:"DEFLATE"});
+                          var mammothResult=await mammoth.convertToHtml({arrayBuffer:outBuf});
+                          var htmlContent=mammothResult.value||"";
+                          var previewHtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>LitGrid prašymas</title>'
+                            +'<style>body{font-family:Arial,sans-serif;font-size:11pt;max-width:780px;margin:0 auto;padding:20px;line-height:1.5;color:#000}'
+                            +'p{margin:3px 0}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:3px 6px}'
+                            +'#printbar{text-align:center;padding:10px;background:#f0f0f0;border-bottom:1px solid #ccc;margin-bottom:20px}'
+                            +'@media print{#printbar{display:none}body{padding:0;margin:10mm 15mm}}'
+                            +'</style></head><body>'
+                            +'<div id="printbar"><button onclick="window.print()" style="padding:8px 24px;font-size:13px;cursor:pointer;background:#1a56db;color:#fff;border:none;border-radius:5px;font-weight:600">⬇ Išsaugoti kaip PDF</button>'
+                            +'&nbsp;&nbsp;<span style="font-size:11px;color:#555">Pasirinkite „Išsaugoti kaip PDF"</span></div>'
+                            +htmlContent+'</body><script>window.onload=function(){setTimeout(function(){window.print();},400);};<\/script></html>';
+                          var win=window.open("","_blank");
+                          if(win){win.document.write(previewHtml);win.document.close();}
+                          else{alert("Naršyklė blokavo langą. Leiskite popup's šiam puslapiui.");}
                         }
-                        var outBuf=await zip2.generateAsync({type:"arraybuffer",compression:"DEFLATE"});
-                        // Konvertuojame DOCX→HTML su mammoth ir atidarome naršyklėje (galima spausdinti kaip PDF)
-                        var mammothResult=await mammoth.convertToHtml({arrayBuffer:outBuf});
-                        var htmlContent=mammothResult.value||"";
-                        var previewHtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>LitGrid prašymas</title>'
-                          +'<style>body{font-family:Arial,sans-serif;font-size:12pt;max-width:800px;margin:40px auto;padding:20px;line-height:1.6}'
-                          +'p{margin:4px 0}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:4px 8px}'
-                          +'@media print{body{margin:0;padding:15mm}}'
-                          +'</style></head><body>'
-                          +'<div style="text-align:right;margin-bottom:16px;print:none"><button onclick="window.print()" style="padding:6px 16px;cursor:pointer;font-size:12px">🖨 Spausdinti / Išsaugoti PDF</button></div>'
-                          +htmlContent+'</body></html>';
-                        var win=window.open("","_blank");
-                        if(win){win.document.write(previewHtml);win.document.close();}
-                        else{alert("Naršyklė blokavo langą. Leiskite popup's šiam puslapiui.");};
                       }catch(e2){alert("Klaida generuojant prašymą: "+e2.message);}
                       sPreviewLGDocBusy(false);
                     }}>{previewLGDocBusy?"...":"👁 Peržiūrėti prašymą"}</Btn>
