@@ -2518,6 +2518,7 @@ function PermitDetail(p){
   var _lgEmailIn=useState((o.pendingLitgridEmail||{}).to||getLitgridRegionEmail(o));var lgEmailIn=_lgEmailIn[0],sLGEmailIn=_lgEmailIn[1];
   var _lgAddrIn=useState((o.pendingLitgridEmail||{}).addr||o.teliaRouteTo||o.location||"");var lgAddrIn=_lgAddrIn[0],sLGAddrIn=_lgAddrIn[1];
   var _lgBodyOpen=useState(false);var lgBodyOpen=_lgBodyOpen[0],sLGBodyOpen=_lgBodyOpen[1];
+  var _lgBodyEdit=useState(false);var lgBodyEdit=_lgBodyEdit[0],sLGBodyEdit=_lgBodyEdit[1];
   var _lgBodyIn=useState(function(){
     var html=(o.pendingLitgridEmail||{}).html||"";
     if(!html)return "";
@@ -3418,26 +3419,48 @@ function PermitDetail(p){
                   </div>
                   :<div style={{fontSize:11,color:C.t2,fontFamily:F}}>Puslapiai nepasirinkti (brėžinys+derinimas bus nustatyta automatiškai)</div>}
               </div>
-              {/* Laiško turinys — visada matomas, redaguojamas */}
-              <div style={{marginTop:10,borderTop:"1px solid "+C.b1,paddingTop:8}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                  <div style={{fontSize:10,fontWeight:700,color:C.t3,fontFamily:F,textTransform:"uppercase",letterSpacing:1,flex:1}}>Laiško turinys</div>
-                  <span style={{fontSize:11,color:C.t3,fontFamily:F,cursor:"pointer"}} onClick={function(){
-                    var html=(o.pendingLitgridEmail||{}).html||"";
-                    var idx=html.indexOf("Pagarbiai");
-                    var bh=idx>0?html.slice(0,idx):html;
-                    var tmp=document.createElement("div");tmp.innerHTML=bh;
-                    sLGBodyIn((tmp.innerText||"").trim());
-                  }}>↺ Atstatyti</span>
-                </div>
-                <textarea
-                  value={lgBodyIn}
-                  onChange={function(e){sLGBodyIn(e.target.value);}}
-                  rows={9}
-                  style={{width:"100%",padding:"8px 10px",fontSize:12,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6,boxSizing:"border-box",resize:"vertical",lineHeight:1.7}}
-                />
-                <div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:3}}>Parašas pridedamas automatiškai. Priedai pridedami atskirai.</div>
-              </div>
+              {/* Laiško turinys — preview arba redagavimas */}
+              {(function(){
+                var currentHtml=(function(){
+                  if(!lgBodyIn.trim())return lg.html||"";
+                  // Rekonstruojame HTML iš redaguoto teksto + parašo
+                  var origHtml=(o.pendingLitgridEmail||{}).html||"";
+                  var sigIdx=origHtml.indexOf("Pagarbiai");
+                  var sigHtml=sigIdx>0?origHtml.slice(sigIdx):"";
+                  var bodyHtml=lgBodyIn.split("\n").map(function(l){return l.trim()?"<p style='margin:0 0 5px;font-size:13px;font-family:Arial,sans-serif'>"+l+"</p>":"<br>";}).join("");
+                  return bodyHtml+(sigHtml?"<p style='margin:10px 0 0'>"+sigHtml:"");
+                })();
+                return <div style={{marginTop:10,borderTop:"1px solid "+C.b1,paddingTop:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                    <div style={{fontSize:10,fontWeight:700,color:C.t3,fontFamily:F,textTransform:"uppercase",letterSpacing:1,flex:1}}>Laiško turinys</div>
+                    {lgBodyEdit
+                      ?<span style={{fontSize:11,color:C.ac,fontFamily:F,cursor:"pointer",fontWeight:600}} onClick={function(){sLGBodyEdit(false);}}>👁 Peržiūrėti</span>
+                      :<span style={{fontSize:11,color:C.t2,fontFamily:F,cursor:"pointer"}} onClick={function(){sLGBodyEdit(true);}}>✎ Redaguoti</span>}
+                    {lgBodyEdit&&<span style={{fontSize:11,color:C.t3,fontFamily:F,cursor:"pointer"}} onClick={function(){
+                      var html=(o.pendingLitgridEmail||{}).html||"";
+                      var idx=html.indexOf("Pagarbiai");
+                      var bh=idx>0?html.slice(0,idx):html;
+                      var tmp=document.createElement("div");tmp.innerHTML=bh;
+                      sLGBodyIn((tmp.innerText||"").trim());
+                    }}>↺</span>}
+                  </div>
+                  {lgBodyEdit
+                    ?<textarea
+                        value={lgBodyIn}
+                        onChange={function(e){sLGBodyIn(e.target.value);}}
+                        rows={9}
+                        style={{width:"100%",padding:"8px 10px",fontSize:12,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6,boxSizing:"border-box",resize:"vertical",lineHeight:1.7}}
+                      />
+                    :<iframe
+                        srcDoc={currentHtml}
+                        sandbox=""
+                        style={{width:"100%",height:220,border:"1px solid "+C.b1,borderRadius:6,background:"#fff"}}
+                      />}
+                  <div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:3}}>
+                    {lgBodyEdit?"Redaguojate laiško turinį. Parašas pridedamas automatiškai.":"Taip atrodys išsiųstas laiškas."}
+                  </div>
+                </div>;
+              })()}
             </div>
             {lgAprvSt&&<div style={{fontSize:11,color:lgAprvSt.startsWith("✗")?C.rd:lgAprvSt.startsWith("✓")?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:lgAprvSt.startsWith("✗")?C.rdD:lgAprvSt.startsWith("✓")?C.gnD:C.acD,borderRadius:6}}>{lgAprvSt}</div>}
             <div style={{display:"flex",gap:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
