@@ -2168,6 +2168,21 @@ async function preparePendingLitgridEmail(permit, pageTexts){
   };
 }
 
+// Parašo failo paieška pagal asmens vardą iš kl-signatures bibliotekos
+async function findSignatureFilename(managerName){
+  try{
+    var sigs=await sGet('kl-signatures')||[];
+    if(!managerName||!sigs.length)return null;
+    var nm=(managerName||"").toLowerCase().trim();
+    var match=sigs.find(function(s){return(s.name||"").toLowerCase().trim()===nm;});
+    if(!match)match=sigs.find(function(s){
+      var sn=(s.name||"").toLowerCase().trim();
+      return nm.includes(sn)||sn.includes(nm);
+    });
+    return match?match.filename:null;
+  }catch(e){return null;}
+}
+
 // Iškviečiama PermitDetail — patvirtina LitGrid paraišką ir siunčia laišką
 async function approveAndSendLitgrid(permit){
   var pe=permit.pendingLitgridEmail;
@@ -2186,6 +2201,7 @@ async function approveAndSendLitgrid(permit){
         var lgToDate=permit.litgridEndDate||fmtDate(lg2);
         var _addr=permit.teliaRouteTo||permit.location||"";
         var regionas=getLitgridRegion(_addr)+" regionas";
+        var _sigFilename=await findSignatureFilename(permit.manager||"");
         var tmplData={
           data:fmtDateLT(fmtDate(today)),
           adresas:_addr,
@@ -2196,7 +2212,9 @@ async function approveAndSendLitgrid(permit){
           iki:fmtDateDots(lgToDate),
           regionas:regionas,
           imone:"UAB EnergoLT",
-          el_pastas:"uzklausos@energolt.eu"
+          el_pastas:"uzklausos@energolt.eu",
+          derinimo_data:o.litgridDerinimData||"",
+          signatureFilename:_sigFilename||null
         };
         // Visada generuojame LitGrid prašymą nuo nulio (nepriklausomai nuo šablono formato)
         var lgPdfResp=await fetch("/api/generate-litgrid-pdf",{
@@ -3364,6 +3382,7 @@ function PermitDetail(p){
                         var _from2=o.litgridStartDate||fmtDate(_today2);
                         var _to2=o.litgridEndDate||fmtDate(_lg2b);
                         var _reg2=getLitgridRegion(_addr2)+" regionas";
+                        var _sigFn2=await findSignatureFilename(o.manager||"");
                         var tmplData={
                           data:fmtDateLT(fmtDate(_today2)),
                           adresas:_addr2,
@@ -3374,7 +3393,8 @@ function PermitDetail(p){
                           iki:fmtDateDots(_to2),
                           regionas:_reg2,
                           imone:"UAB EnergoLT",
-                          el_pastas:"uzklausos@energolt.eu"
+                          el_pastas:"uzklausos@energolt.eu",
+                          signatureFilename:_sigFn2||null
                         };
                         // Generuojame PDF nuo nulio serveryje (nereikia šablono)
                         var pdfR=await fetch("/api/generate-litgrid-pdf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({data:tmplData})});
@@ -4787,6 +4807,96 @@ function DocLibrary(){
 }
 
 // ═════════════════════════════════════════════════════════════
+// SIGNATURE LIBRARY — Parašų biblioteka
+// ═════════════════════════════════════════════════════════════
+function SigLibrary(){
+  var _sigs=useState(null);var sigs=_sigs[0],sSigs=_sigs[1];
+  var _busy=useState(false);var busy=_busy[0],sBusy=_busy[1];
+  var _adding=useState(false);var adding=_adding[0],sAdding=_adding[1];
+  var _newName=useState("");var newName=_newName[0],sNewName=_newName[1];
+  var _selFile=useState(null);var selFile=_selFile[0],sSelFile=_selFile[1];
+  var fileRef=useRef(null);
+
+  useEffect(function(){
+    sGet('kl-signatures').then(function(d){sSigs(d||[]);});
+  },[]);
+
+  async function saveSigs(arr){
+    await sSet('kl-signatures',arr);
+    sSigs(arr);
+  }
+
+  async function addSig(){
+    var file=selFile||(fileRef.current&&fileRef.current.files[0]);
+    if(!file){alert("Pasirinkite parašo paveikslėlį.");return;}
+    if(!newName.trim()){alert("Įveskite asmens vardą (turi sutapti su darbų vadovu paraiškoje).");return;}
+    sBusy(true);
+    try{
+      var fd=new FormData();fd.append("file",file);
+      var r=await fetch("/api/upload",{method:"POST",body:fd});
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      var d=await r.json();
+      if(d.error)throw new Error(d.error);
+      var sig={id:uid(),name:newName.trim(),filename:d.filename,url:d.url,originalName:file.name,uploadedAt:new Date().toISOString()};
+      await saveSigs((sigs||[]).concat([sig]));
+      sNewName("");sSelFile(null);sAdding(false);
+      if(fileRef.current)fileRef.current.value="";
+    }catch(e){alert("Klaida įkeliant: "+e.message);}
+    sBusy(false);
+  }
+
+  async function deleteSig(id){
+    if(!confirm("Ištrinti parašą?"))return;
+    await saveSigs((sigs||[]).filter(function(s){return s.id!==id;}));
+  }
+
+  if(sigs===null)return null;
+
+  return<div style={{padding:"0 24px 24px",maxWidth:800}}>
+    <div style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,overflow:"hidden"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:C.s2,borderBottom:"1px solid "+C.b1}}>
+        <div>
+          <span style={{fontSize:14,fontWeight:700,color:C.tx,fontFamily:F}}>✍️ Parašai</span>
+          <span style={{fontSize:11,color:C.t2,fontFamily:F,marginLeft:8}}>Automatiškai įterpiami į LitGrid prašymą pagal darbų vadovą</span>
+        </div>
+        {!adding&&<Btn v="primary" sm onClick={function(){sAdding(true);sNewName("");}}>+ Pridėti parašą</Btn>}
+      </div>
+      <div style={{padding:16}}>
+        {adding&&<div style={{background:C.s2,border:"1px solid "+C.ac,borderRadius:8,padding:12,marginBottom:12}}>
+          <input autoFocus value={newName} onChange={function(e){sNewName(e.target.value);}}
+            placeholder="Asmens vardas, pavardė (pvz. Eimutis Šimkus)"
+            style={{width:"100%",padding:"7px 10px",borderRadius:6,border:"1.5px solid "+C.ac,background:C.bg,color:C.tx,fontFamily:F,fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:8}}/>
+          <div style={{marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
+            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/jpg"
+              onChange={function(e){sSelFile(e.target.files[0]||null);}}
+              style={{fontSize:12,color:C.tx,fontFamily:F}}/>
+            {selFile&&<span style={{fontSize:11,color:C.t2}}>{selFile.name}</span>}
+          </div>
+          <div style={{fontSize:10,color:C.t3,fontFamily:F,marginBottom:8}}>Rekomenduojama: PNG su skaidriu fonu, ~400×150px</div>
+          <div style={{display:"flex",gap:8}}>
+            <Btn v="primary" sm onClick={addSig} disabled={busy}>{busy?"Saugoma...":"Išsaugoti"}</Btn>
+            <Btn v="secondary" sm onClick={function(){sAdding(false);sNewName("");sSelFile(null);}}>Atšaukti</Btn>
+          </div>
+        </div>}
+        {(sigs||[]).length===0&&!adding&&<div style={{textAlign:"center",padding:"20px",color:C.t3,fontFamily:F,fontSize:12}}>
+          Nėra išsaugotų parašų. Pridėkite kiekvieno darbų vadovo parašą — jis automatiškai bus įterpiamas į LitGrid prašymą.
+        </div>}
+        {(sigs||[]).map(function(sig){
+          return<div key={sig.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:C.bg,borderRadius:8,marginBottom:8,border:"1px solid "+C.b1}}>
+            {sig.url&&<img src={sig.url} alt="parašas" style={{height:40,maxWidth:130,objectFit:"contain",background:"white",borderRadius:4,padding:3,border:"1px solid "+C.b1}}/>}
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:600,color:C.tx,fontFamily:F}}>{sig.name}</div>
+              <div style={{fontSize:10,color:C.t3,fontFamily:F}}>{sig.originalName}</div>
+            </div>
+            <Btn v="danger" sm onClick={function(){deleteSig(sig.id);}}>Ištrinti</Btn>
+          </div>;
+        })}
+      </div>
+    </div>
+  </div>;
+}
+
+// ═════════════════════════════════════════════════════════════
 // SYSTEM TOOLS
 // ═════════════════════════════════════════════════════════════
 function SystemTools(){
@@ -5455,7 +5565,7 @@ function App(){
   }else if(view==="users"){
     main=<UserMgmt users={users} permits={permits} onAddUser={addUser} onAssignRole={assignRole} onDeleteUser={deleteUser} onUpdateContact={updateContact} onOpenPermit={function(id){var pm=permits.find(function(x){return x.id===id});if(pm){setDetail(pm);setView("all")}}}/>;
   }else if(view==="library"){
-    main=<DocLibrary/>;
+    main=<div><DocLibrary/><SigLibrary/></div>;
   }else if(view==="system"){
     main=<SystemTools/>;
   }else{

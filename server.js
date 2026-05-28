@@ -2008,7 +2008,13 @@ async function generateLitgridPdf(d) {
   y -= 8; t('(kadastrinis numeris)', ML, y, 7, font, GR); t('(žemės sklypo koordinatės)', ML+190, y, 7, font, GR);
   y -= lh;
 
-  t('suderinimo numeris ____ bei data _________________ (jei toks derinimas yra).', ML, y, 9);
+  const derinData = d.derinimo_data || '';
+  t('suderinimo numeris ____ bei data ', ML, y, 9);
+  const derX = ML + font.widthOfTextAtSize('suderinimo numeris ____ bei data ', 9);
+  t(derinData, derX, y, 9);
+  const derW = Math.max(font.widthOfTextAtSize(derinData, 9), 100);
+  hl(derX, derX + derW, y - 1);
+  t(' (jei toks derinimas yra).', derX + derW, y, 9);
   y -= 8; t('(derinimo numeris)', ML, y, 7, font, GR); t('(derinimo išdavimo data)', ML+190, y, 7, font, GR);
   y -= lh + 6;
 
@@ -2063,27 +2069,35 @@ async function generateLitgridPdf(d) {
 
   // 11. Parašas
   t('Prašymą užpildė žemės savininkas/ žemės savininko įgaliotas fizinis ar juridinis asmuo:', ML, y, 9);
-  y -= 30;
-  const sigX = PW/2 - 80;
-  hl(sigX, sigX+150, y); hl(sigX+165, sigX+240, y);
-  y -= 8;
-  const nm = 'Eimutis Šimkus';
-  const nmX = sigX + (150 - font.widthOfTextAtSize(nm, 9)) / 2;
-  t(nm, nmX, y, 9); t('.', sigX+150, y, 9);
-  y -= 9; t('(vardas, pavardė)', sigX, y, 7, font, GR); t('(parašas)', sigX+165, y, 7, font, GR);
-  y -= 20;
-
-  // 12. Apatinė lentelė (pareiškėjo duomenys)
-  const bt2Rows = tblRows;
-  const bt2H = bt2Rows.length * rowH;
-  if (y - bt2H > 20) {
-    box(ML, y - bt2H, MR - ML, bt2H);
-    bt2Rows.forEach(([main, sub], i) => {
-      const ry = y - (i+1)*rowH;
-      if (i > 0) hl(ML, MR, y - i*rowH);
-      tC(main, ry+11, 9.5, fontB); tC(sub, ry+3, 7, font);
-    });
+  y -= 38;
+  const sigX = (PW / 2) - 100;
+  // Parašo paveiksliukas — iš signatureFilename (uploads) arba public/signature.png
+  let resolvedSigPath = null;
+  if (d.signatureFilename) {
+    const uploadedSig = path.join(UPLOAD_DIR, d.signatureFilename);
+    if (fs.existsSync(uploadedSig)) resolvedSigPath = uploadedSig;
   }
+  if (!resolvedSigPath) {
+    const defaultSig = path.join(__dirname, 'public', 'signature.png');
+    if (fs.existsSync(defaultSig)) resolvedSigPath = defaultSig;
+  }
+  if (resolvedSigPath) {
+    try {
+      const sigBytes = fs.readFileSync(resolvedSigPath);
+      const ext = resolvedSigPath.toLowerCase();
+      const sigImg = ext.endsWith('.png') ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
+      const sigDims = sigImg.scale(0.35);
+      page.drawImage(sigImg, { x: sigX, y: y - sigDims.height + 14, width: sigDims.width, height: sigDims.height });
+    } catch (_) {}
+  }
+  hl(sigX, sigX + 120, y);
+  hl(sigX + 140, sigX + 220, y);
+  y -= 8;
+  const nm = d.darbu_vadovas || 'Eimutis Šimkus';
+  t(nm, sigX, y, 9); t('.', sigX + 120, y, 9);
+  y -= 9;
+  t('(vardas, pavardė)', sigX, y, 7, font, GR);
+  t('(parašas)', sigX + 140, y, 7, font, GR);
 
   // 2 puslapis — pastaba
   const p2 = pdfDoc.addPage([PW, PH]);
