@@ -2474,6 +2474,7 @@ function PermitDetail(p){
   var _lgSel=useState(_initLGPgs);var lgSel=_lgSel[0],sLGSel=_lgSel[1];
   var _showLGPicker=useState(false);var showLGPicker=_showLGPicker[0],sShowLGPicker=_showLGPicker[1];
   var _previewLGBusy=useState(false);var previewLGBusy=_previewLGBusy[0],sPreviewLGBusy=_previewLGBusy[1];
+  var _previewLGDocBusy=useState(false);var previewLGDocBusy=_previewLGDocBusy[0],sPreviewLGDocBusy=_previewLGDocBusy[1];
   var _lgAprvSt=useState("");var lgAprvSt=_lgAprvSt[0],sLGAprvSt=_lgAprvSt[1];
   var _lgAprvBusy=useState(false);var lgAprvBusy=_lgAprvBusy[0],sLGAprvBusy=_lgAprvBusy[1];
   var _lgEmailIn=useState((o.pendingLitgridEmail||{}).to||getLitgridRegionEmail(o));var lgEmailIn=_lgEmailIn[0],sLGEmailIn=_lgEmailIn[1];
@@ -3312,8 +3313,45 @@ function PermitDetail(p){
               <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid "+C.b1}}>
                 <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>LitGrid prašymas (šablonas)</div>
                 {libSrc
-                  ?<div style={{fontSize:11,color:C.gn,fontFamily:FM,padding:"4px 8px",background:C.gnD,borderRadius:6,display:"inline-block",marginBottom:8}}>
-                    ✓ {libSrc.docName||libSrc.originalName||"prašymas rastas"}
+                  ?<div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
+                    <div style={{fontSize:11,color:C.gn,fontFamily:FM,padding:"4px 8px",background:C.gnD,borderRadius:6}}>
+                      ✓ {libSrc.docName||libSrc.originalName||"prašymas rastas"}
+                    </div>
+                    <Btn v="secondary" sm disabled={previewLGDocBusy} onClick={async function(){
+                      if(previewLGDocBusy)return;
+                      sPreviewLGDocBusy(true);
+                      try{
+                        var _addr2=lgAddrIn||o.teliaRouteTo||o.location||"";
+                        var _today2=new Date();
+                        var _lg2b=new Date(_today2);_lg2b.setMonth(_lg2b.getMonth()+2);
+                        var _from2=o.litgridStartDate||fmtDate(_today2);
+                        var _to2=o.litgridEndDate||fmtDate(_lg2b);
+                        var _reg2=getLitgridRegion(_addr2)+" regionas";
+                        var genR=await fetch("/api/generate-docx-pdf",{
+                          method:"POST",headers:{"Content-Type":"application/json"},
+                          body:JSON.stringify({docUrl:libSrc.url,data:{
+                            data:fmtDateLT(fmtDate(_today2)),
+                            adresas:_addr2,
+                            projekto_nr:o.projectNo||"",
+                            darbu_vadovas:o.manager||"",
+                            tel:o.managerPhone||"",
+                            nuo:fmtDateDots(_from2),
+                            iki:fmtDateDots(_to2),
+                            regionas:_reg2,
+                            imone:"UAB EnergoLT",
+                            el_pastas:"uzklausos@energolt.eu"
+                          }})
+                        });
+                        if(!genR.ok)throw new Error("HTTP "+genR.status);
+                        var gd=await genR.json();
+                        if(gd.error)throw new Error(gd.error);
+                        var bin2=atob(gd.content);var u8b=new Uint8Array(bin2.length);
+                        for(var bi=0;bi<bin2.length;bi++)u8b[bi]=bin2.charCodeAt(bi);
+                        var blobType=gd.mimeType||"application/pdf";
+                        window.open(URL.createObjectURL(new Blob([u8b],{type:blobType})),"_blank");
+                      }catch(e2){alert("Klaida generuojant prašymą: "+e2.message);}
+                      sPreviewLGDocBusy(false);
+                    }}>{previewLGDocBusy?"...":"👁 Peržiūrėti prašymą"}</Btn>
                   </div>
                   :<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600,marginBottom:8}}>⚠️ LitGrid prašymo šablonas nerastas bibliotekoje</div>}
               </div>
