@@ -1714,12 +1714,13 @@ function buildLitgridEmailHtml(permit){
     lgFrom=fmtDateDots(fmtDate(tdn));lgTo=fmtDateDots(fmtDate(tdn3));
   }
   // Pirmoji pastraipa: "Norėtume išsiimti... nuo {data}, projekto Nr.: ..., „{aprašymas}"."
-  var firstLine="Norėtume išsiimti žemės kasimo leidimą";
-  if(lgFrom)firstLine+=", nuo "+lgFrom;
-  if(projNo)firstLine+=", projekto Nr.: "+projNo;
-  if(permit.description)firstLine+=", „"+permit.description+"“";
-  else if(!projNo&&(permit.teliaRouteTo||permit.location))firstLine+=", "+( permit.teliaRouteTo||permit.location);
-  firstLine+=".";
+  var addr=permit.teliaRouteTo||permit.location||””;
+  var firstLine=”Norėtume išsiimti žemės kasimo leidimą”;
+  if(lgFrom)firstLine+=”, nuo “+lgFrom;
+  if(projNo)firstLine+=”, projekto Nr.: “+projNo;
+  if(addr)firstLine+=”, “+addr;
+  if(permit.description)firstLine+=”, „”+permit.description+”””;
+  firstLine+=”.”;
   var p=function(txt,mb){return'<p style="margin:0 0 '+(mb||14)+'px">'+txt+'</p>';};
   return buildExternalEmailWrapper(
     p("Laba diena,")
@@ -2245,13 +2246,11 @@ async function approveAndSendLitgrid(permit){
       }
     }
   }
-  // Jei vartotojas redagavo laiško turinį — rekonstruojame HTML
+  // Jei vartotojas redagavo laiško turinį — rekonstruojame HTML su tinkamu formatavimu
   var finalHtml=pe.html||"";
   if(pe.editedBodyText&&pe.editedBodyText.trim()){
-    var sigIdx=finalHtml.indexOf("Pagarbiai");
-    var sigHtml=sigIdx>0?finalHtml.slice(sigIdx):"";
-    var editedHtml=pe.editedBodyText.split("\n").map(function(l){return l.trim()?"<p style=\"margin:0 0 6px\">"+l+"</p>":"<br>";}).join("");
-    finalHtml=editedHtml+(sigHtml?"<p style=\"margin:8px 0 0\">"+sigHtml:"");
+    var _editedLines=pe.editedBodyText.split("\n").map(function(l){return l.trim()?"<p style=\"margin:0 0 14px\">"+l+"</p>":"";}).join("");
+    finalHtml=buildExternalEmailWrapper(_editedLines);
   }
   var res=await fetch("/api/notify/email",{
     method:"POST",
@@ -2533,6 +2532,7 @@ function PermitDetail(p){
   var _lgAddrIn=useState((o.pendingLitgridEmail||{}).addr||o.teliaRouteTo||o.location||"");var lgAddrIn=_lgAddrIn[0],sLGAddrIn=_lgAddrIn[1];
   var _lgBodyOpen=useState(false);var lgBodyOpen=_lgBodyOpen[0],sLGBodyOpen=_lgBodyOpen[1];
   var _lgBodyEdit=useState(false);var lgBodyEdit=_lgBodyEdit[0],sLGBodyEdit=_lgBodyEdit[1];
+  var _lgBodyDirty=useState(false);var lgBodyDirty=_lgBodyDirty[0],sLGBodyDirty=_lgBodyDirty[1];
   var _lgBodyIn=useState(function(){
     var html=(o.pendingLitgridEmail||{}).html||"";
     if(!html)return "";
@@ -3344,7 +3344,7 @@ function PermitDetail(p){
               (lg.attachmentSources||[]).filter(function(s){return s.type!=="library";});
             var finalSrc=existingLibSrcs.concat(pdfSrcs);
             var _lgWithAddr=lgAddrIn?Object.assign({},lg,{addr:lgAddrIn}):lg;
-            var permitToSend=Object.assign({},o,{location:addr||o.location,teliaRouteTo:addr||o.teliaRouteTo,pendingLitgridEmail:Object.assign({},_lgWithAddr,{attachmentSources:finalSrc,to:to,editedBodyText:lgBodyIn||null})});
+            var permitToSend=Object.assign({},o,{location:addr||o.location,teliaRouteTo:addr||o.teliaRouteTo,pendingLitgridEmail:Object.assign({},_lgWithAddr,{attachmentSources:finalSrc,to:to,editedBodyText:(lgBodyDirty&&lgBodyIn)?lgBodyIn:null})});
             var attCount=await approveAndSendLitgrid(permitToSend);
             var updated=Object.assign({},o,{pendingLitgridEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"LitGrid laiškas išsiųstas ("+(p.user.name||"-")+", "+attCount+" priedai)"}])});
             var anyPending=updated.pendingEmail||updated.pendingKauoenergijaEmail||updated.pendingTeliaInvEmail;
@@ -3433,13 +3433,14 @@ function PermitDetail(p){
               {/* Laiško turinys — preview arba redagavimas */}
               {(function(){
                 var currentHtml=(function(){
-                  if(!lgBodyIn.trim())return lg.html||"";
-                  // Rekonstruojame HTML iš redaguoto teksto + parašo
+                  // Preview mode: visada rodome originalų lg.html (tinkamas formatavimas)
+                  if(!lgBodyEdit||!lgBodyIn.trim())return lg.html||"";
+                  // Redagavimo peržiūra: rekonstruojame iš redaguoto teksto + parašas
                   var origHtml=(o.pendingLitgridEmail||{}).html||"";
                   var sigIdx=origHtml.indexOf("Pagarbiai");
                   var sigHtml=sigIdx>0?origHtml.slice(sigIdx):"";
-                  var bodyHtml=lgBodyIn.split("\n").map(function(l){return l.trim()?"<p style='margin:0 0 5px;font-size:13px;font-family:Arial,sans-serif'>"+l+"</p>":"<br>";}).join("");
-                  return bodyHtml+(sigHtml?"<p style='margin:10px 0 0'>"+sigHtml:"");
+                  var bodyLines=lgBodyIn.split("\n").map(function(l){return l.trim()?"<p style='margin:0 0 14px;font-size:14px;font-family:Arial,sans-serif;color:#1F2937'>"+l+"</p>":"";}).join("");
+                  return buildExternalEmailWrapper(bodyLines)+(sigHtml?"":"");
                 })();
                 return <div style={{marginTop:10,borderTop:"1px solid "+C.b1,paddingTop:8}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -3458,7 +3459,7 @@ function PermitDetail(p){
                   {lgBodyEdit
                     ?<textarea
                         value={lgBodyIn}
-                        onChange={function(e){sLGBodyIn(e.target.value);}}
+                        onChange={function(e){sLGBodyIn(e.target.value);sLGBodyDirty(true);}}
                         rows={9}
                         style={{width:"100%",padding:"8px 10px",fontSize:12,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6,boxSizing:"border-box",resize:"vertical",lineHeight:1.7}}
                       />
