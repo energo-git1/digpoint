@@ -12,6 +12,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <script>
     // LKS-94 (EPSG:3346) → WGS-84 (EPSG:4326) projekcijų apibrėžimas
     if(typeof proj4!=="undefined"){
@@ -3399,7 +3400,19 @@ function PermitDetail(p){
                           zip2.file(xf,xc);
                         }
                         var outBuf=await zip2.generateAsync({type:"arraybuffer",compression:"DEFLATE"});
-                        window.open(URL.createObjectURL(new Blob([outBuf],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"})),"_blank");
+                        // Konvertuojame DOCX→HTML su mammoth ir atidarome naršyklėje (galima spausdinti kaip PDF)
+                        var mammothResult=await mammoth.convertToHtml({arrayBuffer:outBuf});
+                        var htmlContent=mammothResult.value||"";
+                        var previewHtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>LitGrid prašymas</title>'
+                          +'<style>body{font-family:Arial,sans-serif;font-size:12pt;max-width:800px;margin:40px auto;padding:20px;line-height:1.6}'
+                          +'p{margin:4px 0}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:4px 8px}'
+                          +'@media print{body{margin:0;padding:15mm}}'
+                          +'</style></head><body>'
+                          +'<div style="text-align:right;margin-bottom:16px;print:none"><button onclick="window.print()" style="padding:6px 16px;cursor:pointer;font-size:12px">🖨 Spausdinti / Išsaugoti PDF</button></div>'
+                          +htmlContent+'</body></html>';
+                        var win=window.open("","_blank");
+                        if(win){win.document.write(previewHtml);win.document.close();}
+                        else{alert("Naršyklė blokavo langą. Leiskite popup's šiam puslapiui.");};
                       }catch(e2){alert("Klaida generuojant prašymą: "+e2.message);}
                       sPreviewLGDocBusy(false);
                     }}>{previewLGDocBusy?"...":"👁 Peržiūrėti prašymą"}</Btn>
