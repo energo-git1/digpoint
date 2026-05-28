@@ -2093,7 +2093,7 @@ async function generateLitgridPdf(d) {
   hl(sigX, sigX + 120, y);
   hl(sigX + 140, sigX + 220, y);
   y -= 8;
-  const nm = d.darbu_vadovas || 'Eimutis Šimkus';
+  const nm = d.signatoryName || d.darbu_vadovas || 'Eimutis Šimkus';
   t(nm, sigX, y, 9); t('.', sigX + 120, y, 9);
   y -= 9;
   t('(vardas, pavardė)', sigX, y, 7, font, GR);
