@@ -1651,6 +1651,34 @@ function getLitgridRegionEmail(permit){
   return"info@litgrid.lt";
 }
 
+// Nustato LitGrid regioną pagal adresą — visos Lietuvos savivaldybės pagal apskritis
+// Pietų regionas:  Kauno, Alytaus, Marijampolės apskritys
+// Rytų regionas:   Vilniaus, Utenos apskritys
+// Šiaurės regionas: Šiaulių, Panevėžio apskritys
+// Vakarų regionas: Klaipėdos, Tauragės, Telšių apskritys
+function getLitgridRegion(locationStr){
+  var s=(locationStr||"").toLowerCase()
+    .replace(/š/g,"s").replace(/ž/g,"z").replace(/č/g,"c")
+    .replace(/ė/g,"e").replace(/ę/g,"e").replace(/ū/g,"u")
+    .replace(/ų/g,"u").replace(/į/g,"i").replace(/ą/g,"a");
+  // Pietų: Kauno, Alytaus, Marijampolės apskritys
+  if(/kaunas|kauno|jonava|jonavos|kaisiadory|kaisiadoriu|kedainiai|kedainiu|prienai|prienu|raseiniai|raseiniu|sakiai|sakiu/.test(s))return"Pietų";
+  if(/alytus|alytaus|druskininkai|druskininkų|lazdijai|lazdiju|varena|varenos/.test(s))return"Pietų";
+  if(/marijampole|marijampoles|kalvarija|kalvarijos|kazlu ruda|vilkaviskis|vilkaviskio/.test(s))return"Pietų";
+  // Rytų: Vilniaus, Utenos apskritys
+  if(/vilnius|vilniaus|elektrena|elektrenu|salcininkai|salcininku|svencionys|svencionu|trakai|traku|ukmerge|ukmerges/.test(s))return"Rytų";
+  if(/utena|utenos|anyksciai|anyksciu|ignalina|ignalinos|moletai|moletu|visaginas|visagino|zarasai|zarasu/.test(s))return"Rytų";
+  // Šiaurės: Šiaulių, Panevėžio apskritys
+  if(/siauliai|siauli[uo]|akmene|akmen[eė]s|joniskis|joniskio|kelme|kelmes|pakruojis|pakruojo|radviliskis|radviliskio/.test(s))return"Šiaurės";
+  if(/panevezys|paneveziu|birzai|birzu|kupiskis|kupiski[uo]|pasvalys|pasvalio|rokiskis|rokiski[uo]/.test(s))return"Šiaurės";
+  // Vakarų: Klaipėdos, Tauragės, Telšių apskritys
+  if(/klaipeda|klaipedos|neringa|neringos|palanga|palangos|skuodas|skuodo/.test(s))return"Vakarų";
+  if(/taurage|taurages|jurbarkas|jurbarko|silale|silales|pagegia[iu]/.test(s))return"Vakarų";
+  if(/telsiai|telsiu|mazeikiai|mazeikiu|plunge|plunges|rietavas|rietavo/.test(s))return"Vakarų";
+  // Pagal nutylėjimą — Pietų (dauguma projektų Kauno r.)
+  return"Pietų";
+}
+
 // LitGrid laiško HTML šablonas
 function buildLitgridEmailHtml(permit){
   var projNo=permit.projectNo?permit.projectNo:"[proj. nr. iš pdf]";
@@ -2115,16 +2143,16 @@ async function approveAndSendLitgrid(permit){
           var lg2=new Date(today);lg2.setMonth(lg2.getMonth()+2);
           var lgFromDate=permit.litgridStartDate||fmtDate(today);
           var lgToDate=permit.litgridEndDate||fmtDate(lg2);
-          var _loc=(permit.teliaRouteTo||permit.location||"").toLowerCase();
-          var regionas=/viln|uten/.test(_loc)?"Rytų":/siaul|šiaul|panev/.test(_loc)?"Šiaurės":/klaip|tel[sš]|taur/.test(_loc)?"Vakarų":"Pietų";
+          var _addr=permit.teliaRouteTo||permit.location||"";
+          var regionas=getLitgridRegion(_addr)+" regionas";
           var tmplData={
             data:fmtDateLT(fmtDate(today)),
-            adresas:permit.teliaRouteTo||permit.location||"",
+            adresas:_addr,
             projekto_nr:permit.projectNo||"",
             darbu_vadovas:permit.manager||"",
             tel:permit.managerPhone||"",
-            nuo:fmtDateLT(lgFromDate),
-            iki:fmtDateLT(lgToDate),
+            nuo:fmtDateDots(lgFromDate),
+            iki:fmtDateDots(lgToDate),
             regionas:regionas,
             imone:"UAB EnergoLT",
             el_pastas:"uzklausos@energolt.eu"
