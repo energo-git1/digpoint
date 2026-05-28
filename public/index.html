@@ -744,13 +744,26 @@ function parseInvestNo(text){
 
 // Aptinka projekto numerį iš PDF — formatas pvz. "26-20-TDP-E" arba "26-20-TP-E"
 function parseProjectNo(text){
-  // 1) Po "PROJEKTO NUMERIS" antraštės (titulinis lapas) — tarp lentelės celių
+  if(!text)return null;
+  // 1) Po "Projekto nr." arba "PROJEKTO NUMERIS" antraštės — ima ką seka po jos
+  // Pvz.: "Projekto nr.:  RBDTD-LT/DS1/DPS1" arba "Projekto nr.: 02-03-TDP-E"
+  var mLabel=text.match(/[Pp]rojekto\s+n[rR][.\s:]{0,3}([^\n\r,]{4,60})/);
+  if(mLabel&&mLabel[1]){
+    var v=mLabel[1].trim().replace(/\s{2,}/g," ");
+    // Atmetame jei atrodo kaip adresas/tekstas (turi žodžius su mažosiomis > 4 simbolių)
+    if(!/[a-ząčęėįšųūž]{5,}/.test(v)&&v.length>3)return v;
+  }
+  // 2) RBDTD-LT/DS1/DPS1 formatas (LitGrid projektai) — su brūkšneliais ar be
+  // PDF gali ištraukti kaip "RBDTDLTDS1DPS1" arba "RBDTD-LT/DS1/DPS1"
+  var mRB=text.match(/\b(RBDTD[-\s]*LT[-\/\s]*DS\d[-\/\s]*DPS\d(?:[-_\/\s]*[\w]+)*)/i);
+  if(mRB&&mRB[1])return mRB[1].replace(/\s+/g,"").trim();
+  // 3) Po "PROJEKTO NUMERIS" antraštės (titulinis lapas) — tarp lentelės celių
   var m1=text.match(/PROJEKTO\s+NUMERIS[\s\S]{0,50}?(\d{2}-\d{2,4}-[A-Z]{2,6}-[A-Z]{1,3})/);
   if(m1&&m1[1])return m1[1].trim();
-  // 2) Dokumento žymuo formatas NN-NN-XXX-X (ignoruojame priedų žymenis kaip E.B-01)
+  // 4) Dokumento žymuo formatas NN-NN-XXX-X
   var m2=text.match(/\b(\d{2}-\d{2,4}-(?:TDP|TP|PP|DP|AP)-[A-Z]{1,3})\b/);
   if(m2&&m2[1])return m2[1].trim();
-  // 3) Platesnė paieška — bet ne priedų (su .B, .BSR ir pan.)
+  // 5) Platesnė paieška — bet ne priedų žymenų (su .B, .BSR ir pan.)
   var m3=text.match(/\b(\d{2}-\d{2,4}-[A-Z]{2,6}-[A-Z]{1,3})\b/);
   if(m3&&m3[1]&&!m3[1].includes('.'))return m3[1].trim();
   return null;
