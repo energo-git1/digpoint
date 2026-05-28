@@ -742,6 +742,8 @@ function isPdfPermitDocument(pdfText) {
 // Ieško gatvės pavadinimo šalia adreso žymių.
 function extractLocationFromPdf(pdfText) {
   const patterns = [
+    // Titulinio lapo lentelė: "VIETA/ LOCATION" arba "VIETA LOCATION"
+    /VIETA[\/\s]+LOCATION\s+([A-ZĄČĘĖĮŠŲŪŽ][^\n\r]{3,80})/i,
     // ESO specifinis: "vykdymo vieta" arba "kasimo darbų vieta"
     /(?:vykdymo\s+vieta|kasimo\s+darb[uų]\s+viet[ao])[:\s\n]+([^\n(]{5,100})/i,
     /(?:darbų\s+vieta|objekto\s+vieta|adresas|statybos\s+vieta|vieta)[:\s]+([^\n]{5,80})/i,
@@ -749,7 +751,13 @@ function extractLocationFromPdf(pdfText) {
   ];
   for (const pat of patterns) {
     const m = pdfText.match(pat);
-    if (m) return m[1].replace(/\s+/g, ' ').trim();
+    if (m) {
+      let v = m[1].replace(/\s+/g, ' ').trim();
+      // Pjauname ties sekančia stambių didžiųjų raidžių grupe (kita lentelės antraštė)
+      const cut = v.search(/\b[A-ZĄČĘĖĮŠŲŪŽ]{4,}\s+[A-ZĄČĘĖĮŠŲŪŽ]{4,}/);
+      if (cut > 3) v = v.substring(0, cut).trim();
+      if (v.length > 3) return v;
+    }
   }
   return null;
 }

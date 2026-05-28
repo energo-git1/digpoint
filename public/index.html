@@ -745,9 +745,12 @@ function parseInvestNo(text){
 // Aptinka projekto numerį iš PDF — formatas pvz. "26-20-TDP-E" arba "26-20-TP-E"
 function parseProjectNo(text){
   if(!text)return null;
-  // 1) RBDTD-LT/DS1/DPS1 formatas (LitGrid projektai)
-  // Tikslus šablonas: RBDTD + LT + DS[n] + DPS[n] + pasirenkamas -NN_NN sufiksas
-  // PDF suliejamas tekstas: "RBDTDLTDS1DPS1-02_03" arba "RBDTD-LT/DS1/DPS1-02_03"
+  // 1) Brėžinio žymuo iš titulinio lapo lentelės
+  // "BRĖŽINIO ŽYMUO / DRAWING MARK:" — ima pirmą kodą po antraštės (trumpesnį)
+  var mDM=text.match(/BR[EĖ][ŽZ]INIO\s+[ŽZ]YMUO[^:\n]{0,30}[\n\r:]+\s*([A-Z0-9][A-Z0-9_\-]{5,60})/i);
+  if(!mDM)mDM=text.match(/DRAWING\s+MARK[^:\n]{0,20}[\n\r:]+\s*([A-Z0-9][A-Z0-9_\-]{5,60})/i);
+  if(mDM&&mDM[1]){var dm=mDM[1].trim();if(dm.length>5)return dm;}
+  // 2) RBDTD-LT/DS1/DPS1 formatas (LitGrid projektai) — tikslus, sustoja po DPS[n]-NN_NN
   var mRB=text.match(/\b(RBDTD[-\s]*LT[-\/\s]*DS\d+[-\/\s]*DPS\d+(?:[-_]\d{2}(?:[-_]\d{2})?)?)/i);
   if(mRB&&mRB[1])return mRB[1].replace(/\s+/g,"").trim();
   // 2) Po "Projekto nr." / "Statinio projekto Nr." antraštės
@@ -1732,6 +1735,22 @@ function fmtDateLT(d){
   var y=parts[0],m=parseInt(parts[1],10)-1,day=parseInt(parts[2],10);
   return y+" m. "+LT_MONTHS_GEN[m]+" "+day+" d.";
 }
+// Ištraukia vietą (adresą) iš projekto brėžinio titulinio lapo
+// Ieško "VIETA/ LOCATION" arba "VIETA LOCATION" lentelės celės reikšmės
+function parseLocationFromDrawing(text){
+  if(!text)return null;
+  // "VIETA/ LOCATION" arba "VIETA LOCATION" po kurio eina vietos tekstas
+  var m=text.match(/VIETA[\/\s]+LOCATION\s+([A-ZĄČĘĖĮŠŲŪŽ][^\n\r]{3,80})/i);
+  if(m&&m[1]){
+    var v=m[1].trim().replace(/\s{2,}/g," ");
+    // Pjauname ties sekančia didžiąja antraštės dalimi (pvz. "PROJEKTO DALIES")
+    var cut=v.search(/\b[A-ZĄČĘĖĮŠŲŪŽ]{4,}\s+[A-ZĄČĘĖĮŠŲŪŽ]{4,}/);
+    if(cut>3)v=v.substring(0,cut).trim();
+    if(v.length>3)return v;
+  }
+  return null;
+}
+
 function fmtDateRangeDots(start,end){
   var sd=start?fmtDateDots(start):"";
   var ed=end?fmtDateDots(end):"";
@@ -2112,8 +2131,14 @@ async function preparePendingLitgridEmail(permit, pageTexts){
   }catch(e){warnings.push("Klaida ieškant šablonų: "+e.message);}
   // 2) Projekto brėžinys iš PDF
   if(pageTexts&&pageTexts.length>0){
-    if(!permit.investNo){var fi=parseInvestNo(pageTexts.join("\n"));if(fi)permit=Object.assign({},permit,{investNo:fi});}
-    if(!permit.projectNo){var fp=parseProjectNo(pageTexts.join("\n"));if(fp)permit=Object.assign({},permit,{projectNo:fp});}
+    var _joinedText=pageTexts.join("\n");
+    if(!permit.investNo){var fi=parseInvestNo(_joinedText);if(fi)permit=Object.assign({},permit,{investNo:fi});}
+    if(!permit.projectNo){var fp=parseProjectNo(_joinedText);if(fp)permit=Object.assign({},permit,{projectNo:fp});}
+    // Jei adresas tuščias — bandome ištraukti iš titulinio lapo "VIETA/ LOCATION"
+    if(!permit.location&&!permit.teliaRouteTo){
+      var fl=parseLocationFromDrawing(_joinedText);
+      if(fl)permit=Object.assign({},permit,{location:fl,teliaRouteTo:fl});
+    }
     var drawingPage=findProjectDrawingPage(pageTexts);
     if(drawingPage){
       attachmentSources.push({filename:"projekto_brezinys.pdf",sourceFileName:pdfFile?pdfFile.name:"",pageNumbers:[drawingPage]});
