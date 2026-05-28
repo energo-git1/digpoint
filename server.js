@@ -886,8 +886,23 @@ async function checkImapMail() {
             });
 
             if (!pendingForOrg.length) {
-              // Nėra paraiškų šiai institucijai be PDF — praleisti BEZ žymėjimo,
-              // kad kitą kartą būtų tikrinama (gali atsirasti nauja paraiška)
+              // Jei yra paraiškų šiai institucijai, bet visos jau turi PDF —
+              // šis laiškas jau buvo apdorotas anksčiau. Žymime kaip perskaitytą,
+              // kad nebūtų tikrinamas iš naujo (net išvalius kl-imap-done).
+              const anyForOrg = allPermitsEarly.some((p) => {
+                if (TRULY_FINAL.has(p.status)) return false;
+                const orgs = Array.isArray(p.organizations) && p.organizations.length > 0
+                  ? p.organizations : p.organization ? [p.organization] : [];
+                return matchOrgs.some((o) => orgs.includes(o));
+              });
+              if (anyForOrg) {
+                console.log(`[IMAP] ${org}: visos paraiškos jau turi PDF — laiškas jau apdorotas, žymimas perskaitytu.`);
+                doneIds.add(msgId);
+                dbSet('kl-imap-done', [...doneIds]);
+                await client.messageFlagsAdd(seq, ['\\Seen']);
+              }
+              // Jei nėra nė vienos paraiškos šiai institucijai — galima nauja paraiška,
+              // paliekame nepažymėtą (kitąkart patikrinsime)
               continue;
             }
 
@@ -969,6 +984,25 @@ async function checkImapMail() {
                 }
               } catch (dlErr) {
                 console.error(`[IMAP] PDF parsisiuntimo klaida (part ${pdfPart.part}): ${dlErr.message}`);
+              }
+            }
+
+            // ── ŽINGSNIS 1b: ar šis PDF jau priskirtas kuriai nors paraiškai? ──
+            // Apsaugo nuo pakartotinio priskyrimo, jei laiškas buvo pažymėtas
+            // "neperskaitytu" rankiniu būdu arba iš naujo apdorojamas po kl-imap-done išvalymo.
+            if (savedFiles.length > 0) {
+              const savedOrigNames = savedFiles.map((f) => f.name);
+              const allPermitsNow  = dbGet('kl-permits') || [];
+              const alreadyUsed = allPermitsNow.some((p) => {
+                const pdfs = p.permitPdfs || {};
+                return Object.values(pdfs).some((pdf) => pdf && savedOrigNames.includes(pdf.name));
+              });
+              if (alreadyUsed) {
+                console.log(`[IMAP] ${org}: PDF "${savedOrigNames.join(', ')}" jau priskirtas kitai paraiškai — laiškas žymimas perskaitytu, praleidžiama.`);
+                doneIds.add(msgId);
+                dbSet('kl-imap-done', [...doneIds]);
+                await client.messageFlagsAdd(seq, ['\\Seen']);
+                continue;
               }
             }
 
