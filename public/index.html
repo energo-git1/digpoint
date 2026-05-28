@@ -2540,9 +2540,9 @@ function PermitDetail(p){
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:3,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbu vykdymo vieta</div>
         {(isA||isD)
           ?<input type="text" value={locIn} onChange={function(e){sLocIn(e.target.value)}} placeholder="Pvz.: Gedimino g. 5, Kaunas"
-              style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:F,background:C.bg,color:locIn?C.tx:C.rd,border:"1px solid "+(locIn?C.b1:C.rd),borderRadius:6}}/>
-          :<div style={{fontSize:13,color:o.location?C.tx:C.rd,fontFamily:F}}>{o.location||"⚠️ Adresas nenurodytas"}</div>}
-        {(isA||isD)&&!locIn&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:3}}>⚠️ Adresas nenurodytas — reikia užpildyti prieš pateikiant ESO</div>}
+              style={{width:"100%",padding:"6px 8px",fontSize:13,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+(!locIn&&(o.organizations||[]).indexOf("AB ESO")!==-1?C.rd:C.b1),borderRadius:6}}/>
+          :<div style={{fontSize:13,color:C.tx,fontFamily:F}}>{o.location||"—"}</div>}
+        {(isA||isD)&&!locIn&&(o.organizations||[]).indexOf("AB ESO")!==-1&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:3}}>⚠️ Adresas nenurodytas — reikia užpildyti prieš pateikiant ESO</div>}
       </div>
       <div style={{display:"flex",gap:12}}>
         <div style={{flex:1}}>
