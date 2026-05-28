@@ -1,13 +1,16 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
+const os = require('os');
+const { exec, execSync } = require('child_process');
 const ldap = require('ldapjs');
 const Database = require('better-sqlite3');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
 const { ImapFlow } = require('imapflow');
 const pdfParse    = require('pdf-parse');
+const PizZip      = require('pizzip');
+const Docxtemplater = require('docxtemplater');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1726,6 +1729,60 @@ app.post('/api/admin/sync-ad-emails', async (req, res) => {
     res.json(result);
   } catch (e) {
     res.status(500).json({ updated: 0, log: [`Klaida: ${e.message}`] });
+  }
+});
+
+// ── LitGrid DOCX šablono užpildymas ir PDF konvertavimas ─────
+// Priima: { docUrl, data: { data, adresas, projekto_nr, darbu_vadovas, tel, nuo, iki } }
+// Grąžina: { content (base64), filename, mimeType }
+app.post('/api/generate-docx-pdf', (req, res) => {
+  try {
+    const { docUrl, data } = req.body || {};
+    if (!docUrl) return res.status(400).json({ error: 'Trūksta docUrl' });
+
+    // Failo kelias — tik uploads aplanke
+    const basename = path.basename(docUrl.replace(/\?.*$/, ''));
+    const docxPath = path.join(UPLOAD_DIR, basename);
+    if (!fs.existsSync(docxPath))
+      return res.status(404).json({ error: `Failas nerastas: ${basename}` });
+
+    // Užpildyti kintamuosius docxtemplater
+    const content = fs.readFileSync(docxPath, 'binary');
+    const zip = new PizZip(content);
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      nullGetter: () => '',    // tuščias, jei kintamasis nerastas
+    });
+    doc.render(data || {});
+    const filledBuf = doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' });
+
+    // Bandome konvertuoti į PDF per LibreOffice
+    let pdfBuf = null;
+    try {
+      const tmpDocx = path.join(os.tmpdir(), `kl_${Date.now()}.docx`);
+      fs.writeFileSync(tmpDocx, filledBuf);
+      // LibreOffice: Linux — libreoffice, Windows — soffice
+      const sofficeBin = process.platform === 'win32' ? 'soffice' : 'libreoffice';
+      execSync(`${sofficeBin} --headless --convert-to pdf --outdir "${os.tmpdir()}" "${tmpDocx}"`, { timeout: 30000 });
+      const pdfPath = tmpDocx.replace(/\.docx$/, '.pdf');
+      if (fs.existsSync(pdfPath)) {
+        pdfBuf = fs.readFileSync(pdfPath);
+        try { fs.unlinkSync(pdfPath); } catch (_) {}
+      }
+      try { fs.unlinkSync(tmpDocx); } catch (_) {}
+    } catch (loErr) {
+      console.log('[DOCX→PDF] LibreOffice nepasiekiama — siunčiama DOCX:', loErr.message.slice(0, 80));
+    }
+
+    if (pdfBuf) {
+      res.json({ content: pdfBuf.toString('base64'), filename: basename.replace(/\.docx$/i, '.pdf'), mimeType: 'application/pdf' });
+    } else {
+      res.json({ content: filledBuf.toString('base64'), filename: basename, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    }
+  } catch (e) {
+    console.error('[DOCX→PDF] Klaida:', e.message);
+    res.status(500).json({ error: e.message });
   }
 });
 
