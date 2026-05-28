@@ -11,6 +11,7 @@
   <script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
     // LKS-94 (EPSG:3346) → WGS-84 (EPSG:4326) projekcijų apibrėžimas
     if(typeof proj4!=="undefined"){
@@ -3356,28 +3357,31 @@ function PermitDetail(p){
                         var _from2=o.litgridStartDate||fmtDate(_today2);
                         var _to2=o.litgridEndDate||fmtDate(_lg2b);
                         var _reg2=getLitgridRegion(_addr2)+" regionas";
-                        var genR=await fetch("/api/generate-docx-pdf",{
-                          method:"POST",headers:{"Content-Type":"application/json"},
-                          body:JSON.stringify({docUrl:libSrc.url,data:{
-                            data:fmtDateLT(fmtDate(_today2)),
-                            adresas:_addr2,
-                            projekto_nr:o.projectNo||"",
-                            darbu_vadovas:o.manager||"",
-                            tel:o.managerPhone||"",
-                            nuo:fmtDateDots(_from2),
-                            iki:fmtDateDots(_to2),
-                            regionas:_reg2,
-                            imone:"UAB EnergoLT",
-                            el_pastas:"uzklausos@energolt.eu"
-                          }})
-                        });
-                        if(!genR.ok)throw new Error("HTTP "+genR.status);
-                        var gd=await genR.json();
-                        if(gd.error)throw new Error(gd.error);
-                        var bin2=atob(gd.content);var u8b=new Uint8Array(bin2.length);
-                        for(var bi=0;bi<bin2.length;bi++)u8b[bi]=bin2.charCodeAt(bi);
-                        var blobType=gd.mimeType||"application/pdf";
-                        window.open(URL.createObjectURL(new Blob([u8b],{type:blobType})),"_blank");
+                        var tmplData={
+                          data:fmtDateLT(fmtDate(_today2)),
+                          adresas:_addr2,
+                          projekto_nr:o.projectNo||"",
+                          darbu_vadovas:o.manager||"",
+                          tel:o.managerPhone||"",
+                          nuo:fmtDateDots(_from2),
+                          iki:fmtDateDots(_to2),
+                          regionas:_reg2,
+                          imone:"UAB EnergoLT",
+                          el_pastas:"uzklausos@energolt.eu"
+                        };
+                        // Client-side DOCX generavimas su JSZip (patikimiau nei server docxtemplater)
+                        var docBuf=await fetch(libSrc.url).then(function(r){return r.arrayBuffer();});
+                        var zip2=await JSZip.loadAsync(docBuf);
+                        var xmlFiles2=Object.keys(zip2.files).filter(function(f){return /^word\/(document|header\d*|footer\d*)\.xml$/i.test(f);});
+                        for(var xi=0;xi<xmlFiles2.length;xi++){
+                          var xf=xmlFiles2[xi];
+                          var xc=await zip2.file(xf).async("string");
+                          Object.keys(tmplData).forEach(function(k){xc=xc.split("{{"+k+"}}").join(tmplData[k]||"");});
+                          xc=xc.replace(/\{\{[^{}]+\}\}/g,"");
+                          zip2.file(xf,xc);
+                        }
+                        var outBuf=await zip2.generateAsync({type:"arraybuffer",compression:"DEFLATE"});
+                        window.open(URL.createObjectURL(new Blob([outBuf],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"})),"_blank");
                       }catch(e2){alert("Klaida generuojant prašymą: "+e2.message);}
                       sPreviewLGDocBusy(false);
                     }}>{previewLGDocBusy?"...":"👁 Peržiūrėti prašymą"}</Btn>

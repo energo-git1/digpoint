@@ -1787,31 +1787,28 @@ app.post('/api/generate-docx-pdf', (req, res) => {
     if (!resolvedPath)
       return res.status(404).json({ error: `Failas nerastas: ${basename}` });
 
-    // Užpildyti kintamuosius docxtemplater
+    // Užpildyti kintamuosius — paprastas string replace (patikimiau nei docxtemplater)
     const content = fs.readFileSync(resolvedPath, 'binary');
     const zip = new PizZip(content);
 
-    // Ištaiso Word padalintus {{tag}} XML runs
-    fixDocxSplitTags(zip);
-
-    const doc = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true,
-      nullGetter: () => '',    // tuščias, jei kintamasis nerastas
+    // Procesina document.xml + header/footer failus
+    const xmlTargets = Object.keys(zip.files).filter(f =>
+      /^word\/(document|header\d*|footer\d*)\.xml$/i.test(f)
+    );
+    xmlTargets.forEach(xmlFile => {
+      try {
+        let xml = zip.files[xmlFile].asText();
+        // Kiekvieną kintamąjį pakeičiame reikšme
+        Object.keys(data || {}).forEach(key => {
+          xml = xml.split(`{{${key}}}`).join(data[key] != null ? String(data[key]) : '');
+        });
+        // Likusius neužpildytus tagus — išvalome
+        xml = xml.replace(/\{\{[^{}]+\}\}/g, '');
+        zip.file(xmlFile, xml);
+      } catch (_) {}
     });
-    try {
-      doc.render(data || {});
-    } catch (renderErr) {
-      // Grąžina detales klaidas iš docxtemplater multi-error
-      if (renderErr.properties && renderErr.properties.errors) {
-        const details = renderErr.properties.errors
-          .map(e => (e.properties && e.properties.explanation) ? e.properties.explanation : e.message)
-          .filter(Boolean).join('; ');
-        return res.status(500).json({ error: `Šablono klaida: ${details || renderErr.message}` });
-      }
-      throw renderErr;
-    }
-    const filledBuf = doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' });
+
+    const filledBuf = zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
 
     // Bandome konvertuoti į PDF per LibreOffice
     let pdfBuf = null;
