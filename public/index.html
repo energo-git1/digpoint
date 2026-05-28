@@ -3418,32 +3418,25 @@ function PermitDetail(p){
                   </div>
                   :<div style={{fontSize:11,color:C.t2,fontFamily:F}}>Puslapiai nepasirinkti (brėžinys+derinimas bus nustatyta automatiškai)</div>}
               </div>
-              {/* Laiško turinys — collapsible redaktorius */}
+              {/* Laiško turinys — visada matomas, redaguojamas */}
               <div style={{marginTop:10,borderTop:"1px solid "+C.b1,paddingTop:8}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",userSelect:"none"}} onClick={function(){sLGBodyOpen(!lgBodyOpen);}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                   <div style={{fontSize:10,fontWeight:700,color:C.t3,fontFamily:F,textTransform:"uppercase",letterSpacing:1,flex:1}}>Laiško turinys</div>
-                  <span style={{fontSize:11,color:C.t2,fontFamily:F}}>{lgBodyOpen?"▲ Uždaryti":"✎ Redaguoti"}</span>
+                  <span style={{fontSize:11,color:C.t3,fontFamily:F,cursor:"pointer"}} onClick={function(){
+                    var html=(o.pendingLitgridEmail||{}).html||"";
+                    var idx=html.indexOf("Pagarbiai");
+                    var bh=idx>0?html.slice(0,idx):html;
+                    var tmp=document.createElement("div");tmp.innerHTML=bh;
+                    sLGBodyIn((tmp.innerText||"").trim());
+                  }}>↺ Atstatyti</span>
                 </div>
-                {lgBodyOpen&&<div style={{marginTop:8}}>
-                  <textarea
-                    value={lgBodyIn}
-                    onChange={function(e){sLGBodyIn(e.target.value);}}
-                    rows={10}
-                    style={{width:"100%",padding:"8px 10px",fontSize:12,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6,boxSizing:"border-box",resize:"vertical",lineHeight:1.6}}
-                  />
-                  <div style={{display:"flex",justifyContent:"flex-end",marginTop:4}}>
-                    <span style={{fontSize:11,color:C.t3,fontFamily:F,cursor:"pointer"}} onClick={function(){
-                      var html=(o.pendingLitgridEmail||{}).html||"";
-                      var idx=html.indexOf("Pagarbiai");
-                      var bh=idx>0?html.slice(0,idx):html;
-                      var tmp=document.createElement("div");tmp.innerHTML=bh;
-                      sLGBodyIn((tmp.innerText||"").trim());
-                    }}>↺ Atstatyti originalą</span>
-                  </div>
-                </div>}
-                {!lgBodyOpen&&<div style={{fontSize:11,color:C.t2,fontFamily:F,marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>
-                  {lgBodyIn.split('\n')[0]||"—"}
-                </div>}
+                <textarea
+                  value={lgBodyIn}
+                  onChange={function(e){sLGBodyIn(e.target.value);}}
+                  rows={9}
+                  style={{width:"100%",padding:"8px 10px",fontSize:12,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6,boxSizing:"border-box",resize:"vertical",lineHeight:1.7}}
+                />
+                <div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:3}}>Parašas pridedamas automatiškai. Priedai pridedami atskirai.</div>
               </div>
             </div>
             {lgAprvSt&&<div style={{fontSize:11,color:lgAprvSt.startsWith("✗")?C.rd:lgAprvSt.startsWith("✓")?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:lgAprvSt.startsWith("✗")?C.rdD:lgAprvSt.startsWith("✓")?C.gnD:C.acD,borderRadius:6}}>{lgAprvSt}</div>}
