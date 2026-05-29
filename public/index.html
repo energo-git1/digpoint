@@ -1670,41 +1670,32 @@ function buildKauoenergijaEmailHtml(permit){
 
 // LitGrid el. paštas — visada info@litgrid.lt (regionas nurodomas šablone, ne gavėjo adrese)
 function getLitgridRegionEmail(permit){
-  return"info@litgrid.lt";
+  return 'info@litgrid.lt';
 }
 
-// Nustato LitGrid regioną pagal adresą — visos Lietuvos savivaldybės pagal apskritis
-// Pietų regionas:  Kauno, Alytaus, Marijampolės apskritys
-// Rytų regionas:   Vilniaus, Utenos apskritys
-// Šiaurės regionas: Šiaulių, Panevėžio apskritys
-// Vakarų regionas: Klaipėdos, Tauragės, Telšių apskritys
+// Nustato LitGrid regiona pagal adresa
 function getLitgridRegion(locationStr){
-  var s=(locationStr||"").toLowerCase()
-    .replace(/š/g,"s").replace(/ž/g,"z").replace(/č/g,"c")
-    .replace(/ė/g,"e").replace(/ę/g,"e").replace(/ū/g,"u")
-    .replace(/ų/g,"u").replace(/į/g,"i").replace(/ą/g,"a");
-  // Pietų: Kauno, Alytaus, Marijampolės apskritys
-  if(/kaunas|kauno|jonava|jonavos|kaisiadory|kaisiadoriu|kedainiai|kedainiu|prienai|prienu|raseiniai|raseiniu|sakiai|sakiu/.test(s))return"Pietų";
-  if(/alytus|alytaus|druskininkai|druskininkų|lazdijai|lazdiju|varena|varenos/.test(s))return"Pietų";
-  if(/marijampole|marijampoles|kalvarija|kalvarijos|kazlu ruda|vilkaviskis|vilkaviskio/.test(s))return"Pietų";
-  // Rytų: Vilniaus, Utenos apskritys
-  if(/vilnius|vilniaus|elektrena|elektrenu|salcininkai|salcininku|svencionys|svencionu|trakai|traku|ukmerge|ukmerges/.test(s))return"Rytų";
-  if(/utena|utenos|anyksciai|anyksciu|ignalina|ignalinos|moletai|moletu|visaginas|visagino|zarasai|zarasu/.test(s))return"Rytų";
-  // Šiaurės: Šiaulių, Panevėžio apskritys
-  if(/siauliai|siauli[uo]|akmene|akmen[eė]s|joniskis|joniskio|kelme|kelmes|pakruojis|pakruojo|radviliskis|radviliskio/.test(s))return"Šiaurės";
-  if(/panevezys|paneveziu|birzai|birzu|kupiskis|kupiski[uo]|pasvalys|pasvalio|rokiskis|rokiski[uo]/.test(s))return"Šiaurės";
-  // Vakarų: Klaipėdos, Tauragės, Telšių apskritys
-  if(/klaipeda|klaipedos|neringa|neringos|palanga|palangos|skuodas|skuodo/.test(s))return"Vakarų";
-  if(/taurage|taurages|jurbarkas|jurbarko|silale|silales|pagegia[iu]/.test(s))return"Vakarų";
-  if(/telsiai|telsiu|mazeikiai|mazeikiu|plunge|plunges|rietavas|rietavo/.test(s))return"Vakarų";
-  // Pagal nutylėjimą — Pietų (dauguma projektų Kauno r.)
-  return"Pietų";
+  var s=(locationStr||'').toLowerCase()
+    .replace(/š/g,'s').replace(/ž/g,'z').replace(/č/g,'c')
+    .replace(/ė/g,'e').replace(/ę/g,'e').replace(/ū/g,'u')
+    .replace(/ų/g,'u').replace(/į/g,'i').replace(/ą/g,'a');
+  if(/kaunas|kauno|jonava|jonavos|kaisiadory|kaisiadoriu|kedainiai|kedainiu|prienai|prienu|raseiniai|raseiniu|sakiai|sakiu/.test(s))return'Pietų';
+  if(/alytus|alytaus|druskininkai|druskininkų|lazdijai|lazdiju|varena|varenos/.test(s))return'Pietų';
+  if(/marijampole|marijampoles|kalvarija|kalvarijos|kazlu ruda|vilkaviskis|vilkaviskio/.test(s))return'Pietų';
+  if(/vilnius|vilniaus|elektrena|elektrenu|salcininkai|salcininku|svencionys|svencionu|trakai|traku|ukmerge|ukmerges/.test(s))return'Rytų';
+  if(/utena|utenos|anyksciai|anyksciu|ignalina|ignalinos|moletai|moletu|visaginas|visagino|zarasai|zarasu/.test(s))return'Rytų';
+  if(/siauliai|siauli[uo]|akmene|akmen[eė]s|joniskis|joniskio|kelme|kelmes|pakruojis|pakruojo|radviliskis|radviliskio/.test(s))return'Šiaurės';
+  if(/panevezys|paneveziu|birzai|birzu|kupiskis|kupiski[uo]|pasvalys|pasvalio|rokiskis|rokiski[uo]/.test(s))return'Šiaurės';
+  if(/klaipeda|klaipedos|neringa|neringos|palanga|palangos|skuodas|skuodo/.test(s))return'Vakarų';
+  if(/taurage|taurages|jurbarkas|jurbarko|silale|silales|pagegia[iu]/.test(s))return'Vakarų';
+  if(/telsiai|telsiu|mazeikiai|mazeikiu|plunge|plunges|rietavas|rietavo/.test(s))return'Vakarų';
+  return'Pietų';
 }
 
 // LitGrid laiško HTML šablonas
 function buildLitgridEmailHtml(permit){
-  var projNo=permit.projectNo||"";
-  var invNo=permit.investNo||"";
+  var projNo=permit.projectNo||'';
+  var invNo=permit.investNo||'';
   var lgFrom,lgTo;
   if(permit.litgridStartDate&&permit.litgridEndDate){
     lgFrom=fmtDateDots(permit.litgridStartDate);
@@ -1713,39 +1704,38 @@ function buildLitgridEmailHtml(permit){
     var tdn=new Date();var tdn3=new Date(tdn);tdn3.setMonth(tdn3.getMonth()+2);
     lgFrom=fmtDateDots(fmtDate(tdn));lgTo=fmtDateDots(fmtDate(tdn3));
   }
-  // Pirmoji pastraipa: Noretume issimti... nuo {data}, projekto Nr.: ..., {aprasas}.
   var addr=permit.teliaRouteTo||permit.location||'';
-  var firstLine=”Norėtume išsiimti žemės kasimo leidimą”;
-  if(lgFrom)firstLine+=”, nuo “+lgFrom;
-  if(projNo)firstLine+=”, projekto Nr.: “+projNo;
-  if(addr)firstLine+=”, “+addr;
+  var firstLine='Norėtume išsiimti žemės kasimo leidimą';
+  if(lgFrom)firstLine+=', nuo '+lgFrom;
+  if(projNo)firstLine+=', projekto Nr.: '+projNo;
+  if(addr)firstLine+=', '+addr;
   if(permit.description)firstLine+=', &bdquo;'+permit.description+'&ldquo;';
-  firstLine+=”.”;
-  var p=function(txt,mb){return'<p style="margin:0 0 '+(mb||14)+'px">'+txt+'</p>';};
+  firstLine+='.';
+  var wp=function(txt,mb){return'<p style=”margin:0 0 '+(mb||14)+'px”>'+txt+'</p>';};
   return buildExternalEmailWrapper(
-    p(“Laba diena,”)
-    +p(firstLine)
-    +(invNo?p(“Inv. projekto nr.: “+invNo):””)
-    +p('Darbus atliks: UAB &bdquo;EnergoLT&ldquo;;')
-    +p(“Darbų vadovas: “+(permit.manager||””)+(permit.managerPhone?”, tel.: “+permit.managerPhone:””))
-    +p(“Laikotarpis: “+lgFrom+”-”+lgTo)
-    +p(“Pridedu prašymą, suderinimus bei brėžinius.”,0)
+    wp('Laba diena,')
+    +wp(firstLine)
+    +(invNo?wp('Inv. projekto nr.: '+invNo):'')
+    +wp('Darbus atliks: UAB &bdquo;EnergoLT&ldquo;;')
+    +wp('Darbų vadovas: '+(permit.manager||'')+(permit.managerPhone?', tel.: '+permit.managerPhone:''))
+    +wp('Laikotarpis: '+lgFrom+'-'+lgTo)
+    +wp('Pridedu prašymą, suderinimus bei brėžinius.',0)
   );
 }
 
 // Datas YYYY-MM-DD pakeičia į YYYY.MM.DD formatą (kabamasis intervalas su brūkšniu)
 function fmtDateDots(d){
-  if(!d)return "";
-  return String(d).replace(/-/g,".");
+  if(!d)return '';
+  return String(d).replace(/-/g,'.');
 }
-// Lietuviška data: "2026 m. gegužės 28 d."
-var LT_MONTHS_GEN=["sausio","vasario","kovo","balandžio","gegužės","birželio","liepos","rugpjūčio","rugsėjo","spalio","lapkričio","gruodžio"];
+// Lietuviska data: "2026 m. gegužes 28 d."
+var LT_MONTHS_GEN=['sausio','vasario','kovo','balandžio','gegužės','birželio','liepos','rugpjūčio','rugsėjo','spalio','lapkričio','gruodžio'];
 function fmtDateLT(d){
-  if(!d)return "";
-  var parts=String(d).split("-");
+  if(!d)return '';
+  var parts=String(d).split('-');
   if(parts.length<3)return d;
   var y=parts[0],m=parseInt(parts[1],10)-1,day=parseInt(parts[2],10);
-  return y+" m. "+LT_MONTHS_GEN[m]+" "+day+" d.";
+  return y+' m. '+LT_MONTHS_GEN[m]+' '+day+' d.';
 }
 // Ištraukia vietą (adresą) iš projekto brėžinio titulinio lapo
 // Ieško "VIETA/ LOCATION" arba "VIETA LOCATION" lentelės celės reikšmės
@@ -1754,7 +1744,7 @@ function parseLocationFromDrawing(text){
   // "VIETA/ LOCATION" arba "VIETA LOCATION" po kurio eina vietos tekstas
   var m=text.match(/VIETA[\/\s]+LOCATION\s+([A-ZĄČĘĖĮŠŲŪŽ][^\n\r]{3,80})/i);
   if(m&&m[1]){
-    var v=m[1].trim().replace(/\s{2,}/g," ");
+    var v=m[1].trim().replace(/\s{2,}/g,' ');
     // Pjauname ties sekančia didžiąja antraštės dalimi (pvz. "PROJEKTO DALIES")
     var cut=v.search(/\b[A-ZĄČĘĖĮŠŲŪŽ]{4,}\s+[A-ZĄČĘĖĮŠŲŪŽ]{4,}/);
     if(cut>3)v=v.substring(0,cut).trim();
@@ -1764,10 +1754,10 @@ function parseLocationFromDrawing(text){
 }
 
 function fmtDateRangeDots(start,end){
-  var sd=start?fmtDateDots(start):"";
-  var ed=end?fmtDateDots(end):"";
-  if(sd&&ed)return sd+"-"+ed;
-  return sd||ed||"";
+  var sd=start?fmtDateDots(start):'';
+  var ed=end?fmtDateDots(end):'';
+  if(sd&&ed)return sd+'-'+ed;
+  return sd||ed||'';
 }
 
 // Telia laiško HTML šablonas (atnaujintas formatas).
@@ -2129,48 +2119,46 @@ async function preparePendingLitgridEmail(permit, pageTexts){
       var grp=docLib[gi];
       for(var di=0;di<(grp.documents||[]).length;di++){
         var doc=grp.documents[di];
-        if((doc.name||"").toLowerCase().indexOf("litgrid")!==-1||(doc.originalName||"").toLowerCase().indexOf("litgrid")!==-1){
+        if((doc.name||'').toLowerCase().indexOf('litgrid')!==-1||(doc.originalName||'').toLowerCase().indexOf('litgrid')!==-1){
           lgDoc=doc;break;
         }
       }
       if(lgDoc)break;
     }
     if(lgDoc&&lgDoc.url){
-      attachmentSources.push({type:"library",filename:"litgrid_prasymas.pdf",url:lgDoc.url,docName:lgDoc.name,originalName:lgDoc.originalName||""});
+      attachmentSources.push({type:'library',filename:'litgrid_prasymas.pdf',url:lgDoc.url,docName:lgDoc.name,originalName:lgDoc.originalName||''});
     }else{
-      warnings.push("LitGrid prašymo šablonas šablonų bibliotekoje nerastas — pridėkite dokumentą su 'litgrid' pavadinimu");
+      warnings.push('LitGrid prasymo sablonas sablonu bibliotekoje nerastas — pridekite dokumenta su litgrid pavadinimu');
     }
-  }catch(e){warnings.push("Klaida ieškant šablonų: "+e.message);}
-  // 2) Projekto brėžinys iš PDF
+  }catch(e){warnings.push('Klaida iesant sabloną: '+e.message);}
+  // 2) Projekto brezinys is PDF
   if(pageTexts&&pageTexts.length>0){
-    var _joinedText=pageTexts.join("\n");
+    var _joinedText=pageTexts.join('\n');
     if(!permit.investNo){var fi=parseInvestNo(_joinedText);if(fi)permit=Object.assign({},permit,{investNo:fi});}
     if(!permit.projectNo){var fp=parseProjectNo(_joinedText);if(fp)permit=Object.assign({},permit,{projectNo:fp});}
-    // Jei adresas tuščias — bandome ištraukti iš titulinio lapo "VIETA/ LOCATION"
     if(!permit.location&&!permit.teliaRouteTo){
       var fl=parseLocationFromDrawing(_joinedText);
       if(fl)permit=Object.assign({},permit,{location:fl,teliaRouteTo:fl});
     }
     var drawingPage=findProjectDrawingPage(pageTexts);
     if(drawingPage){
-      attachmentSources.push({filename:"projekto_brezinys.pdf",sourceFileName:pdfFile?pdfFile.name:"",pageNumbers:[drawingPage]});
+      attachmentSources.push({filename:'projekto_brezinys.pdf',sourceFileName:pdfFile?pdfFile.name:'',pageNumbers:[drawingPage]});
     }else{
-      warnings.push("Projekto brėžinio puslapis PDF'e nerastas — adminas turi nurodyti rankiniu būdu");
+      warnings.push('Projekto brezinio puslapis PDFe nerastas — adminas turi nurodyti rankiniu budu');
     }
-    // 3) LitGrid derinimas iš PDF
     var lgPage=findLitgridApprovalPage(pageTexts);
     if(lgPage){
-      attachmentSources.push({filename:"litgrid_derinimas.pdf",sourceFileName:pdfFile?pdfFile.name:"",pageNumbers:[lgPage]});
+      attachmentSources.push({filename:'litgrid_derinimas.pdf',sourceFileName:pdfFile?pdfFile.name:'',pageNumbers:[lgPage]});
     }else{
-      warnings.push("LitGrid derinimo puslapis PDF'e nerastas — adminas turi nurodyti rankiniu būdu");
+      warnings.push('LitGrid derinimo puslapis PDFe nerastas — adminas turi nurodyti rankiniu budu');
     }
   }else{
-    warnings.push("Paraiškoje nepridetas projekto PDF failas");
+    warnings.push('Paraiskonje nepridetas projekto PDF failas');
   }
   var addr=permit.teliaRouteTo||permit.location||'';
   return {
     to:getLitgridRegionEmail(permit),
-    subject:"Prašymas suderinti kasimo darbus (LitGrid) "+addr,
+    subject:'Prasymas suderinti kasimo darbus (LitGrid) '+addr,
     html:buildLitgridEmailHtml(permit),
     attachmentSources:attachmentSources,
     warnings:warnings,
@@ -2193,73 +2181,69 @@ async function getActiveSignatory(){
 // Iškviečiama PermitDetail — patvirtina LitGrid paraišką ir siunčia laišką
 async function approveAndSendLitgrid(permit){
   var pe=permit.pendingLitgridEmail;
-  if(!pe||!pe.to)throw new Error("Laiškas neparuoštas");
+  if(!pe||!pe.to)throw new Error('Laiskas neparuostas');
   var attachments=[];
   var srcs=pe.attachmentSources||[];
   for(var i=0;i<srcs.length;i++){
     var src=srcs[i];
-    if(src.type==="library"){
-      // Priedas iš šablonų bibliotekos
+    if(src.type==='library'){
       if(!src.url)continue;
       try{
         var today=new Date();
         var lg2=new Date(today);lg2.setMonth(lg2.getMonth()+2);
         var lgFromDate=permit.litgridStartDate||fmtDate(today);
         var lgToDate=permit.litgridEndDate||fmtDate(lg2);
-        var _addr=permit.teliaRouteTo||permit.location||"";
-        var regionas=getLitgridRegion(_addr)+" regionas";
+        var _addr=permit.teliaRouteTo||permit.location||'';
+        var regionas=getLitgridRegion(_addr)+' regionas';
         var _sig=await getActiveSignatory();
         var tmplData={
           data:fmtDateLT(fmtDate(today)),
           adresas:_addr,
-          projekto_nr:permit.projectNo||"",
-          darbu_vadovas:permit.manager||"",
-          tel:permit.managerPhone||"",
+          projekto_nr:permit.projectNo||'',
+          darbu_vadovas:permit.manager||'',
+          tel:permit.managerPhone||'',
           nuo:fmtDateDots(lgFromDate),
           iki:fmtDateDots(lgToDate),
           regionas:regionas,
-          imone:"UAB EnergoLT",
-          el_pastas:"uzklausos@energolt.eu",
-          derinimo_data:permit.litgridDerinimData||"",
+          imone:'UAB EnergoLT',
+          el_pastas:'uzklausos@energolt.eu',
+          derinimo_data:permit.litgridDerinimData||'',
           signatoryName:_sig.name||null,
           signatureFilename:_sig.filename||null
         };
-        // Visada generuojame LitGrid prašymą nuo nulio (nepriklausomai nuo šablono formato)
-        var lgPdfResp=await fetch("/api/generate-litgrid-pdf",{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
+        var lgPdfResp=await fetch('/api/generate-litgrid-pdf',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
           body:JSON.stringify({data:tmplData})
         });
-        if(!lgPdfResp.ok)throw new Error("PDF generavimas: HTTP "+lgPdfResp.status);
+        if(!lgPdfResp.ok)throw new Error('PDF generavimas: HTTP '+lgPdfResp.status);
         var lgPdfData=await lgPdfResp.json();
         if(lgPdfData.error)throw new Error(lgPdfData.error);
-        attachments.push({filename:lgPdfData.filename,content:lgPdfData.content,encoding:"base64"});
-      }catch(e){console.warn("[LitGrid] Nepavyko gauti šablono:",src.url,e.message);}
+        attachments.push({filename:lgPdfData.filename,content:lgPdfData.content,encoding:'base64'});
+      }catch(e){console.warn('[LitGrid] Nepavyko gauti sablono:',src.url,e.message);}
     }else{
-      // Priedas iš projekto PDF puslapių
       var pages=getAttachmentPages(src);
       if(pages.length===0)continue;
       var srcFile=(permit.files||[]).find(function(f){return f.name===src.sourceFileName});
       if(srcFile){
         var _d=await getPdfDataUrl(srcFile);
-        if(_d){var bytes=await extractPagesToNewPdf(_d,pages);if(bytes)attachments.push({filename:src.filename,content:bytes,encoding:"base64"});}
+        if(_d){var bytes=await extractPagesToNewPdf(_d,pages);if(bytes)attachments.push({filename:src.filename,content:bytes,encoding:'base64'});}
       }
     }
   }
-  // Jei vartotojas redagavo laiško turinį — rekonstruojame HTML su tinkamu formatavimu
-  var finalHtml=pe.html||"";
+  var finalHtml=pe.html||'';
   if(pe.editedBodyText&&pe.editedBodyText.trim()){
-    var _editedLines=pe.editedBodyText.split("\n").map(function(l){return l.trim()?"<p style=\"margin:0 0 14px\">"+l+"</p>":"";}).join("");
+    var _editedLines=pe.editedBodyText.split('\n').map(function(l){return l.trim()?'<p style="margin:0 0 14px">'+l+'</p>':'';}).join('');
     finalHtml=buildExternalEmailWrapper(_editedLines);
   }
-  var res=await fetch("/api/notify/email",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
+  var res=await fetch('/api/notify/email',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
     body:JSON.stringify({to:pe.to,subject:pe.subject,html:finalHtml,attachments:attachments})
   });
   if(!res.ok){
-    var data=await res.json().catch(function(){return{}});
-    throw new Error(data.error||("HTTP "+res.status));
+    var data=await res.json().catch(function(){return{};});
+    throw new Error(data.error||('HTTP '+res.status));
   }
   return attachments.length;
 }
