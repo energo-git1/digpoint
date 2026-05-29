@@ -2143,7 +2143,7 @@ app.post('/api/generate-litgrid-pdf', async (req, res) => {
   try {
     const { data } = req.body || {};
     const pdfBuf = await generateLitgridPdf(data || {});
-    res.json({ content: pdfBuf.toString('base64'), filename: 'LitGrid_prasimas.pdf', mimeType: 'application/pdf' });
+    res.json({ content: pdfBuf.toString('base64'), filename: 'Litgrid_prašymas kasimo darbams.pdf', mimeType: 'application/pdf' });
   } catch (e) {
     console.error('[generate-litgrid-pdf] Klaida:', e.message);
     res.status(500).json({ error: e.message });
