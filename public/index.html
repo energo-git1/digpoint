@@ -679,12 +679,17 @@ function parseProjectDescription(text){
   if(!text)return null;
   var t=text;
 
-  // Nukerpa angliškąjį vertimą — angliškas tekstas dažnai prasideda po lietuviško
+  // Valo pradžią (angliška etiketė pvz "/ Design name") ir pabaigą (angliškas vertimas)
   function stripEnglish(val){
     if(!val)return val;
-    // Dažni anglų vertimų pradžios žodžiai
+    // 1) Nukerpa pradžią: visi simboliai iki pirmosios lietuviškos/lotyniškos didžiosios raidės
+    //    po kurios seka mažosios (t.y. tikras žodis, ne etiketė)
+    //    pvz: "./ Design name " → nukerpa
+    val=val.replace(/^[^A-ZĄČĘĖĮŠŲŪŽ]*(?=[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž])/,'');
+    // 2) Nukerpa pabaigą: kai prasideda angliškas vertimas
     var engStarts=['Reconstruction','Construction','Installation','Design project','Project of',
-      'Modernization','Renovation','Replacement','Upgrade','Building','Network','Electricity'];
+      'Modernization','Renovation','Replacement','Upgrade','Building','Network','Electricity',
+      'Reconstruction project','The project'];
     for(var i=0;i<engStarts.length;i++){
       var idx=val.indexOf(engStarts[i]);
       if(idx>10){val=val.slice(0,idx).trim().replace(/[,.\s\/]+$/,'');break;}
