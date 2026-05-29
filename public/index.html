@@ -1719,14 +1719,14 @@ function buildLitgridEmailHtml(permit){
   if(lgFrom)firstLine+=”, nuo “+lgFrom;
   if(projNo)firstLine+=”, projekto Nr.: “+projNo;
   if(addr)firstLine+=”, “+addr;
-  if(permit.description)firstLine+=', „'+permit.description+'“';
+  if(permit.description)firstLine+=', &bdquo;'+permit.description+'&ldquo;';
   firstLine+=”.”;
   var p=function(txt,mb){return'<p style="margin:0 0 '+(mb||14)+'px">'+txt+'</p>';};
   return buildExternalEmailWrapper(
     p(“Laba diena,”)
     +p(firstLine)
     +(invNo?p(“Inv. projekto nr.: “+invNo):””)
-    +p('Darbus atliks: UAB „EnergoLT“;')
+    +p('Darbus atliks: UAB &bdquo;EnergoLT&ldquo;;')
     +p(“Darbų vadovas: “+(permit.manager||””)+(permit.managerPhone?”, tel.: “+permit.managerPhone:””))
     +p(“Laikotarpis: “+lgFrom+”-”+lgTo)
     +p(“Pridedu prašymą, suderinimus bei brėžinius.”,0)
@@ -2220,7 +2220,7 @@ async function approveAndSendLitgrid(permit){
           regionas:regionas,
           imone:"UAB EnergoLT",
           el_pastas:"uzklausos@energolt.eu",
-          derinimo_data:o.litgridDerinimData||"",
+          derinimo_data:permit.litgridDerinimData||"",
           signatoryName:_sig.name||null,
           signatureFilename:_sig.filename||null
         };
