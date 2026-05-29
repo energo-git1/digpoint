@@ -683,14 +683,18 @@ function parseProjectDescription(text){
   // Valo pradžią (angliška etiketė pvz "/ Design name") ir pabaigą (angliškas vertimas)
   function stripEnglish(val){
     if(!val)return val;
-    // 1) Nukerpa pradžią: visi simboliai iki pirmosios lietuviškos/lotyniškos didžiosios raidės
-    //    po kurios seka mažosios (t.y. tikras žodis, ne etiketė)
-    //    pvz: "./ Design name " → nukerpa
-    val=val.replace(/^[^A-ZĄČĘĖĮŠŲŪŽ]*(?=[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž])/,'');
-    // 2) Nukerpa pabaigą: kai prasideda angliškas vertimas
+    // 1) Pradžia: ieškome pirmo žodžio su lietuvišku diakritiku
+    //    "Design name Skirstomųjų..." → pradedame nuo "Skirstomųjų"
+    var ltRe=/[A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž]*[ąčęėįšųūžĄČĘĖĮŠŲŪŽ][A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž]*/;
+    var ltM=val.match(ltRe);
+    if(ltM&&ltM.index>0){
+      var before=val.slice(0,ltM.index);
+      var sp=before.lastIndexOf(' ');
+      val=val.slice(sp>=0?sp+1:ltM.index);
+    }
+    // 2) Pabaiga: kai prasideda angliškas vertimas po lietuviško teksto
     var engStarts=['Reconstruction','Construction','Installation','Design project','Project of',
-      'Modernization','Renovation','Replacement','Upgrade','Building','Network','Electricity',
-      'Reconstruction project','The project'];
+      'Modernization','Renovation','Replacement','Upgrade','The project','Electricity network'];
     for(var i=0;i<engStarts.length;i++){
       var idx=val.indexOf(engStarts[i]);
       if(idx>10){val=val.slice(0,idx).trim().replace(/[,.\s\/]+$/,'');break;}
@@ -2212,7 +2216,7 @@ async function preparePendingLitgridEmail(permit, pageTexts){
   }else{
     warnings.push('Paraiskonje nepridetas projekto PDF failas');
   }
-  var addr=permit.location||'';
+  var addr=(permit.location||'').replace(/\s+[A-ZĄČĘĖĮŠŲŪŽ]{2,}\.?\s*$/,'').trim();
   return {
     to:getLitgridRegionEmail(permit),
     subject:addr?'Dėl kasimo leidimo '+addr:'Dėl kasimo leidimo',
