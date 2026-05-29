@@ -1132,6 +1132,7 @@ function PermitForm(p){
     var u=orderers.find(function(x){return x.id===id});
     if(u){sMgr(u.name||"");sPh(u.phone||"");sEm(u.email||"");}
   }
+  var _iCode=useState(pf?pf.internalCode||"":"");var internalCode=_iCode[0],sInternalCode=_iCode[1];
   var _orgs=useState(pf&&pf.organizations?pf.organizations:[]);var orgs=_orgs[0],sOrgs=_orgs[1];
   var _mun=useState(function(){
     if(!pf)return "";
@@ -1265,7 +1266,7 @@ function PermitForm(p){
       keStartDate:isKE?keStart:null,keEndDate:isKE?keEnd:null,
       litgridStartDate:isLG?lgStart:null,litgridEndDate:isLG?lgEnd:null,
       description:desc,files:files,projectNo:projNo,
-      investNo:invNo,
+      investNo:invNo,internalCode:internalCode||null,
       teliaRouteFrom:trFrom,teliaRouteTo:trTo,
       workType:hasSav?workType:null,
       sourcePermitId:hasSav&&srcPermitId?srcPermitId:null,
@@ -1346,6 +1347,13 @@ function PermitForm(p){
       <Inp label="Darbu vadovas" value={mgr} onChange={sMgr} ph="Vardas Pavarde" req/>
       <Inp label="Darbu vadovo tel. nr." value={ph} onChange={sPh} ph="+370 600 00000" req/>
       <Inp label="El. pasto adresas" type="email" value={em} onChange={sEm} ph="vardas@imone.lt" req/>
+    </div>
+    <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Objekto kodas</div>
+      <input type="text" value={internalCode} onChange={function(e){sInternalCode(e.target.value.toUpperCase())}}
+        placeholder="pvz.: 01NV-25M, 01EK-25M, 01-25"
+        style={{width:"100%",padding:"7px 10px",fontSize:13,fontFamily:FM,background:C.bg,color:C.tx,border:"1px solid "+(internalCode?C.ac:C.b1),borderRadius:7,boxSizing:"border-box",letterSpacing:1}}/>
+      <div style={{fontSize:9,color:C.t3,fontFamily:F,marginTop:4}}>NV — nauji vartotojai · EK — avariniai · investiciniai: XX-XX</div>
     </div>
     <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>
@@ -2750,7 +2758,10 @@ function PermitDetail(p){
 
   return <Modal open={true} onClose={p.onClose} title={"Paraiskas #"+o.id.slice(-5).toUpperCase()} w={600}>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <StatusBadge status={o.status}/>
+      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <StatusBadge status={o.status}/>
+        {o.internalCode&&<span style={{fontSize:11,fontWeight:700,fontFamily:FM,color:C.ac,background:C.acD,padding:"3px 9px",borderRadius:6,letterSpacing:.5}}>{o.internalCode}</span>}
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <div>
           <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:3,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbu vadovas</div>
@@ -3928,7 +3939,10 @@ function PermitRow(p){
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
       {p.draggable&&<span style={{fontSize:10,color:C.t3,cursor:"grab",flexShrink:0,userSelect:"none",paddingRight:2}} title="Vilkti ir sujungti">⠿</span>}
       <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{addrLine||o.organization}</div>
+        <div style={{display:"flex",alignItems:"center",gap:6,overflow:"hidden"}}>
+          {o.internalCode&&<span style={{fontSize:10,fontWeight:700,fontFamily:FM,color:C.ac,background:C.acD,padding:"1px 6px",borderRadius:4,flexShrink:0,letterSpacing:.5}}>{o.internalCode}</span>}
+          <div style={{fontSize:13,fontWeight:700,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{addrLine||o.organization}</div>
+        </div>
         <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:1}}>{subLine}</div>
       </div>
       {pdfBtns}
