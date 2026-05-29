@@ -1951,7 +1951,7 @@ async function generateLitgridPdf(d) {
   const tblRows = [
     ['UAB „EnergoLT" įm.k. 302551560',                    '(fizinio asmens vardas, pavardė; juridinio asmens pavadinimas, įmonės kodas)'],
     ['V. Krėvės pr. 120, LT-51119 Kaunas',                '(fizinio asmens gyvenamoji vieta; juridinio asmens buveinės adresas, )'],
-    ['eimutis.simkus@energolt.eu, +37068313705',           '(kontaktiniai duomenys: telefonas, faksas, el. pašto adresas)'],
+    [[(d.el_pastas || 'uzklausos@energolt.eu'), d.tel].filter(Boolean).join(', '), '(kontaktiniai duomenys: telefonas, faksas, el. pašto adresas)'],
     ['------',                                             '(atstovo duomenys, jei atstovauja įgaliotas asmuo, įgaliojimo data ir numeris)'],
   ];
   box(ML, tblTop - tblRows.length * rowH, MR - ML, tblRows.length * rowH);

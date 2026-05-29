@@ -1668,9 +1668,9 @@ function buildKauoenergijaEmailHtml(permit){
   );
 }
 
-// LitGrid el. paštas — visada info@litgrid.lt (regionas nurodomas šablone, ne gavėjo adrese)
+// LitGrid el. paštas — visada info@litgrid.eu (regionas nurodomas šablone, ne gavėjo adrese)
 function getLitgridRegionEmail(permit){
-  return 'info@litgrid.lt';
+  return 'info@litgrid.eu';
 }
 
 // Nustato LitGrid regiona pagal adresa
@@ -3347,7 +3347,7 @@ function PermitDetail(p){
               <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Paruosto laisko perziura</div>
               <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:6}}>Gavejas:</div>
               <input type="text" value={lgEmailIn} onChange={function(e){sLGEmailIn(e.target.value)}}
-                placeholder="pvz.: info@litgrid.lt"
+                placeholder="pvz.: info@litgrid.eu"
                 style={{width:"100%",padding:"5px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6,boxSizing:"border-box",marginBottom:8}}/>
               <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:4}}>Objekto adresas:</div>
               <input type="text" value={lgAddrIn} onChange={function(e){sLGAddrIn(e.target.value)}}
