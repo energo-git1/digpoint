@@ -1719,17 +1719,17 @@ function buildLitgridEmailHtml(permit){
   if(lgFrom)firstLine+=”, nuo “+lgFrom;
   if(projNo)firstLine+=”, projekto Nr.: “+projNo;
   if(addr)firstLine+=”, “+addr;
-  if(permit.description)firstLine+=”, „”+permit.description+”””;
+  if(permit.description)firstLine+=', „'+permit.description+'“';
   firstLine+=”.”;
   var p=function(txt,mb){return'<p style="margin:0 0 '+(mb||14)+'px">'+txt+'</p>';};
   return buildExternalEmailWrapper(
-    p("Laba diena,")
+    p(“Laba diena,”)
     +p(firstLine)
-    +(invNo?p("Inv. projekto nr.: "+invNo):"")
-    +p("Darbus atliks: UAB „EnergoLT“;")
-    +p("Darbų vadovas: "+(permit.manager||"")+(permit.managerPhone?", tel.: "+permit.managerPhone:""))
-    +p("Laikotarpis: "+lgFrom+"-"+lgTo)
-    +p("Pridedu prašymą, suderinimus bei brėžinius.",0)
+    +(invNo?p(“Inv. projekto nr.: “+invNo):””)
+    +p('Darbus atliks: UAB „EnergoLT“;')
+    +p(“Darbų vadovas: “+(permit.manager||””)+(permit.managerPhone?”, tel.: “+permit.managerPhone:””))
+    +p(“Laikotarpis: “+lgFrom+”-”+lgTo)
+    +p(“Pridedu prašymą, suderinimus bei brėžinius.”,0)
   );
 }
 
