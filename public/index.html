@@ -2211,10 +2211,10 @@ async function preparePendingLitgridEmail(permit, pageTexts){
   }else{
     warnings.push('Paraiskonje nepridetas projekto PDF failas');
   }
-  var addr=permit.description||permit.teliaRouteTo||permit.location||'';
+  var addr=permit.teliaRouteTo||permit.location||'';
   return {
     to:getLitgridRegionEmail(permit),
-    subject:'Dėl kasimo leidimo '+addr,
+    subject:addr?'Dėl kasimo leidimo '+addr:'Dėl kasimo leidimo',
     html:buildLitgridEmailHtml(permit),
     attachmentSources:attachmentSources,
     warnings:warnings,
