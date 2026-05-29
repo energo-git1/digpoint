@@ -2108,15 +2108,16 @@ async function generateLitgridPdf(d) {
     page.drawImage(_sigImg, { x: imgX, y: y + 3, width: _sigW, height: _sigH });
   }
 
+  // Pasirašančiojo vardas VIRŠ linijos
+  const nm = d.signatoryName || 'Eimutis Šimkus';
+  const nmW = font.widthOfTextAtSize(nm, 9);
+  t(nm, nameLineX + (nameLineW - nmW) / 2, y + 10, 9);
+
   // Horizontalios linijos
   hl(nameLineX, nameLineX + nameLineW, y);
   hl(sigLineX, sigLineX + sigLineW, y);
   y -= 8;
 
-  // Pasirašančiojo vardas po vardo linija
-  const nm = d.signatoryName || 'Eimutis Šimkus';
-  t(nm, nameLineX + 5, y, 9);
-  y -= 9;
   t('(vardas, pavardė)', nameLineX, y, 7, font, GR);
   t('(parašas)', sigLineX + 8, y, 7, font, GR);
 

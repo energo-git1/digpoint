@@ -2514,6 +2514,7 @@ function PermitDetail(p){
   var _lgAprvBusy=useState(false);var lgAprvBusy=_lgAprvBusy[0],sLGAprvBusy=_lgAprvBusy[1];
   var _lgEmailIn=useState((o.pendingLitgridEmail||{}).to||getLitgridRegionEmail(o));var lgEmailIn=_lgEmailIn[0],sLGEmailIn=_lgEmailIn[1];
   var _lgAddrIn=useState((o.pendingLitgridEmail||{}).addr||o.teliaRouteTo||o.location||"");var lgAddrIn=_lgAddrIn[0],sLGAddrIn=_lgAddrIn[1];
+  var _lgDerinimData=useState(o.litgridDerinimData||"");var lgDerinimData=_lgDerinimData[0],sLGDerinimData=_lgDerinimData[1];
   var _lgBodyOpen=useState(false);var lgBodyOpen=_lgBodyOpen[0],sLGBodyOpen=_lgBodyOpen[1];
   var _lgBodyEdit=useState(false);var lgBodyEdit=_lgBodyEdit[0],sLGBodyEdit=_lgBodyEdit[1];
   var _lgBodyDirty=useState(false);var lgBodyDirty=_lgBodyDirty[0],sLGBodyDirty=_lgBodyDirty[1];
@@ -3328,7 +3329,7 @@ function PermitDetail(p){
               (lg.attachmentSources||[]).filter(function(s){return s.type!=="library";});
             var finalSrc=existingLibSrcs.concat(pdfSrcs);
             var _lgWithAddr=lgAddrIn?Object.assign({},lg,{addr:lgAddrIn}):lg;
-            var permitToSend=Object.assign({},o,{location:addr||o.location,teliaRouteTo:addr||o.teliaRouteTo,pendingLitgridEmail:Object.assign({},_lgWithAddr,{attachmentSources:finalSrc,to:to,editedBodyText:(lgBodyDirty&&lgBodyIn)?lgBodyIn:null})});
+            var permitToSend=Object.assign({},o,{location:addr||o.location,teliaRouteTo:addr||o.teliaRouteTo,litgridDerinimData:lgDerinimData||o.litgridDerinimData||"",pendingLitgridEmail:Object.assign({},_lgWithAddr,{attachmentSources:finalSrc,to:to,editedBodyText:(lgBodyDirty&&lgBodyIn)?lgBodyIn:null})});
             var attCount=await approveAndSendLitgrid(permitToSend);
             var updated=Object.assign({},o,{pendingLitgridEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"LitGrid laiškas išsiųstas ("+(p.user.name||"-")+", "+attCount+" priedai)"}])});
             var anyPending=updated.pendingEmail||updated.pendingKauoenergijaEmail||updated.pendingTeliaInvEmail;
@@ -3353,6 +3354,9 @@ function PermitDetail(p){
               <input type="text" value={lgAddrIn} onChange={function(e){sLGAddrIn(e.target.value)}}
                 placeholder="pvz.: Gedimino g. 5, Kaunas"
                 style={{width:"100%",padding:"5px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+(lgAddrIn?C.b1:C.rd),borderRadius:6,boxSizing:"border-box",marginBottom:8}}/>
+              <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:4}}>Derinimo data (PDF):</div>
+              <input type="date" value={lgDerinimData} onChange={function(e){sLGDerinimData(e.target.value);}}
+                style={{width:"100%",padding:"5px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6,boxSizing:"border-box",marginBottom:8}}/>
               <div style={{fontSize:10,color:C.t2,fontFamily:F,marginTop:4}}>Tema:</div>
               <div style={{fontSize:12,color:C.tx,fontFamily:F,fontWeight:600,marginBottom:8}}>{lg.subject||"-"}</div>
               {/* Šablono dokumentas */}
@@ -3385,6 +3389,7 @@ function PermitDetail(p){
                           regionas:_reg2,
                           imone:"UAB EnergoLT",
                           el_pastas:"uzklausos@energolt.eu",
+                          derinimo_data:fmtDateDots(lgDerinimData||o.litgridDerinimData||""),
                           signatoryName:_sig2.name||null,
                           signatureFilename:_sig2.filename||null
                         };
