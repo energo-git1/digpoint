@@ -1713,8 +1713,8 @@ function buildLitgridEmailHtml(permit){
     var tdn=new Date();var tdn3=new Date(tdn);tdn3.setMonth(tdn3.getMonth()+2);
     lgFrom=fmtDateDots(fmtDate(tdn));lgTo=fmtDateDots(fmtDate(tdn3));
   }
-  // Pirmoji pastraipa: "Norėtume išsiimti... nuo {data}, projekto Nr.: ..., „{aprašymas}"."
-  var addr=permit.teliaRouteTo||permit.location||””;
+  // Pirmoji pastraipa: Noretume issimti... nuo {data}, projekto Nr.: ..., {aprasas}.
+  var addr=permit.teliaRouteTo||permit.location||'';
   var firstLine=”Norėtume išsiimti žemės kasimo leidimą”;
   if(lgFrom)firstLine+=”, nuo “+lgFrom;
   if(projNo)firstLine+=”, projekto Nr.: “+projNo;
@@ -2067,7 +2067,7 @@ async function preparePendingKauoenergijaEmail(permit, pageTexts){
   }else{
     warnings.push("Paraiškoje nepridetas projekto PDF failas");
   }
-  var addr=permit.teliaRouteTo||permit.location||"";
+  var addr=permit.teliaRouteTo||permit.location||'';
   return {
     to:"info@kaunoenergija.lt",
     subject:"Dėl kasimo leidimo (Kauno energija) "+addr,
@@ -2167,7 +2167,7 @@ async function preparePendingLitgridEmail(permit, pageTexts){
   }else{
     warnings.push("Paraiškoje nepridetas projekto PDF failas");
   }
-  var addr=permit.teliaRouteTo||permit.location||"";
+  var addr=permit.teliaRouteTo||permit.location||'';
   return {
     to:getLitgridRegionEmail(permit),
     subject:"Prašymas suderinti kasimo darbus (LitGrid) "+addr,
