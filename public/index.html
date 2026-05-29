@@ -2161,6 +2161,7 @@ async function preparePendingLitgridEmail(permit, pageTexts){
     var _joinedText=pageTexts.join('\n');
     if(!permit.investNo){var fi=parseInvestNo(_joinedText);if(fi)permit=Object.assign({},permit,{investNo:fi});}
     if(!permit.projectNo){var fp=parseProjectNo(_joinedText);if(fp)permit=Object.assign({},permit,{projectNo:fp});}
+    if(!permit.description){var fd=parseProjectDescription(_joinedText);if(fd)permit=Object.assign({},permit,{description:fd});}
     if(!permit.location&&!permit.teliaRouteTo){
       var fl=parseLocationFromDrawing(_joinedText);
       if(fl)permit=Object.assign({},permit,{location:fl,teliaRouteTo:fl});
@@ -2575,12 +2576,12 @@ function PermitDetail(p){
   var asgnUser=at?p.users.find(function(u){return u.id===at}):null;
   var docsWorkers=p.users.filter(function(u){return u.role==="dokumentacija"});
 
-  // Jei ESO paraiška neturi adreso/inv.nr. — nuskaitome iš PDF automatiškai
+  // Jei paraiška neturi adreso/inv.nr./aprašo — nuskaitome iš PDF automatiškai
   useEffect(function(){
-    if(o.organization!=="AB ESO")return;
-    var needLoc=!o.location;
-    var needInv=!o.investNo;
-    if(!needLoc&&!needInv)return;
+    var needLoc=!o.location&&o.organization==="AB ESO";
+    var needInv=!o.investNo&&o.organization==="AB ESO";
+    var needDesc=!o.description;
+    if(!needLoc&&!needInv&&!needDesc)return;
     var pdfs=(o.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i)&&f.data});
     if(!pdfs.length)return;
     extractPdfText(pdfs[0].data).then(function(text){
@@ -2589,6 +2590,7 @@ function PermitDetail(p){
       var changed=false;
       if(needLoc){var loc=parseLocation(text);if(loc){updated.location=loc;changed=true;}}
       if(needInv){var inv=parseInvestNo(text);if(inv){updated.investNo=inv;changed=true;}}
+      if(needDesc){var desc=parseProjectDescription(text);if(desc){updated.description=desc;changed=true;}}
       if(changed)p.onUpdate(updated);
     });
   },[]);
