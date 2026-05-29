@@ -677,22 +677,37 @@ function parseLocation(text){
 //   2) Jei nėra → "Objektas" + "Objekto vieta" → sudedamos
 function parseProjectDescription(text){
   if(!text)return null;
-  // 1) Projekto pavadinimas
-  var mPN=text.match(/PROJEKTO\s+PAVADINIMAS\s*[:\n\r]+\s*([^\n\r]{5,300})/i);
-  if(!mPN)mPN=text.match(/Projekto\s+pavadinimas\s*:\s*([^\n\r]{5,300})/i);
-  if(mPN&&mPN[1]){
-    var pn=mPN[1].trim().replace(/\s{2,}/g,' ');
-    if(pn.length>4)return pn;
+  // Normalizuojame: sujungiame kelias eilutes į vieną su tarpais
+  var t=text;
+
+  // Pagalbinė: ištraukia reikšmę po antraštės (ta pati eilutė arba kita)
+  function extractAfter(re){
+    var m=t.match(re);
+    if(!m)return null;
+    var val=(m[1]||'').trim().replace(/\s{2,}/g,' ');
+    // Jei reikšmė trumpa arba tuščia — bandome sekančią eilutę
+    if(val.length<4){
+      var idx=t.search(re);
+      var rest=t.slice(idx).replace(re,'');
+      var nextLine=(rest.match(/^\s*([^\n\r]{4,300})/)||[])[1]||'';
+      val=nextLine.trim().replace(/\s{2,}/g,' ');
+    }
+    return val.length>3?val:null;
   }
+
+  // 1) Projekto pavadinimas — įvairūs formatai
+  var pn=extractAfter(/PROJEKTO\s+PAVADINIMAS\s*[:\s]*([^\n\r]{0,300})/i)
+    ||extractAfter(/Projekto\s+pavadinimas\s*[:\s]*([^\n\r]{0,300})/i)
+    ||extractAfter(/PAVADINIMAS\s*[:\s]*([^\n\r]{0,300})/i);
+  if(pn&&pn.length>4)return pn;
+
   // 2) Objektas + Objekto vieta
-  var mObj=text.match(/\bOBJEKTAS\b\s*[:\n\r]+\s*([^\n\r]{3,300})/i);
-  if(!mObj)mObj=text.match(/\bObjektas\b\s*:\s*([^\n\r]{3,300})/i);
-  var mViet=text.match(/\bObjekto\s+vieta\b\s*:\s*([^\n\r]{3,200})/i);
-  if(!mViet)mViet=text.match(/\bOBJEKTO\s+VIETA\b\s*[:\n\r]+\s*([^\n\r]{3,200})/i);
-  var obj=mObj?mObj[1].trim().replace(/\s{2,}/g,' '):'';
-  var viet=mViet?mViet[1].trim().replace(/\s{2,}/g,' '):'';
+  var obj=extractAfter(/\bOBJEKTAS\b\s*[:\s]*([^\n\r]{0,300})/i)
+    ||extractAfter(/\bObjektas\b\s*[:\s]*([^\n\r]{0,300})/i);
+  var viet=extractAfter(/OBJEKTO\s+VIETA\s*[:\s]*([^\n\r]{0,200})/i)
+    ||extractAfter(/Objekto\s+vieta\s*[:\s]*([^\n\r]{0,200})/i);
   if(obj&&viet)return obj+', '+viet;
-  if(obj)return obj;
+  if(obj&&obj.length>4)return obj;
   return null;
 }
 
