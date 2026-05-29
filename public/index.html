@@ -2211,7 +2211,7 @@ async function preparePendingLitgridEmail(permit, pageTexts){
   }else{
     warnings.push('Paraiskonje nepridetas projekto PDF failas');
   }
-  var addr=permit.teliaRouteTo||permit.location||'';
+  var addr=permit.location||'';
   return {
     to:getLitgridRegionEmail(permit),
     subject:addr?'Dėl kasimo leidimo '+addr:'Dėl kasimo leidimo',
