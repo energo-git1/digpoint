@@ -2560,7 +2560,9 @@ function PermitDetail(p){
   var _lgBodyEdit=useState(false);var lgBodyEdit=_lgBodyEdit[0],sLGBodyEdit=_lgBodyEdit[1];
   var _lgBodyDirty=useState(false);var lgBodyDirty=_lgBodyDirty[0],sLGBodyDirty=_lgBodyDirty[1];
   var _lgBodyIn=useState(function(){
-    var html=(o.pendingLitgridEmail||{}).html||"";
+    var lg=o.pendingLitgridEmail||{};
+    if(lg.editedBodyText)return lg.editedBodyText;
+    var html=lg.html||"";
     if(!html)return "";
     var idx=html.indexOf("Pagarbiai");
     var bodyHtml=idx>0?html.slice(0,idx):html;
@@ -2681,16 +2683,15 @@ function PermitDetail(p){
     }
     if(u.pendingLitgridEmail){
       var _lgEmail=(lgEmailIn||"").trim()||u.pendingLitgridEmail.to;
-      // Atnaujiname tik PDF puslapių šaltinius (ne šablonų bibliotekos šaltinių)
+      var _lgPatch={to:_lgEmail};
+      if(lgBodyDirty&&lgBodyIn)_lgPatch.editedBodyText=lgBodyIn;
       if(lgSel.length>0){
         var _la=_cleanAddr(o.location||"");
         var _lf=(_la?_la+" kasimo leidimui":"kasimo leidimui")+".pdf";
         var existingLibSrcs=(u.pendingLitgridEmail.attachmentSources||[]).filter(function(s){return s.type==="library";});
-        var newPdfSrcs=[{filename:_lf,sourceFileName:_pdfFile?_pdfFile.name:"",pageNumbers:lgSel}];
-        u.pendingLitgridEmail=Object.assign({},u.pendingLitgridEmail,{attachmentSources:existingLibSrcs.concat(newPdfSrcs),to:_lgEmail});
-      }else if(_lgEmail!==u.pendingLitgridEmail.to){
-        u.pendingLitgridEmail=Object.assign({},u.pendingLitgridEmail,{to:_lgEmail});
+        _lgPatch.attachmentSources=existingLibSrcs.concat([{filename:_lf,sourceFileName:_pdfFile?_pdfFile.name:"",pageNumbers:lgSel}]);
       }
+      u.pendingLitgridEmail=Object.assign({},u.pendingLitgridEmail,_lgPatch);
     }
     p.onUpdate(u);p.onClose();
   }
