@@ -2630,6 +2630,7 @@ function PermitDetail(p){
     return (tmp.innerText||"").trim();
   });var lgBodyIn=_lgBodyIn[0],sLGBodyIn=_lgBodyIn[1];
   var _locIn=useState(o.location||"");var locIn=_locIn[0],sLocIn=_locIn[1];
+  var _iCodeIn=useState(o.internalCode||"");var iCodeIn=_iCodeIn[0],sICodeIn=_iCodeIn[1];
   var _knownInvEmails=useState([]);var knownInvEmails=_knownInvEmails[0],sKnownInvEmails=_knownInvEmails[1];
   var _showInvEmailDrop=useState(false);var showInvEmailDrop=_showInvEmailDrop[0],sShowInvEmailDrop=_showInvEmailDrop[1];
   useEffect(function(){
@@ -2676,6 +2677,7 @@ function PermitDetail(p){
     var u=Object.assign({},o);
     // Adresas — leidžiama redaguoti ir adminui ir dokumentacija
     if((isA||isD)&&locIn.trim()!==o.location){u.location=locIn.trim();}
+    if((isA||isD)&&iCodeIn.trim()!==o.internalCode){u.internalCode=iCodeIn.trim().toUpperCase()||null;}
     if(isA){
       if(at&&at!==o.assignedTo){
         var aw=p.users.find(function(u){return u.id===at});
@@ -2760,7 +2762,11 @@ function PermitDetail(p){
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
         <StatusBadge status={o.status}/>
-        {o.internalCode&&<span style={{fontSize:11,fontWeight:700,fontFamily:FM,color:C.ac,background:C.acD,padding:"3px 9px",borderRadius:6,letterSpacing:.5}}>{o.internalCode}</span>}
+        {(isA||isD)
+          ?<input type="text" value={iCodeIn} onChange={function(e){sICodeIn(e.target.value.toUpperCase())}}
+              placeholder="Objekto kodas"
+              style={{padding:"3px 8px",fontSize:11,fontFamily:FM,background:C.bg,color:C.ac,border:"1px solid "+(iCodeIn?C.ac:C.b1),borderRadius:6,letterSpacing:.5,width:120}}/>
+          :o.internalCode&&<span style={{fontSize:11,fontWeight:700,fontFamily:FM,color:C.ac,background:C.acD,padding:"3px 9px",borderRadius:6,letterSpacing:.5}}>{o.internalCode}</span>}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <div>
