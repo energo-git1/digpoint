@@ -1057,6 +1057,11 @@ function HistoryTimeline(p){
 
 
 var PERMIT_ORGS=["AB ESO","Kauno miesto savivaldybe","Telia, Kaunas","Telia, investiciniai","Kauno energija","LitGrid"];
+var MUN_ORGS={
+  kaunas:["AB ESO","Kauno miesto savivaldybe","Telia, Kaunas","Kauno energija"],
+  kita:["AB ESO","Telia, investiciniai","LitGrid"]
+};
+var ORG_DISPLAY={"Telia, investiciniai":"Telia"};
 var TELIA_EMAIL="ligita.rutkauskiene@telia.lt";
 function FileDropZone(p){
   var _drag=useState(false);var drag=_drag[0],sDrag=_drag[1];
@@ -1128,6 +1133,14 @@ function PermitForm(p){
     if(u){sMgr(u.name||"");sPh(u.phone||"");sEm(u.email||"");}
   }
   var _orgs=useState(pf&&pf.organizations?pf.organizations:[]);var orgs=_orgs[0],sOrgs=_orgs[1];
+  var _mun=useState(function(){
+    if(!pf)return "";
+    if(pf.municipality)return pf.municipality;
+    if(pf.organizations&&pf.organizations.some(function(o){return ["Kauno miesto savivaldybe","Telia, Kaunas","Kauno energija"].indexOf(o)!==-1;}))return "kaunas";
+    if(pf.organizations&&pf.organizations.length>0)return "kita";
+    return "";
+  });var municipality=_mun[0],sMunicipality=_mun[1];
+  var _munOpen=useState(false);var munOpen=_munOpen[0],sMunOpen=_munOpen[1];
   var _s=useState("");var start=_s[0],sStart=_s[1];
   var _e=useState("");var end=_e[0],sEnd=_e[1];
   // Atskiri datos laukai kiekvienai institucijai
@@ -1246,7 +1259,7 @@ function PermitForm(p){
     var orgLabel=orgs.join(", ");
     var loc=isTelia?(trFrom&&trTo?trFrom+" - "+trTo:""):isESO?esoLoc:hasSav?esoLoc:"";
     return {id:uid(),manager:mgr,managerPhone:ph,email:em,location:loc,
-      organization:orgLabel,organizations:orgs,
+      organization:orgLabel,organizations:orgs,municipality:municipality,
       startDate:start,endDate:end,
       teliaStartDate:isAnyTelia?teliaStart:null,teliaEndDate:isAnyTelia?teliaEnd:null,
       keStartDate:isKE?keStart:null,keEndDate:isKE?keEnd:null,
@@ -1336,16 +1349,35 @@ function PermitForm(p){
     </div>
     <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>
-        Institucijos <span style={{color:C.rd}}>*</span>
-        <span style={{fontSize:9,fontWeight:400,color:C.t3,marginLeft:6,textTransform:"none"}}>galima pasirinkti kelias</span>
+        Institucija <span style={{color:C.rd}}>*</span>
       </div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-        {PERMIT_ORGS.map(function(o){var sel=orgs.indexOf(o)!==-1;return <label key={o} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 12px",borderRadius:8,border:"1.5px solid "+(sel?C.ac:C.b1),background:sel?C.acD:C.bg,cursor:"pointer",fontSize:12,color:sel?C.ac:C.tx,fontFamily:F,fontWeight:sel?700:400,transition:"all .15s",userSelect:"none"}}>
+      {/* Savivaldybės pasirinkimas */}
+      <div style={{position:"relative",marginBottom:municipality?12:0}}>
+        <button type="button" onClick={function(){sMunOpen(function(v){return !v;})}}
+          style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 11px",fontSize:13,borderRadius:8,border:"1px solid "+(municipality?C.ac:C.b1),background:municipality?C.acD:C.bg,color:municipality?C.ac:C.t2,cursor:"pointer",fontFamily:F,textAlign:"left"}}>
+          <span>{municipality==="kaunas"?"Kauno m. sav.":municipality==="kita"?"Kita":"Pasirinkti savivaldybę..."}</span>
+          <span style={{fontSize:10,transform:munOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform .15s",display:"inline-block"}}>▾</span>
+        </button>
+        {munOpen&&<div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:20,marginTop:3,border:"1px solid "+C.b1,borderRadius:8,background:C.s1,overflow:"hidden",boxShadow:"0 4px 12px rgba(0,0,0,.12)"}}>
+          {[{v:"kaunas",label:"Kauno m. sav."},{v:"kita",label:"Kita"}].map(function(opt){
+            return <div key={opt.v} onClick={function(){sMunicipality(opt.v);sOrgs([]);sMunOpen(false);}}
+              style={{padding:"9px 12px",fontSize:13,color:C.tx,cursor:"pointer",background:municipality===opt.v?C.acD:"transparent",borderBottom:"1px solid "+C.b1}}
+              onMouseEnter={function(e){e.currentTarget.style.background=C.s2}}
+              onMouseLeave={function(e){e.currentTarget.style.background=municipality===opt.v?C.acD:"transparent"}}>
+              {opt.label}
+            </div>;
+          })}
+        </div>}
+      </div>
+      {/* Paraiškos pagal savivaldybę */}
+      {municipality&&<div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+        {(MUN_ORGS[municipality]||[]).map(function(o){var sel=orgs.indexOf(o)!==-1;var lbl=ORG_DISPLAY[o]||o;return <label key={o} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 12px",borderRadius:8,border:"1.5px solid "+(sel?C.ac:C.b1),background:sel?C.acD:C.bg,cursor:"pointer",fontSize:12,color:sel?C.ac:C.tx,fontFamily:F,fontWeight:sel?700:400,transition:"all .15s",userSelect:"none"}}>
           <input type="checkbox" checked={sel} onChange={function(){toggleOrg(o)}} style={{accentColor:C.ac,margin:0,width:13,height:13}}/>
-          {o}
-        </label>})}
-      </div>
-      {orgs.length===0&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:8}}>Pasirinkite bent viena institucija.</div>}
+          {lbl}
+        </label>;})}
+      </div>}
+      {municipality&&orgs.length===0&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:8}}>Pasirinkite bent viena institucija.</div>}
+      {!municipality&&<div style={{fontSize:11,color:C.t3,fontFamily:F,marginTop:4}}>Pirmiausia pasirinkite savivaldybę.</div>}
     </div>
     {/* Savivaldybė: darbų tipas + objekto parinkimas */}
     {hasSav&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
@@ -3529,9 +3561,6 @@ function PermitDetail(p){
                 });
                 p.onUpdate(updated);sLGAprvSt("✓ LitGrid atmesta.");
               }}>✗ Atmesti LitGrid</Btn>
-              <Btn sm onClick={approveLG} disabled={lgAprvBusy||!((lgEmailIn||"").trim()||lg.to)}>
-                {lgAprvBusy?"Siunčiama...":"✉ Siųsti LitGrid"}
-              </Btn>
             </div>
           </div>
         </div>;
@@ -3593,9 +3622,12 @@ function PermitDetail(p){
         })()}
         {(st==="Gautas leidimas"||st==="Gautas"||st==="Atmestas")&&<Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>}
         <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:8}}>
-          <Btn v="secondary" onClick={p.onClose} sm>Uždaryti</Btn>
+          <Btn v="secondary" onClick={save} sm>Uždaryti</Btn>
           {o.status!=="Atmestas"&&<Btn v="danger" sm onClick={function(){if(window.confirm("Istrinti sias paraiskas?")){p.onDelete(o.id);p.onClose()}}}>Istrinti</Btn>}
-          {o.status!=="Atmestas"&&<Btn onClick={save} sm>Issaugoti</Btn>}
+          {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&o.pendingLitgridEmail&&!o.pendingLitgridEmail.cancelled&&
+            <Btn sm onClick={approveLG} disabled={lgAprvBusy||!((lgEmailIn||"").trim()||(o.pendingLitgridEmail||{}).to)}>
+              {lgAprvBusy?"Siunčiama...":"✉ Siųsti LitGrid"}
+            </Btn>}
           {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.pendingEmail||o.pendingKauoenergijaEmail||o.pendingTeliaInvEmail)&&
             <Btn sm disabled={sendAllBusy} onClick={async function(){
               if(sendAllBusyRef.current)return;
