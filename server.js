@@ -975,7 +975,22 @@ async function checkImapMail() {
                   } catch (_) {}
                 }
 
-                if (/darb[uų]\s+tvirtinimas/i.test(bodyText + ' ' + subject)) {
+                if (/išduotas leidimas/i.test(bodyText + ' ' + subject)) {
+                  // Išsaugome laišką — vartotojas atsakys su nuotraukomis
+                  const addrMatchI = bodyText.match(/Darb[uų]\s+vieta\s*\(prad[žz][iī]a\)[:\s]+([^\n(]{5,100})/i);
+                  const rawAddrI   = addrMatchI ? addrMatchI[1].trim() : '';
+                  const closeRequests = dbGet('kl-sav-close-requests') || [];
+                  const alreadyStored = closeRequests.some((r) => r.messageId === msgId);
+                  if (!alreadyStored) {
+                    closeRequests.push({
+                      id: srvUid(), messageId: msgId, subject,
+                      from: fromAddr, date: new Date().toISOString(),
+                      address: rawAddrI, bodyPreview: bodyText.slice(0, 600),
+                    });
+                    dbSet('kl-sav-close-requests', closeRequests);
+                    console.log(`[IMAP] 📬 Kauno sav. "Išduotas leidimas" išsaugotas laukti atsakymo: "${subject}" | adresas: ${rawAddrI||'—'}`);
+                  }
+                } else if (/darb[uų]\s+tvirtinimas/i.test(bodyText + ' ' + subject)) {
                   // Ištraukiame adresą iš "Darbų vieta (pradžia):" eilutės
                   const addrMatch = bodyText.match(/Darb[uų]\s+vieta\s*\(prad[žz][iī]a\)[:\s]+([^\n(]{5,100})/i);
                   const rawAddr   = addrMatch ? addrMatch[1].trim() : '';
@@ -1050,7 +1065,7 @@ async function checkImapMail() {
                     processed++;
                   }
                 } else {
-                  console.log(`[IMAP] Kauno sav.: laiškas be PDF ir be "Darbų tvirtinimas" — praleidžiama.`);
+                  console.log(`[IMAP] Kauno sav.: laiškas be PDF, be "Išduotas leidimas" ir be "Darbų tvirtinimas" — praleidžiama.`);
                 }
               } else {
                 console.log(`[IMAP] ${org}: laiškas be PDF priedo, praleidžiama.`);
@@ -1419,6 +1434,65 @@ app.get('/api/admin/detect-seniunija', (req, res) => {
   res.json({ ok: true, seniunija: detected, all: SENIUNIJA_MAP.map((s) => ({ name: s.name, email: s.email })) });
 });
 
+// ── Seniūnijos dokumentų sujungimas į vieną PDF ──────────────
+// POST /api/admin/merge-seniunija-docs { permitId, filenames: ['xxx.jpg', ...] }
+// Grąžina: { content: base64, filename: 'dokumentai.pdf' }
+app.post('/api/admin/merge-seniunija-docs', async (req, res) => {
+  const { permitId, filenames } = req.body || {};
+  if (!permitId || !Array.isArray(filenames) || !filenames.length) {
+    return res.status(400).json({ error: 'Trūksta permitId arba filenames.' });
+  }
+
+  const { PDFDocument } = require('pdf-lib');
+  const fontkit = require('@pdf-lib/fontkit');
+
+  try {
+    const merged = await PDFDocument.create();
+    merged.registerFontkit(fontkit);
+
+    for (const fname of filenames) {
+      const safeBase = path.basename(fname);
+      const fpath = path.join(UPLOAD_DIR, safeBase);
+      if (!fs.existsSync(fpath)) { console.warn(`[MERGE] Failas nerastas: ${safeBase}`); continue; }
+      const buf = fs.readFileSync(fpath);
+      const ext = safeBase.toLowerCase().replace(/[^a-z0-9]/g, '').slice(-4);
+
+      if (ext === 'pdf') {
+        try {
+          const srcDoc = await PDFDocument.load(buf, { ignoreEncryption: true });
+          const pages  = await merged.copyPages(srcDoc, srcDoc.getPageIndices());
+          pages.forEach((p) => merged.addPage(p));
+        } catch (e) { console.warn(`[MERGE] PDF merge klaida (${safeBase}): ${e.message}`); }
+      } else if (ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'jpe') {
+        try {
+          const img  = ext === 'png' ? await merged.embedPng(buf) : await merged.embedJpg(buf);
+          const { width, height } = img.scale(1);
+          // Mastelis — telpame A4 (595x842) su paraštėmis
+          const maxW = 550, maxH = 800;
+          const scale = Math.min(maxW / width, maxH / height, 1);
+          const w = width * scale, h = height * scale;
+          const page = merged.addPage([w + 20, h + 20]);
+          page.drawImage(img, { x: 10, y: 10, width: w, height: h });
+        } catch (e) { console.warn(`[MERGE] Pav. embed klaida (${safeBase}): ${e.message}`); }
+      } else {
+        console.warn(`[MERGE] Nežinomas formatas, praleidžiama: ${safeBase}`);
+      }
+    }
+
+    if (merged.getPageCount() === 0) {
+      return res.status(400).json({ error: 'Nė vienas failas nebuvo sėkmingai apdorotas.' });
+    }
+
+    const pdfBytes = await merged.save();
+    const b64 = Buffer.from(pdfBytes).toString('base64');
+    console.log(`[MERGE] Sujungta ${merged.getPageCount()} psl. iš ${filenames.length} failų`);
+    res.json({ ok: true, content: b64, filename: 'dokumentai_seniunijai.pdf', pages: merged.getPageCount() });
+  } catch (e) {
+    console.error('[MERGE] Klaida:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Laiškas seniūnijai apie atliktus darbus ───────────────────
 app.post('/api/admin/send-seniunija-closure', async (req, res) => {
   const { permitId, workType, surface, seniunijaEmail, seniunijaName } = req.body || {};
@@ -1446,28 +1520,25 @@ Darbai yra baigti, ${surf} danga atstatyta. Pridedam gerbūvio nuotraukas, nuotr
 Pagarbiai,
 EnergoLT`;
 
-  // Priedai: nuotraukos prieš darbus
+  // Priedai — sujungtas PDF (jei pateiktas) arba atskiri failai
   const attachments = [];
-  for (const f of (permit.beforeFiles || [])) {
-    const fp = path.join(UPLOAD_DIR, f.filename || '');
-    if (fs.existsSync(fp)) attachments.push({ filename: f.name, content: fs.readFileSync(fp) });
-  }
-  // Gerbūvio nuotraukos (po darbų)
-  for (const f of (permit.closeFiles || [])) {
-    const fp = path.join(UPLOAD_DIR, f.filename || '');
-    if (fs.existsSync(fp)) attachments.push({ filename: f.name, content: fs.readFileSync(fp) });
-  }
-  // Kauno sav. leidimo PDF
-  const savPdf = (permit.permitPdfs || {}).sav || null;
-  if (savPdf && savPdf.filename) {
-    const fp = path.join(UPLOAD_DIR, savPdf.filename);
-    if (fs.existsSync(fp)) attachments.push({ filename: savPdf.name || 'leidimas.pdf', content: fs.readFileSync(fp) });
+  const { mergedContent, mergedFilename } = req.body || {};
+  if (mergedContent) {
+    attachments.push({
+      filename: mergedFilename || 'dokumentai_seniunijai.pdf',
+      content: Buffer.from(mergedContent, 'base64'),
+      contentType: 'application/pdf',
+    });
   } else {
-    // fallback: pirmasis PDF iš files
-    const pdfFile = (permit.files || []).find((f) => f.name && f.name.toLowerCase().endsWith('.pdf'));
-    if (pdfFile && pdfFile.filename) {
-      const fp = path.join(UPLOAD_DIR, pdfFile.filename);
-      if (fs.existsSync(fp)) attachments.push({ filename: pdfFile.name, content: fs.readFileSync(fp) });
+    // Fallback: atskiri failai
+    for (const f of [...(permit.beforeFiles || []), ...(permit.closeFiles || [])]) {
+      const fp = path.join(UPLOAD_DIR, f.filename || '');
+      if (fs.existsSync(fp)) attachments.push({ filename: f.name, content: fs.readFileSync(fp) });
+    }
+    const savPdf = (permit.permitPdfs || {}).sav || null;
+    if (savPdf && savPdf.filename) {
+      const fp = path.join(UPLOAD_DIR, savPdf.filename);
+      if (fs.existsSync(fp)) attachments.push({ filename: savPdf.name || 'leidimas.pdf', content: fs.readFileSync(fp) });
     }
   }
 

@@ -2571,6 +2571,27 @@ function PermitDetail(p){
   var _seniunijaOverride=useState("");var seniunijaOverride=_seniunijaOverride[0],sSeniunijaOverride=_seniunijaOverride[1];
   var _seniunijaBusy=useState(false);var seniunijaBusy=_seniunijaBusy[0],sSeniunijaBusy=_seniunijaBusy[1];
   var _seniunijaMsg=useState("");var seniunijaMsg=_seniunijaMsg[0],sSeniunijaMsg=_seniunijaMsg[1];
+  var _mergedPdf=useState(null);var mergedPdf=_mergedPdf[0],sMergedPdf=_mergedPdf[1]; // {content,filename,pages}
+  var _mergeBusy=useState(false);var mergeBusy=_mergeBusy[0],sMergeBusy=_mergeBusy[1];
+  // Dokumentų pasirinkimas seniūnijai — filenames sąrašas
+  function getSeniunijaFilenames(){
+    var files=[];
+    (o.beforeFiles||[]).forEach(function(f){if(f.filename)files.push({filename:f.filename,name:f.name,label:"Prieš darbus"});});
+    (o.closeFiles||[]).forEach(function(f){if(f.filename)files.push({filename:f.filename,name:f.name,label:"Gerbūvio nuotr."});});
+    var savPdf=(o.permitPdfs||{}).sav||null;
+    if(savPdf&&savPdf.filename)files.push({filename:savPdf.filename,name:savPdf.name||"leidimas.pdf",label:"Sav. leidimas"});
+    else{var pf=(o.files||[]).find(function(f){return f.name&&f.name.toLowerCase().endsWith('.pdf')});
+      if(pf&&pf.filename)files.push({filename:pf.filename,name:pf.name,label:"Sav. leidimas"});}
+    return files;
+  }
+  var _senDocs=useState(null);var senDocs=_senDocs[0],sSenDocs=_senDocs[1]; // null = neįkeltas dar
+  var _senSelected=useState({});var senSelected=_senSelected[0],sSenSelected=_senSelected[1];
+  useEffect(function(){
+    var docs=getSeniunijaFilenames();
+    sSenDocs(docs);
+    var sel={};docs.forEach(function(d){sel[d.filename]=true;});
+    sSenSelected(sel);
+  },[o.id,o.closeFiles&&o.closeFiles.length,o.beforeFiles&&o.beforeFiles.length]);
   useEffect(function(){
     if((o.closingSubmitted||o.status==="Uždarytas")&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1){
       fetch('/api/admin/detect-seniunija?address='+encodeURIComponent(o.location||""))
@@ -3968,15 +3989,55 @@ function PermitDetail(p){
             <div style={{background:C.s2,borderRadius:8,padding:"8px 12px",marginBottom:10,border:"1px solid "+C.b1,fontSize:11,color:C.t2,fontFamily:FM,whiteSpace:"pre-wrap",lineHeight:1.5}}>
               {`Laba diena,\n\nNuo ${o.startDate||"—"} iki ${o.endDate||"—"} vykdėme ${workType} kasimo darbus ${(seniunija&&seniunija.name)||"[seniūnija]"}, ${o.location||"—"}, elektros tinklų ${o.description||"įrengimas"}.\nDarbai yra baigti, ${surface} danga atstatyta. Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.`}
             </div>
+            {/* Dokumentų sąrašas */}
+            {senDocs&&senDocs.length>0&&<div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>Dokumentai siunčiami seniūnijai</div>
+              {senDocs.map(function(doc){return <label key={doc.filename} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,cursor:"pointer"}}>
+                <input type="checkbox" checked={!!senSelected[doc.filename]} onChange={function(e){
+                  sSenSelected(function(prev){var n=Object.assign({},prev);n[doc.filename]=e.target.checked;return n;});
+                  sMergedPdf(null);
+                }}/>
+                <span style={{fontSize:11,fontFamily:F,color:C.tx}}>{doc.name}</span>
+                <span style={{fontSize:10,color:C.t3,fontFamily:F}}>({doc.label})</span>
+              </label>})}
+            </div>}
+            {senDocs&&senDocs.length===0&&<div style={{fontSize:11,color:C.rd,fontFamily:F,marginBottom:8}}>⚠️ Nėra dokumentų siunčiamų seniūnijai. Pridėkite nuotraukas uždarymo sekcijoje.</div>}
+
+            {/* Sujungimo ir peržiūros mygtukas */}
+            <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+              <Btn onClick={async function(){
+                var selected=senDocs?senDocs.filter(function(d){return senSelected[d.filename]}).map(function(d){return d.filename}):[];
+                if(!selected.length){sSeniunijaMsg("❌ Nepasirinktas nė vienas dokumentas.");return;}
+                sMergeBusy(true);sMergedPdf(null);sSeniunijaMsg("");
+                try{
+                  var r=await fetch('/api/admin/merge-seniunija-docs',{method:'POST',headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({permitId:o.id,filenames:selected})});
+                  var d=await r.json();
+                  if(!r.ok){sSeniunijaMsg("❌ "+(d.error||"Klaida sujungiant"));sMergeBusy(false);return;}
+                  sMergedPdf(d);
+                  sSeniunijaMsg("✅ Sujungta "+d.pages+" psl. — peržiūrėkite prieš siunčiant");
+                }catch(e){sSeniunijaMsg("❌ Serverio klaida");}
+                sMergeBusy(false);
+              }} sm disabled={mergeBusy} style={{background:"#7C3AED",color:"#fff",border:"none",opacity:mergeBusy?0.6:1}}>
+                {mergeBusy?"Sujungiama...":"🔗 Sujungti ir peržiūrėti"}
+              </Btn>
+              {mergedPdf&&<a href={"data:application/pdf;base64,"+mergedPdf.content} download={mergedPdf.filename}
+                style={{display:"inline-flex",alignItems:"center",gap:4,padding:"5px 10px",borderRadius:6,background:C.s2,border:"1px solid "+C.b1,color:C.t2,fontSize:11,fontFamily:F,textDecoration:"none",cursor:"pointer"}}>
+                ⬇ Atsisiųsti ({mergedPdf.pages} psl.)
+              </a>}
+            </div>
+
             {seniunijaMsg&&<div style={{fontSize:11,color:seniunijaMsg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{seniunijaMsg}</div>}
             <Btn onClick={async function(){
               var email=(seniunija&&(seniunija.emailOverride||seniunija.email))||"";
               var name=(seniunija&&seniunija.name)||"";
               if(!email){sSeniunijaMsg("❌ Nenustatytas seniūnijos el. paštas.");return;}
+              if(!mergedPdf){sSeniunijaMsg("❌ Pirmiau sujunkite dokumentus (mygtukas „Sujungti ir peržiūrėti").");return;}
               sSeniunijaBusy(true);sSeniunijaMsg("");
               try{
                 var r=await fetch('/api/admin/send-seniunija-closure',{method:'POST',headers:{'Content-Type':'application/json'},
-                  body:JSON.stringify({permitId:o.id,workType,surface,seniunijaEmail:email,seniunijaName:name})});
+                  body:JSON.stringify({permitId:o.id,workType,surface,seniunijaEmail:email,seniunijaName:name,
+                    mergedContent:mergedPdf.content,mergedFilename:mergedPdf.filename})});
                 var d=await r.json();
                 if(!r.ok){sSeniunijaMsg("❌ "+(d.error||"Klaida"));sSeniunijaBusy(false);return;}
                 sSeniunijaMsg("✅ Laiškas seniūnijai išsiųstas!");
@@ -3984,7 +4045,7 @@ function PermitDetail(p){
                   history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Seniūnijai ("+name+") išsiųstas informacinis laiškas"}])}));
               }catch(e){sSeniunijaMsg("❌ Serverio klaida");}
               sSeniunijaBusy(false);
-            }} sm disabled={seniunijaBusy} style={{background:"#2563EB",color:"#fff",border:"none",opacity:seniunijaBusy?0.6:1}}>
+            }} sm disabled={seniunijaBusy||!mergedPdf} style={{background:"#2563EB",color:"#fff",border:"none",opacity:(seniunijaBusy||!mergedPdf)?0.6:1}}>
               {seniunijaBusy?"Siunčiama...":"🏘 Siųsti seniūnijai"}
             </Btn>
           </div>}
