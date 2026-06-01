@@ -1324,6 +1324,124 @@ async function checkImapMail() {
   return { checked, processed };
 }
 
+// ── Seniūnijų el. paštai ─────────────────────────────────────
+const SENIUNIJA_MAP = [
+  { name: 'Panemunės-Šančių seniūnija',  email: 'panemune-sanciai@kaunas.lt',
+    keywords: ['panemun','šanč','sanciu','ivinskio','karklup','šančių','panemunė'] },
+  { name: 'Centro-Žaliakalnio seniūnija', email: 'centras@kaunas.lt',
+    keywords: ['žaliakalnis','zaliakalnis','gedimino','donelaičio','laisvės al','mickevičiaus','vytauto pr','savanorių pr'] },
+  { name: 'Dainavos seniūnija',           email: 'dainava@kaunas.lt',
+    keywords: ['dainav','draugystės','taikos pr','studentų','vydūno','partizanų'] },
+  { name: 'Eigulių seniūnija',            email: 'eiguliai@kaunas.lt',
+    keywords: ['eiguliai','eigulių','perkūno','romaičių','baltijos','giraitė','smėliai'] },
+];
+
+function detectSeniunija(address) {
+  if (!address) return null;
+  const a = address.toLowerCase()
+    .replace(/ą/g,'a').replace(/č/g,'c').replace(/ę/g,'e').replace(/ė/g,'e')
+    .replace(/į/g,'i').replace(/š/g,'s').replace(/ų/g,'u').replace(/ū/g,'u').replace(/ž/g,'z');
+  for (const s of SENIUNIJA_MAP) {
+    const hit = s.keywords.some((kw) => {
+      const k = kw.toLowerCase()
+        .replace(/ą/g,'a').replace(/č/g,'c').replace(/ę/g,'e').replace(/ė/g,'e')
+        .replace(/į/g,'i').replace(/š/g,'s').replace(/ų/g,'u').replace(/ū/g,'u').replace(/ž/g,'z');
+      return a.includes(k);
+    });
+    if (hit) return s;
+  }
+  return null;
+}
+
+// Seniūnijos auto-detekcija iš adreso
+app.get('/api/admin/detect-seniunija', (req, res) => {
+  const address = (req.query.address || '').trim();
+  const detected = detectSeniunija(address);
+  res.json({ ok: true, seniunija: detected, all: SENIUNIJA_MAP.map((s) => ({ name: s.name, email: s.email })) });
+});
+
+// ── Laiškas seniūnijai apie atliktus darbus ───────────────────
+app.post('/api/admin/send-seniunija-closure', async (req, res) => {
+  const { permitId, workType, surface, seniunijaEmail, seniunijaName } = req.body || {};
+  if (!permitId || !seniunijaEmail || !seniunijaName) {
+    return res.status(400).json({ error: 'Trūksta permitId, seniunijaEmail arba seniunijaName.' });
+  }
+
+  const permits = dbGet('kl-permits') || [];
+  const permit  = permits.find((p) => p.id === permitId);
+  if (!permit) return res.status(404).json({ error: 'Paraiška nerasta.' });
+
+  const startDate = permit.startDate || '—';
+  const endDate   = permit.endDate   || '—';
+  const location  = permit.location  || '—';
+  const desc      = permit.description || 'įrengimas';
+  const wt        = workType || 'planinius';
+  const surf      = surface  || 'asfalto';
+
+  const bodyText =
+`Laba diena,
+
+Nuo ${startDate} iki ${endDate} vykdėme ${wt} kasimo darbus ${seniunijaName}, ${location}, elektros tinklų ${desc}.
+Darbai yra baigti, ${surf} danga atstatyta. Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.
+
+Pagarbiai,
+EnergoLT`;
+
+  // Priedai: nuotraukos prieš darbus
+  const attachments = [];
+  for (const f of (permit.beforeFiles || [])) {
+    const fp = path.join(UPLOAD_DIR, f.filename || '');
+    if (fs.existsSync(fp)) attachments.push({ filename: f.name, content: fs.readFileSync(fp) });
+  }
+  // Gerbūvio nuotraukos (po darbų)
+  for (const f of (permit.closeFiles || [])) {
+    const fp = path.join(UPLOAD_DIR, f.filename || '');
+    if (fs.existsSync(fp)) attachments.push({ filename: f.name, content: fs.readFileSync(fp) });
+  }
+  // Kauno sav. leidimo PDF
+  const savPdf = (permit.permitPdfs || {}).sav || null;
+  if (savPdf && savPdf.filename) {
+    const fp = path.join(UPLOAD_DIR, savPdf.filename);
+    if (fs.existsSync(fp)) attachments.push({ filename: savPdf.name || 'leidimas.pdf', content: fs.readFileSync(fp) });
+  } else {
+    // fallback: pirmasis PDF iš files
+    const pdfFile = (permit.files || []).find((f) => f.name && f.name.toLowerCase().endsWith('.pdf'));
+    if (pdfFile && pdfFile.filename) {
+      const fp = path.join(UPLOAD_DIR, pdfFile.filename);
+      if (fs.existsSync(fp)) attachments.push({ filename: pdfFile.name, content: fs.readFileSync(fp) });
+    }
+  }
+
+  try {
+    await sendAndSave({
+      from: MAIL_FROM_EXTERNAL,
+      to: seniunijaEmail,
+      subject: `Informacija apie atliktus kasimo darbus — ${location}`,
+      text: bodyText,
+      attachments,
+    });
+    console.log(`[SENIUNIJA] Laiškas išsiųstas → ${seniunijaEmail} (${seniunijaName}) | ${location} | ${attachments.length} priedai`);
+  } catch (e) {
+    console.error(`[SENIUNIJA] Klaida: ${e.message}`);
+    return res.status(500).json({ error: e.message });
+  }
+
+  // Žymime kaip išsiųstą
+  const today = fmtDateSrv(new Date());
+  dbSet('kl-permits', permits.map((p) => p.id !== permitId ? p : {
+    ...p,
+    seniunijaSent: true,
+    seniunijaSentAt: today,
+    seniunijaName,
+    history: [...(p.history || []), {
+      status: p.status, date: today,
+      note: `Seniūnijai (${seniunijaName}) išsiųstas informacinis laiškas apie atliktus darbus`,
+    }],
+  }));
+
+  res.json({ ok: true });
+});
+
 // ── Kauno sav. uždarymo pranešimų sąrašas ────────────────────
 app.get('/api/admin/sav-close-requests', (req, res) => {
   res.json({ ok: true, requests: dbGet('kl-sav-close-requests') || [] });

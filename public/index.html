@@ -2562,6 +2562,24 @@ function PermitDetail(p){
   var _closeReqs=useState([]);var closeReqs=_closeReqs[0],sCloseReqs=_closeReqs[1];
   var _closeBusy=useState(false);var closeBusy=_closeBusy[0],sCloseBusy=_closeBusy[1];
   var _closeMsg=useState("");var closeMsg=_closeMsg[0],sCloseMsg=_closeMsg[1];
+  // Seniūnijos laiškas
+  var _beforeFiles=useState(o.beforeFiles||[]);var beforeFiles=_beforeFiles[0],sBeforeFiles=_beforeFiles[1];
+  var _workType=useState(o.workType||"planinius");var workType=_workType[0],sWorkType=_workType[1];
+  var _surface=useState(o.surface||"asfalto");var surface=_surface[0],sSurface=_surface[1];
+  var _seniunija=useState(null);var seniunija=_seniunija[0],sSeniunija=_seniunija[1];
+  var _seniunijaAll=useState([]);var seniunijaAll=_seniunijaAll[0],sSeniunijaAll=_seniunijaAll[1];
+  var _seniunijaOverride=useState("");var seniunijaOverride=_seniunijaOverride[0],sSeniunijaOverride=_seniunijaOverride[1];
+  var _seniunijaBusy=useState(false);var seniunijaBusy=_seniunijaBusy[0],sSeniunijaBusy=_seniunijaBusy[1];
+  var _seniunijaMsg=useState("");var seniunijaMsg=_seniunijaMsg[0],sSeniunijaMsg=_seniunijaMsg[1];
+  useEffect(function(){
+    if((o.closingSubmitted||o.status==="Uždarytas")&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1){
+      fetch('/api/admin/detect-seniunija?address='+encodeURIComponent(o.location||""))
+        .then(function(r){return r.json()}).then(function(d){
+          if(d.seniunija)sSeniunija(d.seniunija);
+          if(d.all)sSeniunijaAll(d.all);
+        }).catch(function(){});
+    }
+  },[o.id,o.location]);
   useEffect(function(){
     if(o.closingSubmitted||o.status==="Uždarytas"){
       fetch('/api/admin/sav-close-requests').then(function(r){return r.json()}).then(function(d){if(d.ok)sCloseReqs(d.requests||[])}).catch(function(){});
@@ -3830,11 +3848,18 @@ function PermitDetail(p){
           </div>
           <FileDropZone files={lbcFiles} onAdd={function(f){sLbcFiles(function(prev){return prev.concat([f])})}} onRemove={function(i){sLbcFiles(function(prev){return prev.filter(function(_,idx){return idx!==i})})}}/>
         </div>
+        <div style={{background:C.s2,borderRadius:10,border:"1px solid "+C.b1,padding:14,marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F}}>Nuotraukos prieš darbus <span style={{fontSize:10,color:C.t3,fontWeight:400}}>(seniūnijai)</span></div>
+            {beforeFiles.length>0&&<span style={{fontSize:10,color:C.gn,fontFamily:F,fontWeight:700}}>{beforeFiles.length} failai</span>}
+          </div>
+          <FileDropZone files={beforeFiles} onAdd={function(f){sBeforeFiles(function(prev){return prev.concat([f])})}} onRemove={function(i){sBeforeFiles(function(prev){return prev.filter(function(_,idx){return idx!==i})})}}/>
+        </div>
         <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
           <Btn v="secondary" onClick={p.onClose} sm>Atsaukti</Btn>
           <Btn onClick={function(){
             if(cFiles.length===0){alert("Pridekite objekto nuotraukas po darbu!");return;}
-            var u=Object.assign({},o,{closeFiles:cFiles,lbcFiles:lbcFiles,closingSubmitted:true,closingSubmittedAt:fmtDate(new Date()),
+            var u=Object.assign({},o,{closeFiles:cFiles,lbcFiles:lbcFiles,beforeFiles:beforeFiles,closingSubmitted:true,closingSubmittedAt:fmtDate(new Date()),
               history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Pateikta leidimo uzdarymo informacija"}])});
             p.onUpdate(u);p.onClose();
           }} sm>Perduoti uzdarymui</Btn>
@@ -3883,6 +3908,84 @@ function PermitDetail(p){
               sCloseBusy(false);
             }} sm disabled={closeBusy} style={{background:"#059669",color:"#fff",border:"none",opacity:closeBusy?0.6:1}}>
               {closeBusy?"Siunčiama...":"📤 Atsakyti Savivaldybei automatiškai"}
+            </Btn>
+          </div>}
+      </div>}
+
+      {/* Seniūnijos informacinis laiškas */}
+      {(o.closingSubmitted||o.status==="Uždarytas")&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Laiškas seniūnijai</div>
+        {o.seniunijaSent
+          ?<div style={{background:"rgba(16,185,129,.1)",border:"1px solid #059669",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#059669",fontFamily:F,fontWeight:600}}>✅ Laiškas seniūnijai ({o.seniunijaName||"—"}) išsiųstas {o.seniunijaSentAt||""}</div>
+          :<div>
+            {/* Auto-detektuota seniūnija */}
+            <div style={{background:C.s2,borderRadius:8,padding:"8px 12px",marginBottom:10,border:"1px solid "+C.b1}}>
+              <div style={{fontSize:10,color:C.t3,fontFamily:F,marginBottom:4}}>Nustatyta pagal adresą: <strong style={{color:C.tx}}>{o.location||"—"}</strong></div>
+              {seniunija
+                ?<div style={{fontSize:12,fontWeight:700,color:C.gn,fontFamily:F}}>🏘 {seniunija.name} — {seniunija.email||<span style={{color:C.rd}}>el. paštas nerastas</span>}</div>
+                :<div style={{fontSize:12,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Seniūnija neatpažinta — pasirinkite rankiniu būdu</div>}
+            </div>
+            {/* Seniūnijos override */}
+            <div style={{marginBottom:10}}>
+              <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Keisti seniūniją / el. paštą</label>
+              <div style={{display:"flex",gap:6}}>
+                <select value={seniunijaOverride||((seniunija&&seniunija.name)||"")} onChange={function(e){
+                  var found=seniunijaAll.find(function(s){return s.name===e.target.value});
+                  sSeniunijaOverride(e.target.value);
+                  if(found)sSeniunija(found);
+                }} style={{flex:1,padding:"6px 8px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:11,outline:"none"}}>
+                  <option value="">— pasirinkite —</option>
+                  {seniunijaAll.map(function(s){return <option key={s.name} value={s.name}>{s.name}</option>})}
+                </select>
+              </div>
+              {seniunija&&!seniunija.email&&<div style={{marginTop:6}}>
+                <input placeholder="El. paštas (pvz. freda@kaunas.lt)" value={seniunija.emailOverride||""}
+                  onChange={function(e){sSeniunija(Object.assign({},seniunija,{emailOverride:e.target.value}))}}
+                  style={{width:"100%",padding:"6px 10px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+              </div>}
+            </div>
+            {/* Darbo tipas ir danga */}
+            <div style={{display:"flex",gap:8,marginBottom:10}}>
+              <div style={{flex:1}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Darbo tipas</label>
+                <select value={workType} onChange={function(e){sWorkType(e.target.value)}}
+                  style={{width:"100%",padding:"6px 8px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none"}}>
+                  <option value="planinius">planinius</option>
+                  <option value="avarinius">avarinius</option>
+                </select>
+              </div>
+              <div style={{flex:1}}>
+                <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Dangos tipas</label>
+                <select value={surface} onChange={function(e){sSurface(e.target.value)}}
+                  style={{width:"100%",padding:"6px 8px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none"}}>
+                  <option value="asfalto">asfalto</option>
+                  <option value="žvyro">žvyro</option>
+                  <option value="trinkelių">trinkelių</option>
+                </select>
+              </div>
+            </div>
+            {/* Laiško peržiūra */}
+            <div style={{background:C.s2,borderRadius:8,padding:"8px 12px",marginBottom:10,border:"1px solid "+C.b1,fontSize:11,color:C.t2,fontFamily:FM,whiteSpace:"pre-wrap",lineHeight:1.5}}>
+              {`Laba diena,\n\nNuo ${o.startDate||"—"} iki ${o.endDate||"—"} vykdėme ${workType} kasimo darbus ${(seniunija&&seniunija.name)||"[seniūnija]"}, ${o.location||"—"}, elektros tinklų ${o.description||"įrengimas"}.\nDarbai yra baigti, ${surface} danga atstatyta. Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.`}
+            </div>
+            {seniunijaMsg&&<div style={{fontSize:11,color:seniunijaMsg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{seniunijaMsg}</div>}
+            <Btn onClick={async function(){
+              var email=(seniunija&&(seniunija.emailOverride||seniunija.email))||"";
+              var name=(seniunija&&seniunija.name)||"";
+              if(!email){sSeniunijaMsg("❌ Nenustatytas seniūnijos el. paštas.");return;}
+              sSeniunijaBusy(true);sSeniunijaMsg("");
+              try{
+                var r=await fetch('/api/admin/send-seniunija-closure',{method:'POST',headers:{'Content-Type':'application/json'},
+                  body:JSON.stringify({permitId:o.id,workType,surface,seniunijaEmail:email,seniunijaName:name})});
+                var d=await r.json();
+                if(!r.ok){sSeniunijaMsg("❌ "+(d.error||"Klaida"));sSeniunijaBusy(false);return;}
+                sSeniunijaMsg("✅ Laiškas seniūnijai išsiųstas!");
+                p.onUpdate(Object.assign({},o,{seniunijaSent:true,seniunijaSentAt:fmtDate(new Date()),seniunijaName:name,
+                  history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Seniūnijai ("+name+") išsiųstas informacinis laiškas"}])}));
+              }catch(e){sSeniunijaMsg("❌ Serverio klaida");}
+              sSeniunijaBusy(false);
+            }} sm disabled={seniunijaBusy} style={{background:"#2563EB",color:"#fff",border:"none",opacity:seniunijaBusy?0.6:1}}>
+              {seniunijaBusy?"Siunčiama...":"🏘 Siųsti seniūnijai"}
             </Btn>
           </div>}
       </div>}
