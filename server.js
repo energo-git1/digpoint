@@ -962,7 +962,7 @@ async function checkImapMail() {
             const pdfParts = findPdfParts(msg.bodyStructure);
 
             if (!pdfParts.length) {
-              // Kauno sav. uždarymo pranešimas — be PDF, bet su "Išduotas leidimas"
+              // Kauno sav. pranešimas be PDF — tikrinti ar "Darbų tvirtinimas"
               if (org === 'Kauno miesto savivaldybe' && fromAddr.toLowerCase().includes('kasimo.darbai@kaunas.lt')) {
                 let bodyText = '';
                 const textPartsClose = findTextPart(msg.bodyStructure);
@@ -974,24 +974,83 @@ async function checkImapMail() {
                     bodyText += Buffer.concat(chunks).toString('utf8');
                   } catch (_) {}
                 }
-                if (/išduotas leidimas/i.test(bodyText + ' ' + subject)) {
-                  const codeMatch = (subject + ' ' + bodyText).match(/objekto\s+(?:kodas|nr\.?)[:\s]+([A-Z0-9\-\/]+)/i)
-                    || subject.match(/([A-Z]{2,}-?\d{4,})/i);
-                  const objectCode = codeMatch ? codeMatch[1].trim() : null;
-                  const closeRequests = dbGet('kl-sav-close-requests') || [];
-                  closeRequests.push({
-                    id: srvUid(),
-                    messageId: msgId,
-                    subject,
-                    from: fromAddr,
-                    date: new Date().toISOString(),
-                    objectCode,
-                    bodyPreview: bodyText.slice(0, 600),
+
+                if (/darb[uų]\s+tvirtinimas/i.test(bodyText + ' ' + subject)) {
+                  // Ištraukiame adresą iš "Darbų vieta (pradžia):" eilutės
+                  const addrMatch = bodyText.match(/Darb[uų]\s+vieta\s*\(prad[žz][iī]a\)[:\s]+([^\n(]{5,100})/i);
+                  const rawAddr   = addrMatch ? addrMatch[1].trim() : '';
+                  // Seniūnija (skliaustuose po adreso)
+                  const senMatch  = bodyText.match(/\(([^)]*seni[uū]nija[^)]*)\)/i);
+                  const senName   = senMatch ? senMatch[1].trim() : null;
+                  // Datos
+                  const datesMatch = bodyText.match(/Galiojimas[:\s]+(\d{4}-\d{2}-\d{2})\s*[-–]\s*(\d{4}-\d{2}-\d{2})/i);
+                  const validFrom  = datesMatch ? datesMatch[1] : null;
+                  const validUntil = datesMatch ? datesMatch[2] : null;
+
+                  console.log(`[IMAP] 🏁 Kauno sav. Darbų tvirtinimas | adresas: "${rawAddr}" | seniūnija: ${senName||'—'}`);
+
+                  // Surasti paraišką pagal adresą
+                  const allPermits = dbGet('kl-permits') || [];
+                  const candidates = allPermits.filter((p) => {
+                    if (p.status === 'Uždarytas' || p.status === 'Atmestas') return false;
+                    const orgs = Array.isArray(p.organizations) ? p.organizations : (p.organization ? [p.organization] : []);
+                    return orgs.includes('Kauno miesto savivaldybe');
                   });
-                  dbSet('kl-sav-close-requests', closeRequests);
-                  console.log(`[IMAP] 🏁 Kauno sav. uždarymo pranešimas išsaugotas: "${subject}" | kodas: ${objectCode || '—'}`);
+
+                  let bestPermit = null;
+                  let bestScore  = 0;
+                  for (const p of candidates) {
+                    const score = calcLocationScore(p.location || '', rawAddr + ' ' + bodyText);
+                    if (score > bestScore) { bestScore = score; bestPermit = p; }
+                  }
+
+                  const THRESHOLD = candidates.length === 1 ? 0 : 0.4;
+
+                  if (!bestPermit || bestScore < THRESHOLD) {
+                    console.log(`[IMAP] Kauno sav. Darbų tvirtinimas: paraiška nerasta (score: ${bestScore.toFixed(2)})`);
+                    // Įspėjimas
+                    try {
+                      await mailerInternal.sendMail({
+                        from: MAIL_FROM_INTERNAL, to: 'uzklausos@energolt.eu',
+                        subject: 'Gautas Darbų tvirtinimas — paraiška nerasta Digpoint',
+                        html: `<p>Gautas Kauno sav. „Darbų tvirtinimas" laiškas, tačiau nepavyko surasti atitinkančios paraiškos.</p><p>Adresas: <strong>${rawAddr}</strong></p><p>Gretinimo rezultatas: ${bestScore.toFixed(2)} (reikia ≥ ${THRESHOLD})</p>`,
+                      });
+                    } catch (_) {}
+                  } else {
+                    console.log(`[IMAP] Kauno sav. Darbų tvirtinimas → #${bestPermit.id.slice(-5).toUpperCase()} (score: ${bestScore.toFixed(2)})`);
+                    const today = fmtDateSrv(new Date());
+                    // Surasti visą grupę (manualGroupId arba tik ši paraiška)
+                    const groupId = bestPermit.manualGroupId || null;
+                    const updatedPermits = allPermits.map((p) => {
+                      const inGroup = groupId
+                        ? (p.id === bestPermit.id || p.manualGroupId === groupId)
+                        : p.id === bestPermit.id;
+                      if (!inGroup) return p;
+                      if (p.status === 'Uždarytas') return p;
+                      return {
+                        ...p,
+                        status: 'Uždarytas',
+                        closingDone: true,
+                        closingDoneAt: today,
+                        seniunijaName: senName || p.seniunijaName || null,
+                        permitValidFrom:  p.permitValidFrom  || validFrom  || '',
+                        permitValidUntil: p.permitValidUntil || validUntil || '',
+                        history: [...(p.history || []), {
+                          status: 'Uždarytas', date: today,
+                          note: `Darbų tvirtinimas gautas automatiškai iš Kauno m. sav. (${rawAddr})`,
+                        }],
+                      };
+                    });
+                    dbSet('kl-permits', updatedPermits);
+                    const closedCount = updatedPermits.filter((p) => {
+                      const inGroup = groupId ? (p.id === bestPermit.id || p.manualGroupId === groupId) : p.id === bestPermit.id;
+                      return inGroup && p.status === 'Uždarytas';
+                    }).length;
+                    console.log(`[IMAP] ✅ Uždarytos ${closedCount} paraiška(-ų) | seniūnija: ${senName||'—'}`);
+                    processed++;
+                  }
                 } else {
-                  console.log(`[IMAP] Kauno sav.: laiškas be PDF ir be "Išduotas leidimas" — praleidžiama.`);
+                  console.log(`[IMAP] Kauno sav.: laiškas be PDF ir be "Darbų tvirtinimas" — praleidžiama.`);
                 }
               } else {
                 console.log(`[IMAP] ${org}: laiškas be PDF priedo, praleidžiama.`);
