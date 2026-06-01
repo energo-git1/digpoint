@@ -2773,7 +2773,7 @@ function PermitDetail(p){
       if((st==="Gautas leidimas"||st==="Gautas")&&pvu)u.permitValidUntil=pvu;
       u.history=(o.history||[]).concat([{status:st,date:fmtDate(new Date()),note:note||((st==="Gautas leidimas"||st==="Gautas")&&pvu?"Leidimas gautas, galioja iki "+pvu:"")}]);
     }
-    u.closeFiles=cFiles;u.lbcFiles=lbcFiles;
+    u.closeFiles=cFiles;u.lbcFiles=lbcFiles;u.beforeFiles=beforeFiles;
     // Išsaugome pasirinktus PDF puslapius į attachmentSources
     var _pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
     var _cleanAddr=function(s){return (s||"").replace(/[^a-zA-Z0-9À-ɏ\s.,\-]/g,"").trim();};
@@ -3904,7 +3904,7 @@ function PermitDetail(p){
                 style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
             </div>
             {closeMsg&&<div style={{fontSize:11,color:closeMsg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{closeMsg}</div>}
-            <Btn onClick={async function(){
+            <Btn onClick={function(){(async function(){
               if(closeReqs.length===0){sCloseMsg("❌ Nerasta laiškų iš kasimo.darbai@kaunas.lt su 'Išduotas leidimas'.");return;}
               // Randame geriausiai atitinkantį pagal objekto kodą
               var matched=closeReqs[0];
@@ -3927,7 +3927,7 @@ function PermitDetail(p){
                 p.onUpdate(upd);
               }catch(e){sCloseMsg("❌ Serverio klaida");}
               sCloseBusy(false);
-            }} sm disabled={closeBusy} style={{background:"#059669",color:"#fff",border:"none",opacity:closeBusy?0.6:1}}>
+            })()}} sm disabled={closeBusy} style={{background:"#059669",color:"#fff",border:"none",opacity:closeBusy?0.6:1}}>
               {closeBusy?"Siunčiama...":"📤 Atsakyti Savivaldybei automatiškai"}
             </Btn>
           </div>}
@@ -4005,7 +4005,7 @@ function PermitDetail(p){
 
             {/* Sujungimo ir peržiūros mygtukas */}
             <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
-              <Btn onClick={async function(){
+              <Btn onClick={function(){(async function(){
                 var selected=senDocs?senDocs.filter(function(d){return senSelected[d.filename]}).map(function(d){return d.filename}):[];
                 if(!selected.length){sSeniunijaMsg("❌ Nepasirinktas nė vienas dokumentas.");return;}
                 sMergeBusy(true);sMergedPdf(null);sSeniunijaMsg("");
@@ -4018,7 +4018,7 @@ function PermitDetail(p){
                   sSeniunijaMsg("✅ Sujungta "+d.pages+" psl. — peržiūrėkite prieš siunčiant");
                 }catch(e){sSeniunijaMsg("❌ Serverio klaida");}
                 sMergeBusy(false);
-              }} sm disabled={mergeBusy} style={{background:"#7C3AED",color:"#fff",border:"none",opacity:mergeBusy?0.6:1}}>
+              })()}} sm disabled={mergeBusy} style={{background:"#7C3AED",color:"#fff",border:"none",opacity:mergeBusy?0.6:1}}>
                 {mergeBusy?"Sujungiama...":"🔗 Sujungti ir peržiūrėti"}
               </Btn>
               {mergedPdf&&<a href={"data:application/pdf;base64,"+mergedPdf.content} download={mergedPdf.filename}
@@ -4028,11 +4028,11 @@ function PermitDetail(p){
             </div>
 
             {seniunijaMsg&&<div style={{fontSize:11,color:seniunijaMsg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{seniunijaMsg}</div>}
-            <Btn onClick={async function(){
+            <Btn onClick={function(){(async function(){
               var email=(seniunija&&(seniunija.emailOverride||seniunija.email))||"";
               var name=(seniunija&&seniunija.name)||"";
               if(!email){sSeniunijaMsg("❌ Nenustatytas seniūnijos el. paštas.");return;}
-              if(!mergedPdf){sSeniunijaMsg("❌ Pirmiau sujunkite dokumentus (mygtukas „Sujungti ir peržiūrėti").");return;}
+              if(!mergedPdf){sSeniunijaMsg("❌ Pirmiau sujunkite dokumentus.");return;}
               sSeniunijaBusy(true);sSeniunijaMsg("");
               try{
                 var r=await fetch('/api/admin/send-seniunija-closure',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -4045,7 +4045,7 @@ function PermitDetail(p){
                   history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Seniūnijai ("+name+") išsiųstas informacinis laiškas"}])}));
               }catch(e){sSeniunijaMsg("❌ Serverio klaida");}
               sSeniunijaBusy(false);
-            }} sm disabled={seniunijaBusy||!mergedPdf} style={{background:"#2563EB",color:"#fff",border:"none",opacity:(seniunijaBusy||!mergedPdf)?0.6:1}}>
+            })()}} sm disabled={seniunijaBusy||!mergedPdf} style={{background:"#2563EB",color:"#fff",border:"none",opacity:(seniunijaBusy||!mergedPdf)?0.6:1}}>
               {seniunijaBusy?"Siunčiama...":"🏘 Siųsti seniūnijai"}
             </Btn>
           </div>}
