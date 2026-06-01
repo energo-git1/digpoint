@@ -74,6 +74,7 @@ function buildStatusMap(){
     "Laukia patvirtinimo leidimo": {bg:"rgba(234,179,8,.15)",c:"#CA8A04",dot:"#EAB308"},
     Nebegalioja:           {bg:"rgba(107,114,128,.12)",c:"#6B7280",dot:"#6B7280"},
     Atmestas:              {bg:C.rdD,  c:C.rd, dot:C.rd},
+    Uždarytas:             {bg:"rgba(16,185,129,.12)",c:"#059669",dot:"#059669"},
   };
 }
 var STATUS_MAP = buildStatusMap();
@@ -84,6 +85,7 @@ var SL = {
   "Gautas dalinai":"Gautas dalinai",
   "Laukia patvirtinimo leidimo":"Laukia patvirtinimo",
   Nebegalioja:"Nebegalioja", Atmestas:"Atmestas",
+  Uždarytas:"Uždarytas",
 };
 
 var ROLES = {orderer:"Užsakovas",dokumentacija:"Dokumentacija",admin:"Administratorius",pending:"Laukia patvirtinimo"};
@@ -2555,6 +2557,16 @@ function PermitDetail(p){
   var _permitPdfs=useState(o.permitPdfs||{});var permitPdfs=_permitPdfs[0],sPermitPdfs=_permitPdfs[1];
   var _aprvSt=useState("");var aprvSt=_aprvSt[0],sAprvSt=_aprvSt[1];
   var _aprvBusy=useState(false);var aprvBusy=_aprvBusy[0],sAprvBusy=_aprvBusy[1];
+  // Savivaldybės uždarymas
+  var _savCode=useState(o.savivaldybeCode||"");var savCode=_savCode[0],sSavCode=_savCode[1];
+  var _closeReqs=useState([]);var closeReqs=_closeReqs[0],sCloseReqs=_closeReqs[1];
+  var _closeBusy=useState(false);var closeBusy=_closeBusy[0],sCloseBusy=_closeBusy[1];
+  var _closeMsg=useState("");var closeMsg=_closeMsg[0],sCloseMsg=_closeMsg[1];
+  useEffect(function(){
+    if((o.closingSubmitted||o.status==="Uždarytas")&&(p.user.role==="dokumentacija"||p.user.role==="admin")){
+      fetch('/api/admin/sav-close-requests').then(function(r){return r.json()}).then(function(d){if(d.ok)sCloseReqs(d.requests||[])}).catch(function(){});
+    }
+  },[o.id]);
   // Telia — pasirinkti puslapiai (vienas bendras PDF priedas)
   var _initSrcs=((o.pendingEmail||{}).attachmentSources||[]);
   var _initTeliaPgs=(function(){
@@ -3827,6 +3839,52 @@ function PermitDetail(p){
             p.onUpdate(u);p.onClose();
           }} sm>Perduoti uzdarymui</Btn>
         </div>
+      </div>}
+
+      {/* Savivaldybės atsakymo blokas — dok/admin, kai closingSubmitted arba jau Uždarytas */}
+      {(isD||isA)&&(o.closingSubmitted||o.status==="Uždarytas")&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės uždarymas</div>
+        {o.status==="Uždarytas"
+          ?<div style={{background:"rgba(16,185,129,.1)",border:"1px solid #059669",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#059669",fontFamily:F,fontWeight:600}}>✅ Atsakymas Savivaldybei išsiųstas {o.closingDoneAt||""}</div>
+          :<div>
+            <div style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:8}}>
+              {closeReqs.length>0
+                ?<span style={{color:C.gn,fontWeight:600}}>🔔 Rastas {closeReqs.length} laukiantis uždarymo pranešimas iš Savivaldybės</span>
+                :<span style={{color:C.t3}}>Laukiama pranešimo iš kasimo.darbai@kaunas.lt...</span>}
+            </div>
+            <div style={{marginBottom:10}}>
+              <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Objekto kodas (iš kasimai.kaunas.lt)</label>
+              <input value={savCode} onChange={function(e){sSavCode(e.target.value)}} placeholder="pvz. KD-2024-1234"
+                style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            {closeMsg&&<div style={{fontSize:11,color:closeMsg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{closeMsg}</div>}
+            <Btn onClick={async function(){
+              if(closeReqs.length===0){sCloseMsg("❌ Nerasta laiškų iš kasimo.darbai@kaunas.lt su 'Išduotas leidimas'.");return;}
+              // Randame geriausiai atitinkantį pagal objekto kodą
+              var matched=closeReqs[0];
+              if(savCode.trim()){
+                var byCode=closeReqs.find(function(r){return r.objectCode&&r.objectCode.toLowerCase()===savCode.trim().toLowerCase()});
+                if(byCode)matched=byCode;
+                else{
+                  var bySubj=closeReqs.find(function(r){return (r.subject||"").toLowerCase().includes(savCode.trim().toLowerCase())});
+                  if(bySubj)matched=bySubj;
+                }
+              }
+              sCloseBusy(true);sCloseMsg("");
+              try{
+                var r=await fetch('/api/admin/reply-sav-closure',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:matched.id,permitId:o.id})});
+                var d=await r.json();
+                if(!r.ok){sCloseMsg("❌ "+(d.error||"Klaida"));sCloseBusy(false);return;}
+                sCloseMsg("✅ Atsakymas išsiųstas!");
+                var upd=Object.assign({},o,{status:"Uždarytas",closingDone:true,closingDoneAt:fmtDate(new Date()),savivaldybeCode:savCode||null,
+                  history:(o.history||[]).concat([{status:"Uždarytas",date:fmtDate(new Date()),note:"Savivaldybei išsiųstas atsakymas apie darbų pabaigimą"}])});
+                p.onUpdate(upd);
+              }catch(e){sCloseMsg("❌ Serverio klaida");}
+              sCloseBusy(false);
+            }} sm disabled={closeBusy} style={{background:"#059669",color:"#fff",border:"none",opacity:closeBusy?0.6:1}}>
+              {closeBusy?"Siunčiama...":"📤 Atsakyti Savivaldybei automatiškai"}
+            </Btn>
+          </div>}
       </div>}
 
       {/* Skaitymo rezimas — tik ne adminui */}
@@ -5224,9 +5282,9 @@ function Sidebar(p){
   var role=p.user.role;
   var sverVal=window.APP_VERSION?"v"+window.APP_VERSION:"";
   var items=[];
-  if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"mine",icon:"📋",label:"Mano paraiškos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="dokumentacija") items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"library",icon:"📁",label:"Šablonai"},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"all",icon:"📋",label:"Visos paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"library",icon:"📁",label:"Šablonai"},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"system",icon:"⚙️",label:"Sistema"},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"mine",icon:"📋",label:"Mano paraiškos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"closed",icon:"✅",label:"Uždaryti"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="dokumentacija") items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"closed",icon:"✅",label:"Uždaryti",badge:p.closingCount},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"library",icon:"📁",label:"Šablonai"},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"closed",icon:"✅",label:"Uždaryti",badge:p.closingCount},{id:"all",icon:"📋",label:"Visos paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"library",icon:"📁",label:"Šablonai"},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"system",icon:"⚙️",label:"Sistema"},{id:"profile",icon:"👤",label:"Mano profilis"}];
   return <div style={{width:200,background:C.s1,borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",height:"100vh",flexShrink:0}}>
     <div style={{padding:"18px 16px 10px",borderBottom:"1px solid "+C.b1}}>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -5669,6 +5727,11 @@ function App(){
     if(user.role==="orderer") visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id});
     else visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1});
   }
+  else if(view==="closed"){
+    // Uždaryti: pateikta uždarymo info arba jau uždarytas statusas
+    if(user.role==="orderer") visible=permits.filter(function(p){return (p.closingSubmitted||p.status==="Uždarytas")&&p.createdBy===user.id});
+    else visible=permits.filter(function(p){return p.closingSubmitted||p.status==="Uždarytas"});
+  }
   else if(view==="all") visible=permits.slice();
   if(filter)visible=visible.filter(function(p){return p.status===filter});
   visible=visible.slice().sort(function(a,b){return (b.createdAt||"")>(a.createdAt||"")?1:-1});
@@ -5696,7 +5759,7 @@ function App(){
   }else if(view==="system"){
     main=<SystemTools/>;
   }else{
-    var titles={inbox:"Naujos paraiškos",mine:"Mano paraiškos",submitted:"Pateiktos paraiškos",permits:"Leidimai",all:"Visos paraiškos"};
+    var titles={inbox:"Naujos paraiškos",mine:"Mano paraiškos",submitted:"Pateiktos paraiškos",permits:"Leidimai",closed:"Uždaryti objektai",all:"Visos paraiškos"};
     main=<div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
         <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F}}>{titles[view]||""}</h2>

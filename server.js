@@ -962,7 +962,40 @@ async function checkImapMail() {
             const pdfParts = findPdfParts(msg.bodyStructure);
 
             if (!pdfParts.length) {
-              console.log(`[IMAP] ${org}: laiškas be PDF priedo, praleidžiama.`);
+              // Kauno sav. uždarymo pranešimas — be PDF, bet su "Išduotas leidimas"
+              if (org === 'Kauno miesto savivaldybe' && fromAddr.toLowerCase().includes('kasimo.darbai@kaunas.lt')) {
+                let bodyText = '';
+                const textPartsClose = findTextPart(msg.bodyStructure);
+                for (const tp of textPartsClose.slice(0, 2)) {
+                  try {
+                    const dl = await client.download(seq, tp.part);
+                    const chunks = [];
+                    for await (const chunk of dl.content) chunks.push(chunk);
+                    bodyText += Buffer.concat(chunks).toString('utf8');
+                  } catch (_) {}
+                }
+                if (/išduotas leidimas/i.test(bodyText + ' ' + subject)) {
+                  const codeMatch = (subject + ' ' + bodyText).match(/objekto\s+(?:kodas|nr\.?)[:\s]+([A-Z0-9\-\/]+)/i)
+                    || subject.match(/([A-Z]{2,}-?\d{4,})/i);
+                  const objectCode = codeMatch ? codeMatch[1].trim() : null;
+                  const closeRequests = dbGet('kl-sav-close-requests') || [];
+                  closeRequests.push({
+                    id: srvUid(),
+                    messageId: msgId,
+                    subject,
+                    from: fromAddr,
+                    date: new Date().toISOString(),
+                    objectCode,
+                    bodyPreview: bodyText.slice(0, 600),
+                  });
+                  dbSet('kl-sav-close-requests', closeRequests);
+                  console.log(`[IMAP] 🏁 Kauno sav. uždarymo pranešimas išsaugotas: "${subject}" | kodas: ${objectCode || '—'}`);
+                } else {
+                  console.log(`[IMAP] Kauno sav.: laiškas be PDF ir be "Išduotas leidimas" — praleidžiama.`);
+                }
+              } else {
+                console.log(`[IMAP] ${org}: laiškas be PDF priedo, praleidžiama.`);
+              }
               doneIds.add(msgId);
               await client.messageFlagsAdd(seq, ['\\Seen']);
               continue;
@@ -1290,6 +1323,72 @@ async function checkImapMail() {
 
   return { checked, processed };
 }
+
+// ── Kauno sav. uždarymo pranešimų sąrašas ────────────────────
+app.get('/api/admin/sav-close-requests', (req, res) => {
+  res.json({ ok: true, requests: dbGet('kl-sav-close-requests') || [] });
+});
+
+// ── Atsakymas į Kauno sav. uždarymo pranešimą ────────────────
+// POST /api/admin/reply-sav-closure { requestId, permitId }
+app.post('/api/admin/reply-sav-closure', async (req, res) => {
+  const { requestId, permitId } = req.body || {};
+  if (!requestId || !permitId) return res.status(400).json({ error: 'Trūksta requestId arba permitId.' });
+
+  const requests = dbGet('kl-sav-close-requests') || [];
+  const request  = requests.find((r) => r.id === requestId);
+  if (!request) return res.status(404).json({ error: 'Uždarymo pranešimas nerastas.' });
+
+  const permits = dbGet('kl-permits') || [];
+  const permit  = permits.find((p) => p.id === permitId);
+  if (!permit) return res.status(404).json({ error: 'Paraiška nerasta.' });
+
+  // Priedai — objekto nuotraukos iš closeFiles
+  const attachments = (permit.closeFiles || []).map((f) => {
+    const fpath = path.join(UPLOAD_DIR, f.filename || '');
+    if (!fpath || !fs.existsSync(fpath)) return null;
+    return { filename: f.name, content: fs.readFileSync(fpath) };
+  }).filter(Boolean);
+
+  const replySubject = request.subject.startsWith('Re:') ? request.subject : 'Re: ' + request.subject;
+  const replyText = 'Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.\n\nPagarbiai,\nEnergoLT';
+
+  try {
+    await sendAndSave({
+      from: MAIL_FROM_EXTERNAL,
+      to: request.from,
+      subject: replySubject,
+      text: replyText,
+      inReplyTo: request.messageId,
+      references: request.messageId,
+      attachments,
+    });
+    console.log(`[SAV-CLOSE] Atsakymas išsiųstas → ${request.from} | ${replySubject} | ${attachments.length} priedai`);
+  } catch (e) {
+    console.error(`[SAV-CLOSE] Laiško klaida: ${e.message}`);
+    return res.status(500).json({ error: e.message });
+  }
+
+  // Atnaujinti paraiškos statusą
+  const today = fmtDateSrv(new Date());
+  const updatedPermits = permits.map((p) => p.id !== permitId ? p : {
+    ...p,
+    status: 'Uždarytas',
+    closingDone: true,
+    closingDoneAt: today,
+    history: [...(p.history || []), {
+      status: 'Uždarytas',
+      date: today,
+      note: 'Savivaldybei išsiųstas atsakymas apie darbų pabaigimą',
+    }],
+  });
+  dbSet('kl-permits', updatedPermits);
+
+  // Pašalinti iš sąrašo
+  dbSet('kl-sav-close-requests', requests.filter((r) => r.id !== requestId));
+
+  res.json({ ok: true });
+});
 
 // Išvalyti apdorotų laiškų sąrašą — leidžia iš naujo patikrinti visus laiškus
 app.post('/api/admin/clear-imap-done', (req, res) => {
