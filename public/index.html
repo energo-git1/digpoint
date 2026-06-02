@@ -5597,8 +5597,8 @@ function SavClosePanel(){
             {reqPhotos.length>0&&<span style={{color:C.gn,fontWeight:600,marginLeft:6}}>{reqPhotos.length} failai</span>}
           </div>
           <FileDropZone files={reqPhotos}
-            onAdd={function(f){sPhotos(function(prev){var n=Object.assign({},prev);n[req.id]=(n[req.id]||[]).concat([f]);return n;})}
-            onRemove={function(i){sPhotos(function(prev){var n=Object.assign({},prev);n[req.id]=(n[req.id]||[]).filter(function(_,idx){return idx!==i});return n;})}}/>
+            onAdd={function(f){sPhotos(function(prev){var n=Object.assign({},prev);n[req.id]=(n[req.id]||[]).concat([f]);return n;});}}
+            onRemove={function(i){sPhotos(function(prev){var n=Object.assign({},prev);n[req.id]=(n[req.id]||[]).filter(function(_,idx){return idx!==i});return n;});}}/>
         </div>
         {reqMsg&&<div style={{fontSize:11,color:reqMsg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{reqMsg}</div>}
         <Btn onClick={function(){(async function(){
