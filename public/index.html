@@ -6221,9 +6221,10 @@ function App(){
   else if(view==="inbox") visible=permits.filter(function(p){return inboxStatuses.indexOf(p.status)!==-1});
   else if(view==="submitted") visible=permits.filter(function(p){return submittedStatuses.indexOf(p.status)!==-1});
   else if(view==="permits"){
-    // Leidimai: admin/dok mato visas, užsakovas — tik savo
-    if(user.role==="orderer") visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id});
-    else visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1});
+    // Leidimai: admin/dok mato visas, užsakovas — tik savo. Seniūnija org. nerodoma.
+    function notSeniunija(p){return !(p.organizations||[]).includes('Seniūnija');}
+    if(user.role==="orderer") visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id&&notSeniunija(p)});
+    else visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&notSeniunija(p)});
   }
   else if(view==="closed"){
     // Uždaryti: pateikta uždarymo info arba jau uždarytas statusas
@@ -6244,8 +6245,8 @@ function App(){
   }else if(view==="schedule"){
     // Leidimų grafike tik paraiškos su leidimu
     var schedPermits=user.role==="orderer"
-      ?permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id})
-      :permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1});
+      ?permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id&&!(p.organizations||[]).includes('Seniūnija')})
+      :permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&!(p.organizations||[]).includes('Seniūnija')});
     main=<ScheduleView permits={schedPermits} users={users} onSelect={function(permit){setDetail(permit)}}/>;
   }else if(view==="profile"){
     var defView=user.role==="orderer"?"mine":"inbox";
