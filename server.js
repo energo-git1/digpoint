@@ -658,7 +658,7 @@ const IMAP_ORG_DOMAINS = [
   { org: 'AB ESO',                  domains: ['eso.lt'] },
   { org: 'Kauno miesto savivaldybe', domains: ['kaunas.lt'] },
   { org: 'Telia, Kaunas',           domains: ['telia.lt'] },
-  { org: 'Kauno energija',          domains: ['kaunoenergeija.lt', 'kaunoenergia.lt'] },
+  { org: 'Kauno energija',          domains: ['kaunoenergeija.lt', 'kaunoenergia.lt', 'kaunoenergija.lt'] },
   { org: 'Kauno vandenys',          domains: ['kaunovandenys.lt'] },
   { org: 'LitGrid',                 domains: ['litgrid.eu', 'litgrid.lt'] },
 ];
