@@ -853,14 +853,12 @@ async function _checkImapMailImpl() {
     await client.connect();
     const lock = await client.getMailboxLock('INBOX');
     try {
-      // Ieškoti laiškų iš paskutinių 7 dienų (nepriklausomai ar skaityti)
-      const since7 = new Date();
-      since7.setDate(since7.getDate() - 7);
-      const msgList = await client.search({ since: since7 });
+      // Ieškoti tik neskaitytų laiškų — saugiau, be pakartotinio apdorojimo rizikos
+      const msgList = await client.search({ unseen: true });
       checked = msgList.length;
 
       if (!msgList.length) {
-        console.log('[IMAP] Laiškų per paskutines 7 dienas nerasta.');
+        console.log('[IMAP] Neskaitytų laiškų nerasta.');
       } else {
         console.log(`[IMAP] Rasta ${msgList.length} neskaitytų laiškų. Jau apdorota: ${doneIds.size}.`);
 
