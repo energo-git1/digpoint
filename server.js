@@ -1615,7 +1615,7 @@ function buildSurfaceTextSrv(surfaces) {
 }
 
 app.post('/api/admin/send-seniunija-closure', async (req, res) => {
-  const { permitId, workType, surfaces, seniunijaEmail, seniunijaName } = req.body || {};
+  const { permitId, workType, surfaces, seniunijaEmail, seniunijaName, emailSubject, emailBody } = req.body || {};
   if (!permitId || !seniunijaEmail || !seniunijaName) {
     return res.status(400).json({ error: 'Trūksta permitId, seniunijaEmail arba seniunijaName.' });
   }
@@ -1631,15 +1631,10 @@ app.post('/api/admin/send-seniunija-closure', async (req, res) => {
   const wt        = workType || 'planinius';
   const surfTxt   = buildSurfaceTextSrv(Array.isArray(surfaces) ? surfaces : []);
 
-  const emailSubject = `Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — ${location}`;
-  const bodyText =
-`Laba diena,
-
-Nuo ${startDate} iki ${endDate} vykdėme ${wt} kasimo darbus ${seniunijaName}, ${location}, elektros tinklų ${desc}.
-Darbai yra baigti, ${surfTxt}. Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.
-
-Pagarbiai,
-EnergoLT`;
+  const autoSubject = `Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — ${location}`;
+  const autoBody = `Laba diena,\n\nNuo ${startDate} iki ${endDate} vykdėme ${wt} kasimo darbus ${seniunijaName}, ${location}, elektros tinklų ${desc}.\nDarbai yra baigti, ${surfTxt}. Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\nEnergoLT`;
+  const finalSubject = (emailSubject && emailSubject.trim()) ? emailSubject.trim() : autoSubject;
+  const bodyText = (emailBody && emailBody.trim()) ? emailBody.trim() : autoBody;
 
   // Priedai — sujungtas PDF (jei pateiktas) arba atskiri failai
   const attachments = [];
@@ -1667,7 +1662,7 @@ EnergoLT`;
     await sendAndSave({
       from: MAIL_FROM_EXTERNAL,
       to: seniunijaEmail,
-      subject: emailSubject,
+      subject: finalSubject,
       text: bodyText,
       attachments,
     });
