@@ -1554,23 +1554,18 @@ function EsoSubmitBtn(p){
     var hasTelia=orgs.indexOf("Telia, Kaunas")!==-1;
     var hasKE=orgs.indexOf("Kauno energija")!==-1;
 
-    // 1) Siunčiame Telia laišką automatiškai — TIK jei dar neišsiųstas (pendingEmail != null)
+    // 1) Siunčiame Telia laišką automatiškai — TIK jei dar neišsiųstas ir puslapiai parinkti be įspėjimų
     if(hasTelia&&o.pendingEmail&&!o.pendingEmail.cancelled){
+      var teliaWarnings=(o.pendingEmail.warnings||[]);
+      var teliaIncomplete=teliaWarnings.some(function(w){return /derinimo\s+puslapis.*nerastas|puslapis.*nerastas/i.test(w);});
+      if(teliaIncomplete){
+        alert("⚠️ Telia laiškas nepasiruošęs — Telia derinimo puslapis nerastas automatiškai.\n\nEikite į Telia skyrių, rankiniu būdu pasirinkite puslapius ir išsiųskite, tada spauskite Pateikti ESO.");
+        sSt("idle");return;
+      }
       try{
-        var permitWithTelia;
+        // Naudojame rankiniu būdu pasirinktus puslapius jei jie nustatyti
         var existingSrcs=o.pendingEmail.attachmentSources||[];
-        if(existingSrcs.length>0){
-          // Vartotojas jau parinko puslapius rankiniu būdu — naudojame juos
-          permitWithTelia=o;
-          console.log("[ESO] Telia: naudojami rankiniu būdu parinkti puslapiai ("+existingSrcs.length+" šaltiniai)");
-        }else{
-          // Puslapiai nebuvo parinkti — auto-detekcija
-          var pageTexts=null;
-          var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-          if(pdfFile){try{var _pd=await getPdfDataUrl(pdfFile);if(_pd)pageTexts=await extractPdfTextByPage(_pd);}catch(_){}}
-          permitWithTelia=await preparePendingTeliaEmail(o,pageTexts);
-          console.log("[ESO] Telia: naudojama auto-detekcija");
-        }
+        var permitWithTelia=existingSrcs.length>0?o:(await preparePendingTeliaEmail(o,null));
         await approveAndSendTelia(permitWithTelia);
       }catch(e){console.warn("[Auto] Telia laiško siuntimas nepavyko:",e.message);}
     } else if(hasTelia&&!o.pendingEmail){
