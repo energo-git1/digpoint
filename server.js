@@ -2809,16 +2809,17 @@ function parseSavPermitText(text) {
 }
 
 app.post('/api/parse-sav-permit', async (req, res) => {
-  const { filename } = req.body || {};
+  const { filename, debug } = req.body || {};
   if (!filename) return res.status(400).json({ error: 'Trūksta filename.' });
   const fpath = path.join(UPLOAD_DIR, path.basename(filename));
   if (!fs.existsSync(fpath)) return res.status(404).json({ error: 'Failas nerastas.' });
   try {
     const buf    = fs.readFileSync(fpath);
     const parsed = await pdfParse(buf);
-    const data   = parseSavPermitText(parsed.text || '');
+    const text   = parsed.text || '';
+    const data   = parseSavPermitText(text);
     console.log(`[SAV-PARSE] ${path.basename(filename)}: ${JSON.stringify(data)}`);
-    res.json({ ok: true, data });
+    res.json({ ok: true, data, ...(debug ? { rawText: text.slice(0, 500) } : {}) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

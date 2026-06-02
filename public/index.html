@@ -2618,14 +2618,26 @@ function PermitDetail(p){
   var _mergeBusy=useState(false);var mergeBusy=_mergeBusy[0],sMergeBusy=_mergeBusy[1];
   // Dokumentų pasirinkimas seniūnijai — filenames sąrašas
   function getSeniunijaFilenames(){
-    var files=[];
-    (o.beforeFiles||[]).forEach(function(f){if(f.filename)files.push({filename:f.filename,name:f.name,label:"Prieš darbus"});});
-    (o.closeFiles||[]).forEach(function(f){if(f.filename)files.push({filename:f.filename,name:f.name,label:"Gerbūvio nuotr."});});
+    var result=[];
+    var added=new Set();
+    function add(f,label){if(f&&f.filename&&!added.has(f.filename)){added.add(f.filename);result.push({filename:f.filename,name:f.name,label:label});}}
+    // Nuotraukos iš closeFiles ir beforeFiles
+    (o.beforeFiles||[]).forEach(function(f){add(f,"Prieš darbus");});
+    (o.closeFiles||[]).forEach(function(f){add(f,"Gerbūvio nuotr.");});
+    // Nuotraukos iš files[] (įkeltos su paraiška)
+    (o.files||[]).forEach(function(f){
+      if(!f.filename)return;
+      var n=(f.name||'').toLowerCase();
+      if(n.match(/\.(jpg|jpeg|png|gif|webp)$/))add(f,"Nuotrauka");
+    });
+    // Savivaldybės leidimo PDF
     var savPdf=(o.permitPdfs||{}).sav||null;
-    if(savPdf&&savPdf.filename)files.push({filename:savPdf.filename,name:savPdf.name||"leidimas.pdf",label:"Sav. leidimas"});
-    else{var pf=(o.files||[]).find(function(f){return f.name&&f.name.toLowerCase().endsWith('.pdf')});
-      if(pf&&pf.filename)files.push({filename:pf.filename,name:pf.name,label:"Sav. leidimas"});}
-    return files;
+    if(savPdf&&savPdf.filename){add(savPdf,"Sav. leidimas");}
+    else{
+      var pf=(o.files||[]).find(function(f){return f.name&&f.name.toLowerCase().endsWith('.pdf')&&!/(RBDTD|projekt)/i.test(f.name)});
+      if(pf&&pf.filename)add(pf,"Sav. leidimas");
+    }
+    return result;
   }
   var _senDocs=useState(null);var senDocs=_senDocs[0],sSenDocs=_senDocs[1]; // null = neįkeltas dar
   var _senSelected=useState({});var senSelected=_senSelected[0],sSenSelected=_senSelected[1];
@@ -2636,14 +2648,43 @@ function PermitDetail(p){
     sSenSelected(sel);
   },[o.id,o.closeFiles&&o.closeFiles.length,o.beforeFiles&&o.beforeFiles.length]);
   useEffect(function(){
-    if((o.closingSubmitted||o.status==="Uždarytas")&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1){
-      fetch('/api/admin/detect-seniunija?address='+encodeURIComponent(o.location||""))
-        .then(function(r){return r.json()}).then(function(d){
-          if(d.seniunija)sSeniunija(d.seniunija);
-          if(d.all)sSeniunijaAll(d.all);
-        }).catch(function(){});
+    var hasSav=(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1;
+    var hasSen=(o.organizations||[]).indexOf("Seniūnija")!==-1;
+    if(!(hasSav||hasSen))return;
+    // Detect seniūnija pagal adresą
+    fetch('/api/admin/detect-seniunija?address='+encodeURIComponent(o.location||""))
+      .then(function(r){return r.json()}).then(function(d){
+        if(d.seniunija)sSeniunija(d.seniunija);
+        if(d.all)sSeniunijaAll(d.all);
+      }).catch(function(){});
+    // Jei Seniūnija paraiška ir yra PDF files[] — auto-parsavimas
+    if(hasSen&&!o.location){
+      var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.toLowerCase().endsWith('.pdf')&&!/(RBDTD|projekt)/i.test(f.name);});
+      if(pdfFile&&pdfFile.filename){
+        fetch('/api/parse-sav-permit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:pdfFile.filename})})
+          .then(function(r){return r.json();}).then(function(d){
+            if(!d.ok||!d.data)return;
+            var ex=d.data;
+            var patch={};
+            if(ex.location)patch.location=ex.location;
+            if(ex.startDate)patch.startDate=ex.startDate;
+            if(ex.endDate)patch.endDate=ex.endDate;
+            if(ex.permitValidFrom)patch.permitValidFrom=ex.permitValidFrom;
+            if(ex.permitValidUntil)patch.permitValidUntil=ex.permitValidUntil;
+            if(ex.workType)patch.workType=ex.workType;
+            if(ex.surfaces&&ex.surfaces.length)patch.surfaces=ex.surfaces;
+            if(ex.description)patch.description=ex.description;
+            if(ex.seniunijaName){
+              patch.seniunijaName=ex.seniunijaName;
+              // Detektuojame seniūniją pagal naują adresą
+              fetch('/api/admin/detect-seniunija?address='+encodeURIComponent(ex.location||""))
+                .then(function(r2){return r2.json();}).then(function(d2){if(d2.seniunija)sSeniunija(d2.seniunija);if(d2.all)sSeniunijaAll(d2.all);}).catch(function(){});
+            }
+            if(Object.keys(patch).length>0)p.onUpdate(Object.assign({},o,patch));
+          }).catch(function(){});
+      }
     }
-  },[o.id,o.location]);
+  },[o.id]);
   useEffect(function(){
     if(o.closingSubmitted||o.status==="Uždarytas"){
       fetch('/api/admin/sav-close-requests').then(function(r){return r.json()}).then(function(d){if(d.ok)sCloseReqs(d.requests||[])}).catch(function(){});
