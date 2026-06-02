@@ -658,7 +658,7 @@ const IMAP_ORG_DOMAINS = [
   { org: 'AB ESO',                  domains: ['eso.lt'] },
   { org: 'Kauno miesto savivaldybe', domains: ['kaunas.lt'] },
   { org: 'Telia, Kaunas',           domains: ['telia.lt'] },
-  { org: 'Kauno energija',          domains: ['kaunoenergeija.lt', 'kaunoenergia.lt', 'kaunoenergija.lt'] },
+  { org: 'Kauno energija',          domains: ['kaunoenergia.lt', 'kaunoenergija.lt'] },
   { org: 'Kauno vandenys',          domains: ['kaunovandenys.lt'] },
   { org: 'LitGrid',                 domains: ['litgrid.eu', 'litgrid.lt'] },
 ];
@@ -689,6 +689,7 @@ function detectOrgFromText(text) {
   if (t.includes('kauno vandenys') || t.includes('kaunovandenys')) return 'Kauno vandenys';
   if (t.includes('savivaldyb') || t.includes('kauno miesto')) return 'Kauno miesto savivaldybe';
   if (/\beso\b/.test(t)) return 'AB ESO';
+  if (t.includes('litgrid')) return 'LitGrid';
   return null;
 }
 
@@ -1916,14 +1917,13 @@ app.post('/api/admin/reprocess-unattached', async (req, res) => {
           date:   today,
           note:   `Failas priskirtas rankiniu būdu (reprocess) iš ${org}${isFallback ? ' [papildomas prie jau gauto leidimo]' : ''}`,
         }];
-        // Aktualizuojame permitPdfs pagal aptiktą organizaciją
-        const rpOrgKey = org === 'Telia, Kaunas' ? 'telia'
-          : org === 'Telia, investiciniai' ? 'telia_inv'
-          : org === 'Kauno energija' ? 'ke'
-          : org === 'Kauno vandenys' ? 'vandenys'
-          : org === 'AB ESO' ? 'eso'
-          : org === 'LitGrid' ? 'litgrid'
-          : org === 'Kauno miesto savivaldybe' ? 'sav'
+        // Aktualizuojame permitPdfs tik pagal failo pavadinimą (patikimiau nei teksto analizė)
+        const fnLower = fileEntry.name.toLowerCase();
+        const rpOrgKey = /^lzd[_\-]/.test(fnLower) ? 'telia'
+          : /^sutikimas[_\-]/.test(fnLower) ? 'eso'
+          : /^ke[_\-]|^kaun.*energ/.test(fnLower) ? 'ke'
+          : /^kv[_\-]|^vandenys|^kaunovandenys/.test(fnLower) ? 'vandenys'
+          : /^litgrid/.test(fnLower) ? 'litgrid'
           : null;
         const existingPdf = rpOrgKey && p.permitPdfs && p.permitPdfs[rpOrgKey] && p.permitPdfs[rpOrgKey].name;
         const updatedPdfs = (rpOrgKey && !existingPdf)
