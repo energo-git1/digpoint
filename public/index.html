@@ -1557,10 +1557,20 @@ function EsoSubmitBtn(p){
     // 1) Siunčiame Telia laišką automatiškai — TIK jei dar neišsiųstas (pendingEmail != null)
     if(hasTelia&&o.pendingEmail&&!o.pendingEmail.cancelled){
       try{
-        var pageTexts=null;
-        var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-        if(pdfFile){try{var _pd=await getPdfDataUrl(pdfFile);if(_pd)pageTexts=await extractPdfTextByPage(_pd);}catch(_){}}
-        var permitWithTelia=await preparePendingTeliaEmail(o,pageTexts);
+        var permitWithTelia;
+        var existingSrcs=o.pendingEmail.attachmentSources||[];
+        if(existingSrcs.length>0){
+          // Vartotojas jau parinko puslapius rankiniu būdu — naudojame juos
+          permitWithTelia=o;
+          console.log("[ESO] Telia: naudojami rankiniu būdu parinkti puslapiai ("+existingSrcs.length+" šaltiniai)");
+        }else{
+          // Puslapiai nebuvo parinkti — auto-detekcija
+          var pageTexts=null;
+          var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+          if(pdfFile){try{var _pd=await getPdfDataUrl(pdfFile);if(_pd)pageTexts=await extractPdfTextByPage(_pd);}catch(_){}}
+          permitWithTelia=await preparePendingTeliaEmail(o,pageTexts);
+          console.log("[ESO] Telia: naudojama auto-detekcija");
+        }
         await approveAndSendTelia(permitWithTelia);
       }catch(e){console.warn("[Auto] Telia laiško siuntimas nepavyko:",e.message);}
     } else if(hasTelia&&!o.pendingEmail){
@@ -1570,11 +1580,21 @@ function EsoSubmitBtn(p){
     // 2) Siunčiame KE laišką automatiškai — TIK jei dar neišsiųstas (pendingKauoenergijaEmail != null)
     if(hasKE&&o.pendingKauoenergijaEmail){
       try{
-        var pageTextsKE=null;
-        var pdfFileKE=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-        if(pdfFileKE){try{var _pdKE=await getPdfDataUrl(pdfFileKE);if(_pdKE)pageTextsKE=await extractPdfTextByPage(_pdKE);}catch(_){}}
-        var keEmailObj=await preparePendingKauoenergijaEmail(o,pageTextsKE);
-        await approveAndSendKauoenergija(Object.assign({},o,{pendingKauoenergijaEmail:keEmailObj}));
+        var existingKESrcs=(o.pendingKauoenergijaEmail.attachmentSources||[]);
+        var kePermit;
+        if(existingKESrcs.length>0){
+          // Vartotojas jau parinko puslapius rankiniu būdu
+          kePermit=o;
+          console.log("[ESO] KE: naudojami rankiniu būdu parinkti puslapiai ("+existingKESrcs.length+" šaltiniai)");
+        }else{
+          var pageTextsKE=null;
+          var pdfFileKE=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+          if(pdfFileKE){try{var _pdKE=await getPdfDataUrl(pdfFileKE);if(_pdKE)pageTextsKE=await extractPdfTextByPage(_pdKE);}catch(_){}}
+          var keEmailObj=await preparePendingKauoenergijaEmail(o,pageTextsKE);
+          kePermit=Object.assign({},o,{pendingKauoenergijaEmail:keEmailObj});
+          console.log("[ESO] KE: naudojama auto-detekcija");
+        }
+        await approveAndSendKauoenergija(kePermit);
       }catch(e){console.warn("[Auto] KE laiško siuntimas nepavyko:",e.message);}
     } else if(hasKE&&!o.pendingKauoenergijaEmail){
       console.log("[ESO] KE jau išsiųstas rankiniu būdu — praleidžiama.");
