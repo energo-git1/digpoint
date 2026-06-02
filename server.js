@@ -1428,8 +1428,9 @@ async function _checkImapMailImpl() {
               console.log(`[IMAP] ✅ Paraiška #${shortId} → "${updatedPermit?.status}" | ${org} | ${savedFiles.length} PDF`);
               processed++;
 
-              // Pranešimas užsakovui apie gautą leidimą
-              if (bestPermit.email && updatedPermit) {
+              // Pranešimas užsakovui apie gautą leidimą — tik jei statusas PASIKEITĖ
+              const statusChanged = updatedPermit && updatedPermit.status !== bestPermit.status;
+              if (bestPermit.email && updatedPermit && statusChanged) {
                 try {
                   const permitNo = shortId;
                   const gRows = [
