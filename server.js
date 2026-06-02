@@ -1690,15 +1690,15 @@ app.get('/api/admin/sav-close-requests', (req, res) => {
 // POST /api/admin/reply-sav-closure { requestId, permitId }
 app.post('/api/admin/reply-sav-closure', async (req, res) => {
   const { requestId, permitId } = req.body || {};
-  if (!requestId || !permitId) return res.status(400).json({ error: 'Trūksta requestId arba permitId.' });
+  if (!requestId) return res.status(400).json({ error: 'Trūksta requestId.' });
 
   const requests = dbGet('kl-sav-close-requests') || [];
   const request  = requests.find((r) => r.id === requestId);
   if (!request) return res.status(404).json({ error: 'Uždarymo pranešimas nerastas.' });
 
   const permits = dbGet('kl-permits') || [];
-  const permit  = permits.find((p) => p.id === permitId);
-  if (!permit) return res.status(404).json({ error: 'Paraiška nerasta.' });
+  const permit  = permitId ? permits.find((p) => p.id === permitId) : null;
+  // permitId neprivalomas — galima atsakyti be susijusios paraiškos
 
   // Priedai: pirma UI įkeltos nuotraukos, po to closeFiles jei yra
   const { photoFilenames } = req.body || {};
@@ -1739,8 +1739,9 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
     return res.status(500).json({ error: e.message });
   }
 
-  // Atnaujinti paraiškos statusą
+  // Atnaujinti paraiškos statusą (jei yra susijusi paraiška)
   const today = fmtDateSrv(new Date());
+  if (permit) {
   const updatedPermits = permits.map((p) => p.id !== permitId ? p : {
     ...p,
     status: 'Uždarytas',
@@ -1753,6 +1754,7 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
     }],
   });
   dbSet('kl-permits', updatedPermits);
+  } // end if (permit)
 
   // Pašalinti iš sąrašo
   dbSet('kl-sav-close-requests', requests.filter((r) => r.id !== requestId));
