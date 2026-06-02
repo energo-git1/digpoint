@@ -862,7 +862,20 @@ async function checkImapMail() {
             let org        = detectOrgFromEmail(fromAddr);
 
             if (!org) {
-              // Gali būti persiųstas laiškas — pabandome ištraukti originalų siuntėją iš teksto
+              // Tik PERSIŲSTI (ne atsakyti) laiškai — ieškome originalaus siuntėjo
+              // "Ats.:" / "Re:" = atsakymas — praleisti (gali būti projekto PDF)
+              // "Persiųsta:" / "Fwd:" = forward — patikrinti originalų siuntėją
+              const isReply = /^(Ats\.|Re:|Atsakymas:|FW:|Ats:)\s/i.test(subject);
+              const isForward = /^(Persiųsta:|Fwd:|Forward:|Persiusta:)\s/i.test(subject);
+
+              if (!isForward || isReply) {
+                console.log(`[IMAP] Neatpažintas domenas (${isReply ? 'atsakymas, praleidžiama' : 'ne forward'}): ${fromAddr} | "${subject}"`);
+                doneIds.add(msgId);
+                await client.messageFlagsAdd(seq, ['\\Seen']);
+                continue;
+              }
+
+              // Persiųstas laiškas — bandome rasti originalų siuntėją
               let forwardedOrg = null;
               const textPartsF = findTextPart(msg.bodyStructure);
               let fwdBodyText = '';
@@ -874,7 +887,6 @@ async function checkImapMail() {
                   fwdBodyText += Buffer.concat(chunks).toString('utf8').slice(0, 2000);
                 } catch (_) {}
               }
-              // Ieškome originalaus siuntėjo "Iš:" eilutėje persiųstame laiške
               const fwdFromMatch = fwdBodyText.match(/(?:Iš|From|Nuo)[:\s]+[^<\n]*<([^>]+@[^>]+)>/i)
                 || fwdBodyText.match(/(?:Iš|From|Nuo)[:\s]+([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i);
               if (fwdFromMatch) {
@@ -884,7 +896,7 @@ async function checkImapMail() {
                 }
               }
               if (!forwardedOrg) {
-                console.log(`[IMAP] Neatpažintas domenas, praleidžiama: ${fromAddr} | "${subject}"`);
+                console.log(`[IMAP] Persiųstas laiškas — originalus siuntėjas neatpažintas, praleidžiama: "${subject}"`);
                 doneIds.add(msgId);
                 await client.messageFlagsAdd(seq, ['\\Seen']);
                 continue;
@@ -1751,9 +1763,11 @@ app.post('/api/admin/reprocess-unattached', async (req, res) => {
 
     if (needTelia && !(pdfs.telia && pdfs.telia.name)) {
       // Ieškome failo kuris atrodo kaip Telia sutikimas
+      // Ieškome Telia leidimo failo — tik pagal pavadinimą, be fallback'o
+      // (nepriskiriame projekto PDF jei jis vienintelis — tai dažna klaidingo priskyrimo priežastis)
       const teliaFile = pdfFiles.find((f) =>
-        /telia|sutik|derinimas|pritarim/i.test(f.name)
-      ) || (pdfFiles.length === 1 ? pdfFiles[0] : null);
+        /telia|sutik|derinimas|pritarim|lzd/i.test(f.name)
+      );
       if (teliaFile) {
         newPdfs.telia = { name: teliaFile.name, url: teliaFile.url || null, filename: teliaFile.filename || null };
         changed = true;
@@ -1763,7 +1777,7 @@ app.post('/api/admin/reprocess-unattached', async (req, res) => {
     if (needKE && !(pdfs.ke && pdfs.ke.name)) {
       const keFile = pdfFiles.find((f) =>
         /kauno.energ|ke|sutik|derinimas|pritarim/i.test(f.name)
-      ) || (pdfFiles.length === 1 && !newPdfs.telia ? pdfFiles[0] : null);
+      );
       if (keFile) {
         newPdfs.ke = { name: keFile.name, url: keFile.url || null, filename: keFile.filename || null };
         changed = true;
