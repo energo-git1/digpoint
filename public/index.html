@@ -3810,8 +3810,31 @@ function PermitDetail(p){
                 var updated=Object.assign({},permitPdfs);
                 updated[key]={name:f.name,url:d.url||null,filename:d.filename||null,data:e.target.result};
                 sPermitPdfs(updated);
-                // Iš karto išsaugoti prie paraiškos
-                p.onUpdate(Object.assign({},o,{permitPdfs:updated}));
+                var basePermit=Object.assign({},o,{permitPdfs:updated});
+                // Jei savivaldybės leidimas — automatiškai nuskaityti detalės
+                if(key==='sav'&&d.filename){
+                  fetch('/api/parse-sav-permit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:d.filename})})
+                    .then(function(r2){return r2.json();}).then(function(parsed){
+                      if(!parsed.ok||!parsed.data)return;
+                      var ex=parsed.data;
+                      var patch={};
+                      if(ex.location&&!o.location)patch.location=ex.location;
+                      if(ex.startDate&&!o.startDate)patch.startDate=ex.startDate;
+                      if(ex.endDate&&!o.endDate)patch.endDate=ex.endDate;
+                      if(ex.permitValidFrom)patch.permitValidFrom=ex.permitValidFrom;
+                      if(ex.permitValidUntil)patch.permitValidUntil=ex.permitValidUntil;
+                      if(ex.workType&&!o.workType)patch.workType=ex.workType;
+                      if(ex.surfaces&&ex.surfaces.length&&!(o.surfaces&&o.surfaces.length))patch.surfaces=ex.surfaces;
+                      if(ex.description&&!o.description)patch.description=ex.description;
+                      if(ex.seniunijaName)patch.seniunijaName=ex.seniunijaName;
+                      if(ex.savLeidimosNr)patch.savLeidimosNr=ex.savLeidimosNr;
+                      if(ex.savPrasymosKodas&&!o.savivaldybeCode)patch.savivaldybeCode=ex.savPrasymosKodas;
+                      if(ex.manager&&!o.manager){patch.manager=ex.manager;if(ex.managerPhone)patch.managerPhone=ex.managerPhone;}
+                      p.onUpdate(Object.assign({},basePermit,patch));
+                    }).catch(function(){p.onUpdate(basePermit);});
+                } else {
+                  p.onUpdate(basePermit);
+                }
               }).catch(function(){
                 var updated=Object.assign({},permitPdfs);
                 updated[key]={name:f.name,data:e.target.result};

@@ -1405,16 +1405,28 @@ async function _checkImapMailImpl() {
                   : 'Gautas leidimas';
                 const pdfStart = esoDates.start;
                 const pdfEnd   = esoDates.end;
-                return {
+                // Jei Kauno sav. — papildomai nuskaityti leidimo detalės iš PDF
+              let savExtracted = {};
+              if (org === 'Kauno miesto savivaldybe' && savedFiles.length > 0 && pdfTexts.length > 0) {
+                try { savExtracted = parseSavPermitText(fullPdfText); } catch (_) {}
+              }
+              return {
                   ...p,
                   status:           newStatus,
                   files:            [...(p.files || []), ...savedFiles],
                   permitPdfs:       updatedPermitPdfs,
-                  location:         p.location || pdfLocExtracted || '',
-                  startDate:        p.startDate || pdfStart || '',
-                  endDate:          p.endDate   || pdfEnd   || '',
-                  permitValidFrom:  p.permitValidFrom  || pdfStart || p.startDate    || p.teliaStartDate || p.keStartDate || today,
-                  permitValidUntil: p.permitValidUntil || pdfEnd   || p.endDate      || p.teliaEndDate   || p.keEndDate   || '',
+                  location:         p.location || savExtracted.location || pdfLocExtracted || '',
+                  startDate:        p.startDate || savExtracted.startDate || pdfStart || '',
+                  endDate:          p.endDate   || savExtracted.endDate   || pdfEnd   || '',
+                  permitValidFrom:  p.permitValidFrom  || savExtracted.permitValidFrom  || pdfStart || p.startDate    || p.teliaStartDate || p.keStartDate || today,
+                  permitValidUntil: p.permitValidUntil || savExtracted.permitValidUntil || pdfEnd   || p.endDate      || p.teliaEndDate   || p.keEndDate   || '',
+                  ...(savExtracted.workType && !p.workType   ? { workType:   savExtracted.workType   } : {}),
+                  ...(savExtracted.surfaces && !p.surfaces   ? { surfaces:   savExtracted.surfaces   } : {}),
+                  ...(savExtracted.description && !p.description ? { description: savExtracted.description } : {}),
+                  ...(savExtracted.seniunijaName ? { seniunijaName: savExtracted.seniunijaName } : {}),
+                  ...(savExtracted.savLeidimosNr ? { savLeidimosNr: savExtracted.savLeidimosNr } : {}),
+                  ...(savExtracted.savPrasymosKodas ? { savivaldybeCode: savExtracted.savPrasymosKodas } : {}),
+                  ...(savExtracted.manager && !p.manager ? { manager: savExtracted.manager, managerPhone: savExtracted.managerPhone || p.managerPhone || '', managerEmail: savExtracted.managerEmail || p.managerEmail || '' } : {}),
                   history: [...(p.history || []), {
                     status: newStatus,
                     date:   today,
@@ -2727,6 +2739,89 @@ app.post('/api/admin/deploy', (req, res) => {
     if (!err) console.log('[DEPLOY] git pull + npm install + pm2 restart OK');
     else console.error('[DEPLOY] Klaida:', err.message);
   });
+});
+
+// ── Savivaldybės leidimo PDF parsavimas ──────────────────────
+// Grąžina: { location, seniunijaName, startDate, endDate, permitValidFrom, permitValidUntil,
+//   workType, surfaces, description, manager, managerPhone, managerEmail, savLeidimosNr, savPrasymosKodas }
+function parseSavPermitText(text) {
+  if (!text) return {};
+  const result = {};
+
+  // Iš antraštės: "2026-05-28 (43-27-765) Šermuonėlių g. 4 (Centro-Žaliakalnio sen.)"
+  const headerM = text.match(/\d{4}-\d{2}-\d{2}\s*\((\d{2}-\d{2}-\d+)\)\s*([^\n(]{3,60?})\s*\(([^)]{5,60}?(?:seniūnija|sen\.))\)/i);
+  if (headerM) {
+    result.savPrasymosKodas = headerM[1].trim();
+    result.location        = headerM[2].trim().replace(/\s+/g, ' ');
+    result.seniunijaName   = headerM[3].trim()
+      .replace(/\bsen\.\s*$/, 'seniūnija').replace(/\bsen\b\.?/gi, 'seniūnija').trim();
+  }
+
+  // Darbų periodas
+  const periodM = text.match(/Darb[uų]\s+periodas[:\s\n•]+(\d{4}-\d{2}-\d{2})\s*[-–]\s*(\d{4}-\d{2}-\d{2})/i);
+  if (periodM) { result.startDate = periodM[1]; result.endDate = periodM[2]; }
+
+  // Leidimo galiojimas
+  const galM = text.match(/Galiojimas[:\s]+(\d{4}-\d{2}-\d{2})\s*[-–]\s*(\d{4}-\d{2}-\d{2})/i);
+  if (galM) { result.permitValidFrom = galM[1]; result.permitValidUntil = galM[2]; }
+
+  // Leidimo Nr.
+  const lNrM = text.match(/Leidimo\s+nr\.[:\s]+(\d+)/i);
+  if (lNrM) result.savLeidimosNr = lNrM[1];
+
+  // Atliekamų darbų tipas → workType
+  const tipasM = text.match(/Atliekam[uų]\s+darb[uų]\s+tipas[:\s\n•]+([^\n•]+)/i);
+  if (tipasM) {
+    const t = tipasM[1].toLowerCase();
+    result.workType = t.includes('avarin') ? 'avarinius' : 'planinius';
+  }
+
+  // Planuojami vykdyti darbai → description
+  const darbyM = text.match(/Planuojami\s+vykdyti\s+darbai[:\s\n•]+([^\n•]+)/i);
+  if (darbyM) result.description = darbyM[1].trim();
+
+  // Numatomos ardyti dangos → surfaces[]
+  const SURFACE_KW = [
+    ['Asfaltbetonis', /asfaltbeton/i],
+    ['Žvyras', /žvyr/i],
+    ['Trinkelės', /trinkel/i],
+    ['Plytelės', /plytel/i],
+    ['Gruntas', /grunt/i],
+    ['Betonas', /(?<!\w)beton/i],
+    ['Žalieji plotai', /žali[ae]j/i],
+    ['Kietos dangos', /kietos?\s+dang/i],
+  ];
+  const dangosM = text.match(/Numatomos\s+ardyti\s+dangos[:\s]+([\s\S]*?)(?:Užsakovas|Rangovas|$)/i);
+  if (dangosM) {
+    const dangTxt = dangosM[1];
+    result.surfaces = SURFACE_KW.filter(([,re]) => re.test(dangTxt)).map(([name]) => name);
+  }
+
+  // Darbų vadovas: Vardas Pavardė; Adresas; +3706XXXXXXX; el@pastas.lt
+  const dvM = text.match(/Darb[uų]\s+vadovas:\s*([^;]+);\s*[^;]+;\s*([+\d\s]{7,20});\s*([\w.\-+]+@[\w.\-]+)/i);
+  if (dvM) {
+    result.manager      = dvM[1].trim();
+    result.managerPhone = dvM[2].trim().replace(/\s+/g, '');
+    result.managerEmail = dvM[3].trim();
+  }
+
+  return result;
+}
+
+app.post('/api/parse-sav-permit', async (req, res) => {
+  const { filename } = req.body || {};
+  if (!filename) return res.status(400).json({ error: 'Trūksta filename.' });
+  const fpath = path.join(UPLOAD_DIR, path.basename(filename));
+  if (!fs.existsSync(fpath)) return res.status(404).json({ error: 'Failas nerastas.' });
+  try {
+    const buf    = fs.readFileSync(fpath);
+    const parsed = await pdfParse(buf);
+    const data   = parseSavPermitText(parsed.text || '');
+    console.log(`[SAV-PARSE] ${path.basename(filename)}: ${JSON.stringify(data)}`);
+    res.json({ ok: true, data });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── Savivaldybės ištraukimas iš PDF ──────────────────────────
