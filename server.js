@@ -865,8 +865,8 @@ async function checkImapMail() {
               // Tik PERSIŲSTI (ne atsakyti) laiškai — ieškome originalaus siuntėjo
               // "Ats.:" / "Re:" = atsakymas — praleisti (gali būti projekto PDF)
               // "Persiųsta:" / "Fwd:" = forward — patikrinti originalų siuntėją
-              const isReply = /^(Ats\.|Re:|Atsakymas:|FW:|Ats:)\s/i.test(subject);
-              const isForward = /^(Persiųsta:|Fwd:|Forward:|Persiusta:)\s/i.test(subject);
+              const isReply   = /^(Ats\.|Re:|Atsakymas:|Ats:)\s/i.test(subject);
+              const isForward = /^(Persiųsta:|Fwd:|Forward:|Persiusta:|FW:)\s/i.test(subject);
 
               if (!isForward || isReply) {
                 console.log(`[IMAP] Neatpažintas domenas (${isReply ? 'atsakymas, praleidžiama' : 'ne forward'}): ${fromAddr} | "${subject}"`);
@@ -1528,7 +1528,7 @@ app.post('/api/admin/merge-seniunija-docs', async (req, res) => {
       const fpath = path.join(UPLOAD_DIR, safeBase);
       if (!fs.existsSync(fpath)) { console.warn(`[MERGE] Failas nerastas: ${safeBase}`); continue; }
       const buf = fs.readFileSync(fpath);
-      const ext = safeBase.toLowerCase().replace(/[^a-z0-9]/g, '').slice(-4);
+      const ext = path.extname(safeBase).toLowerCase().replace('.', '');
 
       if (ext === 'pdf') {
         try {
@@ -1738,77 +1738,7 @@ app.post('/api/admin/clear-imap-done', (req, res) => {
   res.json({ ok: true, message: 'IMAP done sąrašas išvalytas.' });
 });
 
-// Priskirti jau atsisiųstus PDF prie paraiškų kurios dar neturi permitPdfs
-// Naudojama: paraiška turi files[] su PDF, bet permitPdfs tuščias
-app.post('/api/admin/reprocess-unattached', async (req, res) => {
-  const permits = dbGet('kl-permits') || [];
-  const TRULY_FINAL = new Set(['Atmestas', 'Nebegalioja']);
-  let assigned = 0;
-  const log = [];
-
-  const updated = permits.map((p) => {
-    if (TRULY_FINAL.has(p.status)) return p;
-    const orgs = Array.isArray(p.organizations) && p.organizations.length > 0
-      ? p.organizations : p.organization ? [p.organization] : [];
-    const needTelia = orgs.includes('Telia, Kaunas');
-    const needKE    = orgs.includes('Kauno energija');
-    if (!needTelia && !needKE) return p;
-
-    const pdfs = p.permitPdfs || {};
-    let changed = false;
-    const newPdfs = { ...pdfs };
-
-    // Renkame PDF failus iš p.files kurie neatrodo kaip projekto failai
-    const pdfFiles = (p.files || []).filter((f) => f.name && f.name.match(/\.pdf$/i));
-
-    if (needTelia && !(pdfs.telia && pdfs.telia.name)) {
-      // Ieškome failo kuris atrodo kaip Telia sutikimas
-      // Ieškome Telia leidimo failo — tik pagal pavadinimą, be fallback'o
-      // (nepriskiriame projekto PDF jei jis vienintelis — tai dažna klaidingo priskyrimo priežastis)
-      const teliaFile = pdfFiles.find((f) =>
-        /telia|sutik|derinimas|pritarim|lzd/i.test(f.name)
-      );
-      if (teliaFile) {
-        newPdfs.telia = { name: teliaFile.name, url: teliaFile.url || null, filename: teliaFile.filename || null };
-        changed = true;
-        log.push(`#${p.id.slice(-5).toUpperCase()} → Telia: ${teliaFile.name}`);
-      }
-    }
-    if (needKE && !(pdfs.ke && pdfs.ke.name)) {
-      const keFile = pdfFiles.find((f) =>
-        /kauno.energ|ke|sutik|derinimas|pritarim/i.test(f.name)
-      );
-      if (keFile) {
-        newPdfs.ke = { name: keFile.name, url: keFile.url || null, filename: keFile.filename || null };
-        changed = true;
-        log.push(`#${p.id.slice(-5).toUpperCase()} → KE: ${keFile.name}`);
-      }
-    }
-
-    if (!changed) return p;
-    assigned++;
-
-    // Perskaičiuoti statusą
-    const teliaDone = newPdfs.telia && newPdfs.telia.name;
-    const keDone    = newPdfs.ke    && newPdfs.ke.name;
-    const allDone   = (!needTelia || teliaDone) && (!needKE || keDone);
-    const someDone  = (needTelia && teliaDone) || (needKE && keDone);
-    const newStatus = allDone ? 'Gautas leidimas' : (someDone ? 'Gautas dalinai' : p.status);
-    const today = fmtDateSrv(new Date());
-    return {
-      ...p,
-      permitPdfs: newPdfs,
-      status: newStatus !== p.status ? newStatus : p.status,
-      history: newStatus !== p.status
-        ? [...(p.history || []), { status: newStatus, date: today, note: 'Leidimo PDF priskirtas rankiniu būdu (reprocess)' }]
-        : p.history,
-    };
-  });
-
-  if (assigned > 0) dbSet('kl-permits', updated);
-  console.log(`[REPROCESS] Priskirta: ${assigned} paraiška(-ų). ${log.join('; ')}`);
-  res.json({ ok: true, assigned, log });
-});
+// Senoji Telia/KE-only reprocess versija pašalinta — naudojama pilna versija žemiau
 
 // Rankinis IMAP tikrinimo paleidimas per API
 app.post('/api/admin/check-mail', async (req, res) => {
@@ -1866,12 +1796,6 @@ app.post('/api/admin/notify', async (req, res) => {
   }
 });
 
-// Išvalyti apdorotų laiškų sąrašą (kad perprocessintų iš naujo — testavimui)
-app.post('/api/admin/clear-imap-done', (req, res) => {
-  dbSet('kl-imap-done', []);
-  console.log('[IMAP] kl-imap-done išvalytas rankiniu būdu.');
-  res.json({ ok: true, message: 'kl-imap-done išvalytas.' });
-});
 
 // ── Nepriskirti PDF → priskirti paraiškai automatiškai ──────────
 // Greitas nepriskirtų PDF sąrašas be parsavimo
