@@ -1531,8 +1531,8 @@ function EsoSubmitBtn(p){
     var hasTelia=orgs.indexOf("Telia, Kaunas")!==-1;
     var hasKE=orgs.indexOf("Kauno energija")!==-1;
 
-    // 1) Siunčiame Telia laišką automatiškai (jei reikia)
-    if(hasTelia){
+    // 1) Siunčiame Telia laišką automatiškai — TIK jei dar neišsiųstas (pendingEmail != null)
+    if(hasTelia&&o.pendingEmail&&!o.pendingEmail.cancelled){
       try{
         var pageTexts=null;
         var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
@@ -1540,10 +1540,12 @@ function EsoSubmitBtn(p){
         var permitWithTelia=await preparePendingTeliaEmail(o,pageTexts);
         await approveAndSendTelia(permitWithTelia);
       }catch(e){console.warn("[Auto] Telia laiško siuntimas nepavyko:",e.message);}
+    } else if(hasTelia&&!o.pendingEmail){
+      console.log("[ESO] Telia jau išsiųstas rankiniu būdu — praleidžiama.");
     }
 
-    // 2) Siunčiame KE laišką automatiškai (jei reikia)
-    if(hasKE){
+    // 2) Siunčiame KE laišką automatiškai — TIK jei dar neišsiųstas (pendingKauoenergijaEmail != null)
+    if(hasKE&&o.pendingKauoenergijaEmail){
       try{
         var pageTextsKE=null;
         var pdfFileKE=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
@@ -1551,6 +1553,8 @@ function EsoSubmitBtn(p){
         var keEmailObj=await preparePendingKauoenergijaEmail(o,pageTextsKE);
         await approveAndSendKauoenergija(Object.assign({},o,{pendingKauoenergijaEmail:keEmailObj}));
       }catch(e){console.warn("[Auto] KE laiško siuntimas nepavyko:",e.message);}
+    } else if(hasKE&&!o.pendingKauoenergijaEmail){
+      console.log("[ESO] KE jau išsiųstas rankiniu būdu — praleidžiama.");
     }
 
     // 3) Išsaugome ESO užduotį
