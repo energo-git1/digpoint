@@ -2749,12 +2749,29 @@ function parseSavPermitText(text) {
   const result = {};
 
   // Iš antraštės: "2026-05-28 (43-27-765) Šermuonėlių g. 4 (Centro-Žaliakalnio sen.)"
-  const headerM = text.match(/\d{4}-\d{2}-\d{2}\s*\((\d{2}-\d{2}-\d+)\)\s*([^\n(]{3,60?})\s*\(([^)]{5,60}?(?:seniūnija|sen\.))\)/i);
-  if (headerM) {
-    result.savPrasymosKodas = headerM[1].trim();
-    result.location        = headerM[2].trim().replace(/\s+/g, ' ');
-    result.seniunijaName   = headerM[3].trim()
-      .replace(/\bsen\.\s*$/, 'seniūnija').replace(/\bsen\b\.?/gi, 'seniūnija').trim();
+  // Normalizuojame tekstą dėl lietuviškų simbolių kodavimo PDF'uose
+  const normText = text
+    .replace(/Š/g,'Š').replace(/š/g,'š')
+    .replace(/Ž/g,'Ž').replace(/ž/g,'ž')
+    .replace(/Č/g,'Č').replace(/č/g,'č')
+    .replace(/Ė/g,'Ė').replace(/ė/g,'ė')
+    .replace(/Ą/g,'Ą').replace(/ą/g,'ą')
+    .replace(/Į/g,'Į').replace(/į/g,'į')
+    .replace(/Ū/g,'Ū').replace(/ū/g,'ū')
+    .replace(/Ų/g,'Ų').replace(/ų/g,'ų');
+
+  // Titulas gali būti pirmoje eilutėje arba antroje (po dokumento antraštės)
+  const lines = normText.split('\n').map(l => l.trim()).filter(l => l.length > 5);
+  for (const line of lines.slice(0, 5)) {
+    const headerM = line.match(/(\d{4}-\d{2}-\d{2})\s*\((\d{2}-\d{2}-\d+)\)\s*([^(]{3,80?}?)\s*\(([^)]{5,80}?(?:sen\b|seniūnija|seniounija))/i);
+    if (headerM) {
+      result.savPrasymosKodas = headerM[2].trim();
+      result.location = headerM[3].trim().replace(/\s+/g, ' ').replace(/,\s*$/, '');
+      const senRaw = headerM[4].trim();
+      result.seniunijaName = senRaw.endsWith('seniūnija') ? senRaw
+        : senRaw.replace(/\s*sen\.?\s*$/i, ' seniūnija').trim();
+      break;
+    }
   }
 
   // Darbų periodas
@@ -2782,12 +2799,12 @@ function parseSavPermitText(text) {
 
   // Numatomos ardyti dangos → surfaces[]
   const SURFACE_KW = [
-    ['Asfaltbetonis', /asfaltbeton/i],
+    ['Asfaltbetonis', /asfaltbeton|važiuojamosios\s+gatvės/i],
     ['Žvyras', /žvyr/i],
     ['Trinkelės', /trinkel/i],
     ['Plytelės', /plytel/i],
     ['Gruntas', /grunt/i],
-    ['Betonas', /(?<!\w)beton/i],
+    ['Betonas', /(?<![Aa]sfalt)beton(?!is\s+\-)/i],
     ['Žalieji plotai', /žali[ae]j/i],
     ['Kietos dangos', /kietos?\s+dang/i],
   ];
