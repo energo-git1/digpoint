@@ -1686,6 +1686,73 @@ app.get('/api/admin/sav-close-requests', (req, res) => {
   res.json({ ok: true, requests: dbGet('kl-sav-close-requests') || [] });
 });
 
+// ── Uždarymo eilė (užsakovų užduotys dokumentacijai) ─────────
+app.get('/api/admin/sav-closure-pending', (req, res) => {
+  res.json({ ok: true, items: dbGet('kl-sav-closure-pending') || [] });
+});
+
+app.post('/api/admin/sav-closure-pending', (req, res) => {
+  const { permitId, internalCode, address, photoFilenames, submittedBy } = req.body || {};
+  if (!photoFilenames || !photoFilenames.length) {
+    return res.status(400).json({ error: 'Trūksta nuotraukų.' });
+  }
+  const items = dbGet('kl-sav-closure-pending') || [];
+  const newItem = {
+    id: srvUid(),
+    permitId: permitId || null,
+    internalCode: internalCode || '',
+    address: address || '',
+    photoFilenames,
+    submittedBy: submittedBy || '',
+    submittedAt: new Date().toISOString(),
+    status: 'pending',
+  };
+  items.push(newItem);
+  dbSet('kl-sav-closure-pending', items);
+  console.log(`[SAV-CLOSE] Nauja uždarymo užduotis: ${internalCode||address||permitId} | ${photoFilenames.length} nuotraukos`);
+  res.json({ ok: true, item: newItem });
+});
+
+app.delete('/api/admin/sav-closure-pending/:id', (req, res) => {
+  const items = (dbGet('kl-sav-closure-pending') || []).filter((i) => i.id !== req.params.id);
+  dbSet('kl-sav-closure-pending', items);
+  res.json({ ok: true });
+});
+
+// ── Suderinti uždarymo užduotį su savivaldybės laišku ────────
+// Ieškoma pagal adresą ir objekto kodą
+app.get('/api/admin/match-sav-email', (req, res) => {
+  const { address, code } = req.query;
+  const closeReqs = dbGet('kl-sav-close-requests') || [];
+  if (!closeReqs.length) return res.json({ ok: true, match: null });
+
+  // Pirma: pagal objekto kodą (leidimo numerį laiške)
+  if (code && code.trim()) {
+    const cLower = code.trim().toLowerCase();
+    const byCode = closeReqs.find((r) =>
+      (r.address || '').toLowerCase().includes(cLower) ||
+      (r.subject || '').toLowerCase().includes(cLower) ||
+      (r.bodyPreview || '').toLowerCase().includes(cLower)
+    );
+    if (byCode) return res.json({ ok: true, match: byCode, method: 'code' });
+  }
+
+  // Tada: pagal adresą (žodžių sutapimas)
+  if (address && address.trim()) {
+    const aWords = normalizeForMatch(address).split(' ').filter((w) => w.length >= 4);
+    let best = null, bestScore = 0;
+    for (const r of closeReqs) {
+      const hay = normalizeForMatch((r.address || '') + ' ' + (r.subject || '') + ' ' + (r.bodyPreview || ''));
+      const score = aWords.length ? aWords.filter((w) => hay.includes(w)).length / aWords.length : 0;
+      if (score > bestScore) { bestScore = score; best = r; }
+    }
+    if (best && bestScore >= 0.4) return res.json({ ok: true, match: best, method: 'address', score: bestScore });
+  }
+
+  // Jei nieko nerasta — grąžiname visus variantus vartotojui pasirinkti
+  res.json({ ok: true, match: null, all: closeReqs });
+});
+
 // ── Atsakymas į Kauno sav. uždarymo pranešimą ────────────────
 // POST /api/admin/reply-sav-closure { requestId, permitId }
 app.post('/api/admin/reply-sav-closure', async (req, res) => {
@@ -1720,8 +1787,11 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
     }
   }
 
+  const { replyText: customText } = req.body || {};
   const replySubject = request.subject.startsWith('Re:') ? request.subject : 'Re: ' + request.subject;
-  const replyText = 'Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.\n\nPagarbiai,\nEnergoLT';
+  const replyText = (customText && customText.trim())
+    ? customText.trim() + '\n\nPagarbiai,\nEnergoLT'
+    : 'Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.\n\nPagarbiai,\nEnergoLT';
 
   try {
     await sendAndSave({

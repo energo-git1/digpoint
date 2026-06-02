@@ -3921,12 +3921,18 @@ function PermitDetail(p){
         </div>
         <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
           <Btn v="secondary" onClick={p.onClose} sm>Atsaukti</Btn>
-          <Btn onClick={function(){
+          <Btn onClick={function(){(async function(){
             if(cFiles.length===0){alert("Pridekite objekto nuotraukas po darbu!");return;}
             var u=Object.assign({},o,{closeFiles:cFiles,lbcFiles:lbcFiles,beforeFiles:beforeFiles,closingSubmitted:true,closingSubmittedAt:fmtDate(new Date()),
               history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Pateikta leidimo uzdarymo informacija"}])});
-            p.onUpdate(u);p.onClose();
-          }} sm>Perduoti uzdarymui</Btn>
+            p.onUpdate(u);
+            // Siunčiame į uždarymo eilę dokumentacijai
+            var photos=cFiles.filter(function(f){return f.filename;}).map(function(f){return f.filename;});
+            await fetch('/api/admin/sav-closure-pending',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+              permitId:o.id,internalCode:o.internalCode||"",address:o.location||"",photoFilenames:photos,submittedBy:p.user.name||""
+            })}).catch(function(){});
+            p.onClose();
+          })()}} sm>Perduoti uzdarymui</Btn>
         </div>
       </div>}
 
@@ -5551,72 +5557,129 @@ function Sidebar(p){
 // ═════════════════════════════════════════════════════════════
 // MAIN APP
 // ═════════════════════════════════════════════════════════════
-// SAV CLOSE PANEL — laukiantys atsakymai Savivaldybei
+// SAV CLOSE PANEL — uždarymo eilė dokumentacijai/adminui
 // ═════════════════════════════════════════════════════════════
 function SavClosePanel(){
-  var _reqs=useState([]);var reqs=_reqs[0],sReqs=_reqs[1];
-  var _photos=useState({});var photos=_photos[0],sPhotos=_photos[1]; // {reqId: [files]}
-  var _busy=useState({});var busy=_busy[0],sBusy=_busy[1];
-  var _msg=useState({});var msg=_msg[0],sMsg=_msg[1];
+  var _items=useState([]);var items=_items[0],sItems=_items[1];
+  var _emails=useState([]);var emails=_emails[0],sEmails=_emails[1];
+  var _state=useState({});var state=_state[0],sState=_state[1]; // {id: {matchedEmail, replyText, busy, msg, manualCode}}
 
   useEffect(function(){
-    fetch('/api/admin/sav-close-requests').then(function(r){return r.json()}).then(function(d){
-      if(d.ok)sReqs(d.requests||[]);
+    Promise.all([
+      fetch('/api/admin/sav-closure-pending').then(function(r){return r.json();}),
+      fetch('/api/admin/sav-close-requests').then(function(r){return r.json();})
+    ]).then(function(res){
+      sItems(res[0].items||[]);
+      sEmails(res[1].requests||[]);
     }).catch(function(){});
   },[]);
 
-  if(!reqs.length)return null;
-
   function fmtDt(iso){try{return new Date(iso).toLocaleDateString('lt-LT',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});}catch(_){return iso||'';}}
 
-  return <div style={{marginBottom:20}}>
-    <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>
-      Laukiantys atsakymai Savivaldybei ({reqs.length})
+  function getState(id){return state[id]||{};}
+  function setState(id,patch){sState(function(prev){var n=Object.assign({},prev);n[id]=Object.assign({},n[id]||{},patch);return n;});}
+
+  function autoMatch(item){
+    var code=(getState(item.id).manualCode||item.internalCode||'').trim();
+    var addr=(item.address||'').trim();
+    fetch('/api/admin/match-sav-email?address='+encodeURIComponent(addr)+'&code='+encodeURIComponent(code))
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.match){
+          setState(item.id,{matchedEmail:d.match,replyText:"Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.",method:d.method});
+        } else {
+          setState(item.id,{matchedEmail:null,allEmails:d.all||[]});
+        }
+      }).catch(function(){});
+  }
+
+  useEffect(function(){
+    items.forEach(function(item){if(!getState(item.id).matchedEmail&&!getState(item.id).searched){setState(item.id,{searched:true});autoMatch(item);}});
+  },[items.length]);
+
+  if(!items.length)return null;
+
+  return <div style={{marginBottom:24}}>
+    <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>
+      Laukia uždarymo ({items.length})
     </div>
-    {reqs.map(function(req){
-      var reqPhotos=photos[req.id]||[];
-      var isBusy=busy[req.id];
-      var reqMsg=msg[req.id]||"";
-      return <div key={req.id} style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,padding:16,marginBottom:12}}>
-        {/* Laiško info */}
-        <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:12,fontWeight:700,color:C.tx,fontFamily:F,marginBottom:2}}>{req.subject||"(be temos)"}</div>
-            <div style={{fontSize:11,color:C.t3,fontFamily:F}}>{req.from} · {fmtDt(req.date)}</div>
-            {req.address&&<div style={{fontSize:11,color:C.t2,fontFamily:F,marginTop:2}}>📍 {req.address}</div>}
+    {items.map(function(item){
+      var st=getState(item.id);
+      return <div key={item.id} style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,padding:16,marginBottom:12}}>
+        {/* Užduoties info */}
+        <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"flex-start"}}>
+          <div style={{flex:1}}>
+            {item.internalCode&&<div style={{fontSize:12,fontWeight:700,color:C.tx,fontFamily:F}}>Obj. kodas: {item.internalCode}</div>}
+            {item.address&&<div style={{fontSize:11,color:C.t2,fontFamily:F,marginTop:2}}>📍 {item.address}</div>}
+            <div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:2}}>{item.submittedBy} · {fmtDt(item.submittedAt)} · {(item.photoFilenames||[]).length} nuotr.</div>
           </div>
         </div>
-        {/* Atsakymo peržiūra */}
-        <div style={{background:C.s2,borderRadius:8,padding:"8px 12px",marginBottom:10,border:"1px solid "+C.b1,fontSize:11,color:C.t2,fontFamily:FM,whiteSpace:"pre-wrap",lineHeight:1.5}}>
-          {"Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas."}
-        </div>
-        {/* Nuotraukų įkėlimas */}
-        <div style={{background:C.s2,borderRadius:8,padding:"10px 12px",marginBottom:10,border:"1px solid "+(reqPhotos.length===0?C.yl:C.b1)}}>
-          <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>
-            Gerbūvio nuotraukos <span style={{color:C.rd}}>*</span>
-            {reqPhotos.length>0&&<span style={{color:C.gn,fontWeight:600,marginLeft:6}}>{reqPhotos.length} failai</span>}
+
+        {/* Leidimo numeris (rankinis jei auto nepavyko) */}
+        <div style={{marginBottom:10}}>
+          <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Leidimo Nr. iš savivaldybės laiško</label>
+          <div style={{display:"flex",gap:6}}>
+            <input value={st.manualCode||''} onChange={function(e){setState(item.id,{manualCode:e.target.value,matchedEmail:null});}}
+              placeholder="pvz. 43-28-553 arba adresas"
+              style={{flex:1,padding:"6px 10px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none"}}/>
+            <Btn sm onClick={function(){autoMatch(item);}}>🔍 Ieškoti</Btn>
           </div>
-          <FileDropZone files={reqPhotos}
-            onAdd={function(f){sPhotos(function(prev){var n=Object.assign({},prev);n[req.id]=(n[req.id]||[]).concat([f]);return n;});}}
-            onRemove={function(i){sPhotos(function(prev){var n=Object.assign({},prev);n[req.id]=(n[req.id]||[]).filter(function(_,idx){return idx!==i});return n;});}}/>
         </div>
-        {reqMsg&&<div style={{fontSize:11,color:reqMsg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{reqMsg}</div>}
-        <Btn onClick={function(){(async function(){
-          if(!reqPhotos.length){sMsg(function(prev){var n=Object.assign({},prev);n[req.id]="❌ Pridėkite bent vieną nuotrauką.";return n;});return;}
-          sBusy(function(prev){var n=Object.assign({},prev);n[req.id]=true;return n;});
-          sMsg(function(prev){var n=Object.assign({},prev);n[req.id]="";return n;});
-          try{
-            var r=await fetch('/api/admin/reply-sav-closure',{method:'POST',headers:{'Content-Type':'application/json'},
-              body:JSON.stringify({requestId:req.id,photoFilenames:reqPhotos.map(function(f){return f.filename}).filter(Boolean)})});
-            var d=await r.json();
-            if(!r.ok){sMsg(function(prev){var n=Object.assign({},prev);n[req.id]="❌ "+(d.error||"Klaida");return n;});sBusy(function(prev){var n=Object.assign({},prev);n[req.id]=false;return n;});return;}
-            sMsg(function(prev){var n=Object.assign({},prev);n[req.id]="✅ Atsakymas išsiųstas!";return n;});
-            sReqs(function(prev){return prev.filter(function(x){return x.id!==req.id;})});
-          }catch(e){sMsg(function(prev){var n=Object.assign({},prev);n[req.id]="❌ Serverio klaida";return n;});}
-          sBusy(function(prev){var n=Object.assign({},prev);n[req.id]=false;return n;});
-        })()}} sm disabled={isBusy} style={{background:"#059669",color:"#fff",border:"none",opacity:isBusy?0.6:1}}>
-          {isBusy?"Siunčiama...":"📤 Atsakyti Savivaldybei"}
-        </Btn>
+
+        {/* Surastas laiškas */}
+        {st.matchedEmail
+          ?<div style={{background:"rgba(16,185,129,.08)",border:"1px solid #059669",borderRadius:8,padding:"8px 12px",marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#059669",fontFamily:F,marginBottom:2}}>
+              ✅ Rastas laiškas {st.method==='code'?'(pagal numerį)':'(pagal adresą)'}
+            </div>
+            <div style={{fontSize:11,color:C.t2,fontFamily:F}}>{st.matchedEmail.subject}</div>
+            <div style={{fontSize:10,color:C.t3,fontFamily:F}}>{st.matchedEmail.from} · {fmtDt(st.matchedEmail.date)}</div>
+          </div>
+          :<div>
+            {(st.allEmails||[]).length>0&&<div style={{marginBottom:10}}>
+              <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Pasirinkite laišką rankiniu būdu</label>
+              <select value={st.selectedEmailId||''} onChange={function(e){
+                var found=(st.allEmails||[]).find(function(r){return r.id===e.target.value;});
+                setState(item.id,{selectedEmailId:e.target.value,matchedEmail:found||null,replyText:"Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.",method:'manual'});
+              }} style={{width:"100%",padding:"6px 8px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:11,outline:"none"}}>
+                <option value="">— pasirinkite laišką —</option>
+                {(st.allEmails||[]).map(function(r){return <option key={r.id} value={r.id}>{r.subject||r.address||r.from} ({fmtDt(r.date)})</option>;})}
+              </select>
+            </div>}
+            {!(st.allEmails||[]).length&&<div style={{fontSize:11,color:C.t3,fontFamily:F,marginBottom:10}}>⏳ Nėra laiškų iš kasimo.darbai@kaunas.lt — laiškas dar negautas.</div>}
+          </div>}
+
+        {/* Atsakymo tekstas — redaguojamas */}
+        {st.matchedEmail&&<div style={{marginBottom:10}}>
+          <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Atsakymo tekstas</label>
+          <textarea value={st.replyText||"Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas."} rows={4}
+            onChange={function(e){setState(item.id,{replyText:e.target.value});}}
+            style={{width:"100%",padding:"8px 10px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:FM,fontSize:12,outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+        </div>}
+
+        {st.msg&&<div style={{fontSize:11,color:st.msg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{st.msg}</div>}
+
+        <div style={{display:"flex",gap:6}}>
+          <Btn v="secondary" sm onClick={function(){(async function(){
+            await fetch('/api/admin/sav-closure-pending/'+item.id,{method:'DELETE'});
+            sItems(function(prev){return prev.filter(function(x){return x.id!==item.id;});});
+          })()}}>Atmesti</Btn>
+          {st.matchedEmail&&<Btn onClick={function(){(async function(){
+            setState(item.id,{busy:true,msg:""});
+            try{
+              var r=await fetch('/api/admin/reply-sav-closure',{method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({requestId:st.matchedEmail.id,permitId:item.permitId||null,
+                  photoFilenames:item.photoFilenames||[],replyText:st.replyText||""})});
+              var d=await r.json();
+              if(!r.ok){setState(item.id,{busy:false,msg:"❌ "+(d.error||"Klaida")});return;}
+              // Pašaliname iš eilės
+              await fetch('/api/admin/sav-closure-pending/'+item.id,{method:'DELETE'});
+              setState(item.id,{busy:false,msg:"✅ Išsiųsta!"});
+              sItems(function(prev){return prev.filter(function(x){return x.id!==item.id;});});
+            }catch(e){setState(item.id,{busy:false,msg:"❌ Serverio klaida"});}
+          })()} } sm disabled={st.busy} style={{background:"#059669",color:"#fff",border:"none",opacity:st.busy?0.6:1}}>
+            {st.busy?"Siunčiama...":"✅ Tvirtinti ir siųsti"}
+          </Btn>}
+        </div>
       </div>;
     })}
   </div>;
