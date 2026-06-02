@@ -1700,12 +1700,25 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
   const permit  = permits.find((p) => p.id === permitId);
   if (!permit) return res.status(404).json({ error: 'Paraiška nerasta.' });
 
-  // Priedai — objekto nuotraukos iš closeFiles
-  const attachments = (permit.closeFiles || []).map((f) => {
-    const fpath = path.join(UPLOAD_DIR, f.filename || '');
-    if (!fpath || !fs.existsSync(fpath)) return null;
-    return { filename: f.name, content: fs.readFileSync(fpath) };
-  }).filter(Boolean);
+  // Priedai: pirma UI įkeltos nuotraukos, po to closeFiles jei yra
+  const { photoFilenames } = req.body || {};
+  const attachments = [];
+  // 1) Nuotraukos iš UI (savPhotos)
+  if (Array.isArray(photoFilenames) && photoFilenames.length > 0) {
+    for (const fn of photoFilenames) {
+      const fp = path.join(UPLOAD_DIR, path.basename(fn));
+      if (fs.existsSync(fp)) {
+        attachments.push({ filename: path.basename(fn).replace(/^[a-z0-9]+_/, ''), content: fs.readFileSync(fp) });
+      }
+    }
+  }
+  // 2) Fallback: closeFiles iš paraiškos (jei nebuvo įkelta UI nuotraukų)
+  if (attachments.length === 0) {
+    for (const f of (permit.closeFiles || [])) {
+      const fp = path.join(UPLOAD_DIR, f.filename || '');
+      if (fs.existsSync(fp)) attachments.push({ filename: f.name, content: fs.readFileSync(fp) });
+    }
+  }
 
   const replySubject = request.subject.startsWith('Re:') ? request.subject : 'Re: ' + request.subject;
   const replyText = 'Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.\n\nPagarbiai,\nEnergoLT';
