@@ -810,7 +810,23 @@ function findPdfParts(struct, acc = []) {
   return acc;
 }
 
+// Apsauga nuo lygiagrečių IMAP tikrinimų (race condition)
+let _imapCheckRunning = false;
+
 async function checkImapMail() {
+  if (_imapCheckRunning) {
+    console.log('[IMAP] Tikrinimas jau vyksta — praleidžiama (race condition apsauga).');
+    return { checked: 0, processed: 0 };
+  }
+  _imapCheckRunning = true;
+  try {
+    return await _checkImapMailImpl();
+  } finally {
+    _imapCheckRunning = false;
+  }
+}
+
+async function _checkImapMailImpl() {
   const IMAP_PASS = SMTP_PASS; // process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS
   if (!IMAP_PASS) {
     console.log('[IMAP] SMTP_PASS nenurodytas — tikrinimas praleidžiamas.');
@@ -1469,7 +1485,7 @@ async function checkImapMail() {
   }
 
   return { checked, processed };
-}
+} // _checkImapMailImpl pabaiga
 
 // ── Seniūnijų el. paštai ─────────────────────────────────────
 const SENIUNIJA_MAP = [
@@ -1902,14 +1918,29 @@ app.post('/api/admin/reprocess-unattached', async (req, res) => {
           date:   today,
           note:   `Failas priskirtas rankiniu būdu (reprocess) iš ${org}${isFallback ? ' [papildomas prie jau gauto leidimo]' : ''}`,
         }];
+        // Aktualizuojame permitPdfs pagal aptiktą organizaciją
+        const rpOrgKey = org === 'Telia, Kaunas' ? 'telia'
+          : org === 'Telia, investiciniai' ? 'telia_inv'
+          : org === 'Kauno energija' ? 'ke'
+          : org === 'Kauno vandenys' ? 'vandenys'
+          : org === 'AB ESO' ? 'eso'
+          : org === 'LitGrid' ? 'litgrid'
+          : org === 'Kauno miesto savivaldybe' ? 'sav'
+          : null;
+        const existingPdf = rpOrgKey && p.permitPdfs && p.permitPdfs[rpOrgKey] && p.permitPdfs[rpOrgKey].name;
+        const updatedPdfs = (rpOrgKey && !existingPdf)
+          ? { ...(p.permitPdfs || {}), [rpOrgKey]: { name: fileEntry.name, url: fileEntry.url, filename: fileEntry.filename } }
+          : (p.permitPdfs || {});
+
         if (isFallback) {
-          // Paraiška jau baigta — tik pridedame failą, nekeičiame statuso
-          return { ...p, files: newFiles, history: newHistory };
+          // Paraiška jau baigta — pridedame failą ir aktualizuojame permitPdfs
+          return { ...p, files: newFiles, permitPdfs: updatedPdfs, history: newHistory };
         }
         return {
           ...p,
           status:           'Gautas leidimas',
           files:            newFiles,
+          permitPdfs:       updatedPdfs,
           permitValidFrom:  p.permitValidFrom || p.startDate || today,
           permitValidUntil: p.permitValidUntil || p.endDate || '',
           history:          newHistory,
