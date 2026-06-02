@@ -1058,13 +1058,36 @@ function HistoryTimeline(p){
 // ═════════════════════════════════════════════════════════════
 
 
-var PERMIT_ORGS=["AB ESO","Kauno miesto savivaldybe","Telia, Kaunas","Telia, investiciniai","Kauno energija","LitGrid"];
+var PERMIT_ORGS=["AB ESO","Kauno miesto savivaldybe","Seniūnija","Telia, Kaunas","Telia, investiciniai","Kauno energija","LitGrid"];
 var MUN_ORGS={
-  kaunas:["AB ESO","Kauno miesto savivaldybe","Telia, Kaunas","Kauno energija"],
+  kaunas:["AB ESO","Kauno miesto savivaldybe","Seniūnija","Telia, Kaunas","Kauno energija"],
   kita:["AB ESO","Telia, investiciniai","LitGrid"]
 };
 var ORG_DISPLAY={"Telia, investiciniai":"Telia"};
 var TELIA_EMAIL="ligita.rutkauskiene@telia.lt";
+
+// Dangų tipai seniūnijos laiškui — pasirinkimas ir linksniuotė
+var SURFACE_OPTIONS=[
+  {value:"Asfaltbetonis", phrase:"asfaltbetonio danga atstatyta"},
+  {value:"Žvyras",        phrase:"žvyro danga atstatyta"},
+  {value:"Trinkelės",     phrase:"trinkelių danga atstatyta"},
+  {value:"Plytelės",      phrase:"plytelių danga atstatyta"},
+  {value:"Gruntas",       phrase:"grunto danga atstatyta"},
+  {value:"Betonas",       phrase:"betono danga atstatyta"},
+  {value:"Žalieji plotai",phrase:"žalieji plotai atstatyti"},
+  {value:"Kietos dangos", phrase:"kietos dangos atstatytos"},
+];
+
+function buildSurfaceText(surfaces){
+  if(!surfaces||!surfaces.length)return"danga atstatyta";
+  var phrases=surfaces.map(function(s){
+    var o=SURFACE_OPTIONS.find(function(x){return x.value===s});
+    return o?o.phrase:(s.toLowerCase()+" atstatyta");
+  });
+  if(phrases.length===1)return phrases[0];
+  var last=phrases.pop();
+  return phrases.join(", ")+" ir "+last;
+}
 function FileDropZone(p){
   var _drag=useState(false);var drag=_drag[0],sDrag=_drag[1];
   var _uploading=useState(false);var uploading=_uploading[0],sUploading=_uploading[1];
@@ -2569,7 +2592,7 @@ function PermitDetail(p){
   // Seniūnijos laiškas
   var _beforeFiles=useState(o.beforeFiles||[]);var beforeFiles=_beforeFiles[0],sBeforeFiles=_beforeFiles[1];
   var _workType=useState(o.workType||"planinius");var workType=_workType[0],sWorkType=_workType[1];
-  var _surface=useState(o.surface||"asfalto");var surface=_surface[0],sSurface=_surface[1];
+  var _surfaces=useState(o.surfaces||[]);var surfaces=_surfaces[0],sSurfaces=_surfaces[1];
   var _seniunija=useState(null);var seniunija=_seniunija[0],sSeniunija=_seniunija[1];
   var _seniunijaAll=useState([]);var seniunijaAll=_seniunijaAll[0],sSeniunijaAll=_seniunijaAll[1];
   var _seniunijaOverride=useState("");var seniunijaOverride=_seniunijaOverride[0],sSeniunijaOverride=_seniunijaOverride[1];
@@ -3969,29 +3992,41 @@ function PermitDetail(p){
                   style={{width:"100%",padding:"6px 10px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
               </div>}
             </div>
-            {/* Darbo tipas ir danga */}
-            <div style={{display:"flex",gap:8,marginBottom:10}}>
-              <div style={{flex:1}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Darbo tipas</label>
-                <select value={workType} onChange={function(e){sWorkType(e.target.value)}}
-                  style={{width:"100%",padding:"6px 8px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none"}}>
-                  <option value="planinius">planinius</option>
-                  <option value="avarinius">avarinius</option>
-                </select>
+            {/* Darbo tipas */}
+            <div style={{marginBottom:10}}>
+              <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Darbo tipas</label>
+              <select value={workType} onChange={function(e){sWorkType(e.target.value)}}
+                style={{width:"100%",padding:"6px 8px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none"}}>
+                <option value="planinius">planinius</option>
+                <option value="avarinius">avarinius</option>
+              </select>
+            </div>
+            {/* Dangos tipas — multi-select */}
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>
+                Ardomos dangos tipas <span style={{fontSize:10,color:C.t3,fontWeight:400}}>(galima rinktis kelis)</span>
               </div>
-              <div style={{flex:1}}>
-                <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Dangos tipas</label>
-                <select value={surface} onChange={function(e){sSurface(e.target.value)}}
-                  style={{width:"100%",padding:"6px 8px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none"}}>
-                  <option value="asfalto">asfalto</option>
-                  <option value="žvyro">žvyro</option>
-                  <option value="trinkelių">trinkelių</option>
-                </select>
+              <div style={{display:"flex",flexWrap:"wrap",gap:"4px 12px"}}>
+                {SURFACE_OPTIONS.map(function(opt){
+                  var checked=surfaces.indexOf(opt.value)!==-1;
+                  return <label key={opt.value} style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",fontSize:12,fontFamily:F,color:C.tx,padding:"2px 0"}}>
+                    <input type="checkbox" checked={checked} onChange={function(){
+                      sSurfaces(function(prev){
+                        return checked?prev.filter(function(s){return s!==opt.value}):prev.concat([opt.value]);
+                      });
+                    }}/>
+                    {opt.value}
+                  </label>;
+                })}
               </div>
+              {surfaces.length===0&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:4}}>Pasirinkite bent vieną dangos tipą</div>}
             </div>
             {/* Laiško peržiūra */}
             <div style={{background:C.s2,borderRadius:8,padding:"8px 12px",marginBottom:10,border:"1px solid "+C.b1,fontSize:11,color:C.t2,fontFamily:FM,whiteSpace:"pre-wrap",lineHeight:1.5}}>
-              {`Laba diena,\n\nNuo ${o.startDate||"—"} iki ${o.endDate||"—"} vykdėme ${workType} kasimo darbus ${(seniunija&&seniunija.name)||"[seniūnija]"}, ${o.location||"—"}, elektros tinklų ${o.description||"įrengimas"}.\nDarbai yra baigti, ${surface} danga atstatyta. Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.`}
+              {(function(){
+                var surfTxt=buildSurfaceText(surfaces);
+                return "Tema: Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — "+(o.location||"—")+"\n\nLaba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", elektros tinklų "+(o.description||"įrengimas")+".\nDarbai yra baigti, "+surfTxt+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.";
+              })()}
             </div>
             {/* Dokumentų sąrašas */}
             {senDocs&&senDocs.length>0&&<div style={{marginBottom:10}}>
@@ -4037,10 +4072,11 @@ function PermitDetail(p){
               var name=(seniunija&&seniunija.name)||"";
               if(!email){sSeniunijaMsg("❌ Nenustatytas seniūnijos el. paštas.");return;}
               if(!mergedPdf){sSeniunijaMsg("❌ Pirmiau sujunkite dokumentus.");return;}
+              if(!surfaces.length){sSeniunijaMsg("❌ Pasirinkite bent vieną dangos tipą.");return;}
               sSeniunijaBusy(true);sSeniunijaMsg("");
               try{
                 var r=await fetch('/api/admin/send-seniunija-closure',{method:'POST',headers:{'Content-Type':'application/json'},
-                  body:JSON.stringify({permitId:o.id,workType,surface,seniunijaEmail:email,seniunijaName:name,
+                  body:JSON.stringify({permitId:o.id,workType,surfaces,seniunijaEmail:email,seniunijaName:name,
                     mergedContent:mergedPdf.content,mergedFilename:mergedPdf.filename})});
                 var d=await r.json();
                 if(!r.ok){sSeniunijaMsg("❌ "+(d.error||"Klaida"));sSeniunijaBusy(false);return;}

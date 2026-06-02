@@ -1501,8 +1501,28 @@ app.post('/api/admin/merge-seniunija-docs', async (req, res) => {
 });
 
 // ── Laiškas seniūnijai apie atliktus darbus ───────────────────
+// Dangų linksniuotės serverio pusėje
+const SURFACE_PHRASES_SRV = {
+  'Asfaltbetonis': 'asfaltbetonio danga atstatyta',
+  'Žvyras':        'žvyro danga atstatyta',
+  'Trinkelės':     'trinkelių danga atstatyta',
+  'Plytelės':      'plytelių danga atstatyta',
+  'Gruntas':       'grunto danga atstatyta',
+  'Betonas':       'betono danga atstatyta',
+  'Žalieji plotai':'žalieji plotai atstatyti',
+  'Kietos dangos': 'kietos dangos atstatytos',
+};
+
+function buildSurfaceTextSrv(surfaces) {
+  if (!surfaces || !surfaces.length) return 'danga atstatyta';
+  const phrases = surfaces.map((s) => SURFACE_PHRASES_SRV[s] || (s.toLowerCase() + ' atstatyta'));
+  if (phrases.length === 1) return phrases[0];
+  const last = phrases.pop();
+  return phrases.join(', ') + ' ir ' + last;
+}
+
 app.post('/api/admin/send-seniunija-closure', async (req, res) => {
-  const { permitId, workType, surface, seniunijaEmail, seniunijaName } = req.body || {};
+  const { permitId, workType, surfaces, seniunijaEmail, seniunijaName } = req.body || {};
   if (!permitId || !seniunijaEmail || !seniunijaName) {
     return res.status(400).json({ error: 'Trūksta permitId, seniunijaEmail arba seniunijaName.' });
   }
@@ -1516,13 +1536,14 @@ app.post('/api/admin/send-seniunija-closure', async (req, res) => {
   const location  = permit.location  || '—';
   const desc      = permit.description || 'įrengimas';
   const wt        = workType || 'planinius';
-  const surf      = surface  || 'asfalto';
+  const surfTxt   = buildSurfaceTextSrv(Array.isArray(surfaces) ? surfaces : []);
 
+  const emailSubject = `Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — ${location}`;
   const bodyText =
 `Laba diena,
 
 Nuo ${startDate} iki ${endDate} vykdėme ${wt} kasimo darbus ${seniunijaName}, ${location}, elektros tinklų ${desc}.
-Darbai yra baigti, ${surf} danga atstatyta. Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.
+Darbai yra baigti, ${surfTxt}. Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.
 
 Pagarbiai,
 EnergoLT`;
@@ -1553,7 +1574,7 @@ EnergoLT`;
     await sendAndSave({
       from: MAIL_FROM_EXTERNAL,
       to: seniunijaEmail,
-      subject: `Informacija apie atliktus kasimo darbus — ${location}`,
+      subject: emailSubject,
       text: bodyText,
       attachments,
     });

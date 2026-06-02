@@ -1,6 +1,6 @@
 {
   "name": "kasimo-leidimai",
-  "version": "1.4.69",
+  "version": "1.4.70",
   "description": "Žemės kasimo leidimų užsakymų valdymo sistema",
   "main": "server.js",
   "scripts": {
