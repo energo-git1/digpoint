@@ -1066,27 +1066,27 @@ var MUN_ORGS={
 var ORG_DISPLAY={"Telia, investiciniai":"Telia"};
 var TELIA_EMAIL="ligita.rutkauskiene@telia.lt";
 
-// Dangų tipai seniūnijos laiškui — pasirinkimas ir linksniuotė
+// Dangų tipai seniūnijos laiškui — pasirinkimas ir trumpoji forma
 var SURFACE_OPTIONS=[
-  {value:"Asfaltbetonis", phrase:"asfaltbetonio danga atstatyta"},
-  {value:"Žvyras",        phrase:"žvyro danga atstatyta"},
-  {value:"Trinkelės",     phrase:"trinkelių danga atstatyta"},
-  {value:"Plytelės",      phrase:"plytelių danga atstatyta"},
-  {value:"Gruntas",       phrase:"grunto danga atstatyta"},
-  {value:"Betonas",       phrase:"betono danga atstatyta"},
-  {value:"Žalieji plotai",phrase:"žalieji plotai atstatyti"},
-  {value:"Kietos dangos", phrase:"kietos dangos atstatytos"},
+  {value:"Asfaltbetonis", short:"asfalto"},
+  {value:"Žvyras",        short:"žvyro"},
+  {value:"Trinkelės",     short:"trinkelių"},
+  {value:"Plytelės",      short:"plytelių"},
+  {value:"Gruntas",       short:"grunto"},
+  {value:"Betonas",       short:"betono"},
+  {value:"Žalieji plotai",short:"žalioji"},
+  {value:"Kietos dangos", short:"kietos"},
 ];
 
 function buildSurfaceText(surfaces){
   if(!surfaces||!surfaces.length)return"danga atstatyta";
-  var phrases=surfaces.map(function(s){
+  // Jei tik Žalieji plotai
+  if(surfaces.length===1&&surfaces[0]==="Žalieji plotai")return"žalieji plotai atstatyti";
+  var shorts=surfaces.map(function(s){
     var o=SURFACE_OPTIONS.find(function(x){return x.value===s});
-    return o?o.phrase:(s.toLowerCase()+" atstatyta");
+    return o?o.short:s.toLowerCase();
   });
-  if(phrases.length===1)return phrases[0];
-  var last=phrases.pop();
-  return phrases.join(", ")+" ir "+last;
+  return shorts.join("/")+" danga atstatyta";
 }
 function FileDropZone(p){
   var _drag=useState(false);var drag=_drag[0],sDrag=_drag[1];

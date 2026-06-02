@@ -1502,23 +1502,22 @@ app.post('/api/admin/merge-seniunija-docs', async (req, res) => {
 
 // ── Laiškas seniūnijai apie atliktus darbus ───────────────────
 // Dangų linksniuotės serverio pusėje
-const SURFACE_PHRASES_SRV = {
-  'Asfaltbetonis': 'asfaltbetonio danga atstatyta',
-  'Žvyras':        'žvyro danga atstatyta',
-  'Trinkelės':     'trinkelių danga atstatyta',
-  'Plytelės':      'plytelių danga atstatyta',
-  'Gruntas':       'grunto danga atstatyta',
-  'Betonas':       'betono danga atstatyta',
-  'Žalieji plotai':'žalieji plotai atstatyti',
-  'Kietos dangos': 'kietos dangos atstatytos',
+const SURFACE_SHORT_SRV = {
+  'Asfaltbetonis': 'asfalto',
+  'Žvyras':        'žvyro',
+  'Trinkelės':     'trinkelių',
+  'Plytelės':      'plytelių',
+  'Gruntas':       'grunto',
+  'Betonas':       'betono',
+  'Žalieji plotai':'žalioji',
+  'Kietos dangos': 'kietos',
 };
 
 function buildSurfaceTextSrv(surfaces) {
   if (!surfaces || !surfaces.length) return 'danga atstatyta';
-  const phrases = surfaces.map((s) => SURFACE_PHRASES_SRV[s] || (s.toLowerCase() + ' atstatyta'));
-  if (phrases.length === 1) return phrases[0];
-  const last = phrases.pop();
-  return phrases.join(', ') + ' ir ' + last;
+  if (surfaces.length === 1 && surfaces[0] === 'Žalieji plotai') return 'žalieji plotai atstatyti';
+  const shorts = surfaces.map((s) => SURFACE_SHORT_SRV[s] || s.toLowerCase());
+  return shorts.join('/') + ' danga atstatyta';
 }
 
 app.post('/api/admin/send-seniunija-closure', async (req, res) => {
