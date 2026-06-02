@@ -862,11 +862,34 @@ async function checkImapMail() {
             let org        = detectOrgFromEmail(fromAddr);
 
             if (!org) {
-              // Neatpažintas domenas — praleisti ir pažymėti kaip skaitytą
-              console.log(`[IMAP] Neatpažintas domenas, praleidžiama: ${fromAddr} | "${subject}"`);
-              doneIds.add(msgId);
-              await client.messageFlagsAdd(seq, ['\\Seen']);
-              continue;
+              // Gali būti persiųstas laiškas — pabandome ištraukti originalų siuntėją iš teksto
+              let forwardedOrg = null;
+              const textPartsF = findTextPart(msg.bodyStructure);
+              let fwdBodyText = '';
+              for (const tp of textPartsF.slice(0, 2)) {
+                try {
+                  const dl = await client.download(seq, tp.part);
+                  const chunks = [];
+                  for await (const chunk of dl.content) chunks.push(chunk);
+                  fwdBodyText += Buffer.concat(chunks).toString('utf8').slice(0, 2000);
+                } catch (_) {}
+              }
+              // Ieškome originalaus siuntėjo "Iš:" eilutėje persiųstame laiške
+              const fwdFromMatch = fwdBodyText.match(/(?:Iš|From|Nuo)[:\s]+[^<\n]*<([^>]+@[^>]+)>/i)
+                || fwdBodyText.match(/(?:Iš|From|Nuo)[:\s]+([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i);
+              if (fwdFromMatch) {
+                forwardedOrg = detectOrgFromEmail(fwdFromMatch[1]);
+                if (forwardedOrg) {
+                  console.log(`[IMAP] Persiųstas laiškas — originalus siuntėjas: ${fwdFromMatch[1]} → org: ${forwardedOrg}`);
+                }
+              }
+              if (!forwardedOrg) {
+                console.log(`[IMAP] Neatpažintas domenas, praleidžiama: ${fromAddr} | "${subject}"`);
+                doneIds.add(msgId);
+                await client.messageFlagsAdd(seq, ['\\Seen']);
+                continue;
+              }
+              org = forwardedOrg;
             }
 
             // ── Patikrinti ar yra paraiškų šiai institucijai be PDF ──
@@ -1131,8 +1154,37 @@ async function checkImapMail() {
             // ── ŽINGSNIS 2: ar PDF atrodo kaip leidimas? ──────────────
             const fullPdfText = pdfTexts.join(' ');
             const looksLikePermit = pdfTexts.length > 0 ? isPdfPermitDocument(fullPdfText) : true;
-            if (!looksLikePermit) {
-              console.log(`[IMAP] ${org}: ⚠️ PDF raktažodžiai nerasti — gali būti ne leidimas, bet tęsiama.`);
+
+            // Papildoma patikra Telia: PDF turi turėti Telia požymių
+            // (apsauga nuo projekto PDF priskyrimo kai Telia perforwarduoja originalų priedą)
+            let looksLikeTeliaPermit = true;
+            if (org === 'Telia, Kaunas' && pdfTexts.length > 0) {
+              const hasTeliaMarker = /telia/i.test(fullPdfText);
+              const hasApprovalMarker = /sutikimas|suderint|pritart|leidimas|leidiama/i.test(fullPdfText);
+              // Jei PDF turi investicinį numerį E1N... ir neturi Telia + patvirtinimo žymių
+              // greičiausiai tai projekto PDF, ne Telia leidimas
+              const hasInvestNo = /\b[A-Z][0-9][A-Z][0-9]{5,}\b/.test(fullPdfText);
+              if (!hasTeliaMarker || (!hasApprovalMarker && hasInvestNo)) {
+                looksLikeTeliaPermit = false;
+              }
+            }
+
+            if (!looksLikePermit || !looksLikeTeliaPermit) {
+              const reason = !looksLikeTeliaPermit
+                ? 'PDF neatrodo kaip Telia leidimas (gali būti projekto PDF persiustas atgal)'
+                : 'PDF raktažodžiai nerasti';
+              console.log(`[IMAP] ${org}: ⛔ ${reason} — PDF nepriskiriamas paraiškai.`);
+              try {
+                await mailerInternal.sendMail({
+                  from: MAIL_FROM_INTERNAL, to: 'uzklausos@energolt.eu',
+                  subject: `Gautas PDF iš ${org} — neatpažintas kaip leidimas`,
+                  html: `<p>Gautas PDF iš <strong>${org}</strong> (${fromAddr}), tačiau jis neatpažintas kaip leidimo dokumentas.</p><p>Priežastis: ${reason}</p><p>Laiško tema: <em>${subject}</em></p><p>PDF failas išsaugotas — prisekite prie tinkamos paraiškos rankiniu būdu jei reikia.</p>`,
+                });
+              } catch (_) {}
+              doneIds.add(msgId);
+              dbSet('kl-imap-done', [...doneIds]);
+              await client.messageFlagsAdd(seq, ['\\Seen']);
+              continue;
             }
 
             // ── ŽINGSNIS 2b: Kauno vandenys skaitytuvas — daugiaobjektinis PDF ──
