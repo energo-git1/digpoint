@@ -919,7 +919,7 @@ async function _checkImapMailImpl() {
 
             // ── Patikrinti ar yra paraiškų šiai institucijai be PDF ──
             const allPermitsEarly = dbGet('kl-permits') || [];
-            const TRULY_FINAL     = new Set(['Atmestas', 'Nebegalioja']);
+            const TRULY_FINAL     = new Set(['Atmestas', 'Nebegalioja', 'Uždarytas']);
             const orgKey0 = org === 'Telia, Kaunas' ? 'telia'
                           : org === 'Kauno energija' ? 'ke'
                           : org === 'Kauno vandenys'  ? 'vandenys'
@@ -940,9 +940,12 @@ async function _checkImapMailImpl() {
               if (org === 'Telia, Kaunas') {
                 const hasTelia    = p.permitPdfs && p.permitPdfs.telia    && p.permitPdfs.telia.name;
                 const hasTeliaInv = p.permitPdfs && p.permitPdfs.telia_inv && p.permitPdfs.telia_inv.name;
-                if (orgs.includes('Telia, Kaunas')        && hasTelia)    return false;
-                if (orgs.includes('Telia, investiciniai') && hasTeliaInv) return false;
-                return true;
+                const needTelia    = orgs.includes('Telia, Kaunas');
+                const needTeliaInv = orgs.includes('Telia, investiciniai');
+                // Grąžiname true tik jei yra bent viena neapdorota Telia PDF
+                if (needTelia && !hasTelia) return true;
+                if (needTeliaInv && !hasTeliaInv) return true;
+                return false;
               }
               if (orgKey0 && p.permitPdfs && p.permitPdfs[orgKey0] && p.permitPdfs[orgKey0].name) return false;
               return true;
@@ -1949,7 +1952,7 @@ app.post('/api/admin/reprocess-unattached', async (req, res) => {
     console.log(`[REPROCESS] Nepriskirti PDF: ${unattached.length} (iš ${allFiles.length} failų)`);
     if (!unattached.length) return res.json({ ok: true, processed: 0, message: 'Nepriskirtu PDF nerasta.' });
 
-    const FINAL_STATUSES = new Set(['Gautas leidimas', 'Atmestas', 'Nebegalioja']);
+    const FINAL_STATUSES = new Set(['Gautas leidimas', 'Atmestas', 'Nebegalioja', 'Uždarytas']);
     const today = fmtDateSrv(new Date());
     const results = [];
 
@@ -2003,7 +2006,7 @@ app.post('/api/admin/reprocess-unattached', async (req, res) => {
       }
 
       const hasAddr = candidates.some((p) => p.teliaRouteTo || p.teliaRouteFrom || p.location);
-      const THRESHOLD = (candidates.length === 1 && !hasAddr) ? 0 : 0.35;
+      const THRESHOLD = (candidates.length === 1 && !hasAddr) ? 0 : 0.4;
 
       if (!bestPermit || bestScore < THRESHOLD) {
         results.push({ file: fname, org, score: bestScore, result: 'paraiška nerasta (per žemas score)' });
@@ -2026,7 +2029,10 @@ app.post('/api/admin/reprocess-unattached', async (req, res) => {
         }];
         // Aktualizuojame permitPdfs tik pagal failo pavadinimą (patikimiau nei teksto analizė)
         const fnLower = fileEntry.name.toLowerCase();
-        const rpOrgKey = /^lzd[_\-]/.test(fnLower) ? 'telia'
+        // Telia investiciniai: paraiška turi Telia,investiciniai ir ne Telia,Kaunas
+        const pBestOrgs = Array.isArray(bestPermit.organizations) ? bestPermit.organizations : [];
+        const isTeliaInv = pBestOrgs.includes('Telia, investiciniai') && !pBestOrgs.includes('Telia, Kaunas');
+        const rpOrgKey = /^lzd[_\-]/.test(fnLower) ? (isTeliaInv ? 'telia_inv' : 'telia')
           : /^sutikimas[_\-]/.test(fnLower) ? 'eso'
           : /^ke[_\-]|^kaun.*energ/.test(fnLower) ? 'ke'
           : /^kv[_\-]|^vandenys|^kaunovandenys/.test(fnLower) ? 'vandenys'
