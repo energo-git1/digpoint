@@ -1547,55 +1547,45 @@ function EsoSubmitBtn(p){
     }
   }
 
-  async function prepareTask(){
-    sSt("saving");
-    // _sendNotificationEmail() čia NEBEIŠSIUNČIAMA — pranešimas eis kai IMAP gaus ESO leidimą (sendPateiktaNotification)
+  var FINAL_STATUSES_ESO=['Atmestas','Nebegalioja','Uždarytas','Gautas leidimas','Gautas dalinai','Gautas'];
+
+  async function sendTeliKEAfterEso(){
     var orgs=o.organizations&&o.organizations.length>0?o.organizations:(o.organization?[o.organization]:[]);
     var hasTelia=orgs.indexOf("Telia, Kaunas")!==-1;
     var hasKE=orgs.indexOf("Kauno energija")!==-1;
+    var sent=[];
 
-    // 1) Siunčiame Telia laišką automatiškai — TIK jei dar neišsiųstas ir puslapiai parinkti be įspėjimų
     if(hasTelia&&o.pendingEmail&&!o.pendingEmail.cancelled){
       var teliaWarnings=(o.pendingEmail.warnings||[]);
       var teliaIncomplete=teliaWarnings.some(function(w){return /derinimo\s+puslapis.*nerastas|puslapis.*nerastas/i.test(w);});
-      if(teliaIncomplete){
-        alert("⚠️ Telia laiškas nepasiruošęs — Telia derinimo puslapis nerastas automatiškai.\n\nEikite į Telia skyrių, rankiniu būdu pasirinkite puslapius ir išsiųskite, tada spauskite Pateikti ESO.");
-        sSt("idle");return;
-      }
+      if(teliaIncomplete){alert("⚠️ Telia derinimo puslapis nerastas — pirmiau pasirinkite puslapius Telia skiltyje.");return;}
       try{
-        // Naudojame rankiniu būdu pasirinktus puslapius jei jie nustatyti
         var existingSrcs=o.pendingEmail.attachmentSources||[];
         var permitWithTelia=existingSrcs.length>0?o:(await preparePendingTeliaEmail(o,null));
         await approveAndSendTelia(permitWithTelia);
-      }catch(e){console.warn("[Auto] Telia laiško siuntimas nepavyko:",e.message);}
-    } else if(hasTelia&&!o.pendingEmail){
-      console.log("[ESO] Telia jau išsiųstas rankiniu būdu — praleidžiama.");
+        sent.push("Telia");
+      }catch(e){alert("Telia klaida: "+e.message);}
     }
-
-    // 2) Siunčiame KE laišką automatiškai — TIK jei dar neišsiųstas (pendingKauoenergijaEmail != null)
     if(hasKE&&o.pendingKauoenergijaEmail){
       try{
         var existingKESrcs=(o.pendingKauoenergijaEmail.attachmentSources||[]);
-        var kePermit;
-        if(existingKESrcs.length>0){
-          // Vartotojas jau parinko puslapius rankiniu būdu
-          kePermit=o;
-          console.log("[ESO] KE: naudojami rankiniu būdu parinkti puslapiai ("+existingKESrcs.length+" šaltiniai)");
-        }else{
-          var pageTextsKE=null;
-          var pdfFileKE=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-          if(pdfFileKE){try{var _pdKE=await getPdfDataUrl(pdfFileKE);if(_pdKE)pageTextsKE=await extractPdfTextByPage(_pdKE);}catch(_){}}
-          var keEmailObj=await preparePendingKauoenergijaEmail(o,pageTextsKE);
-          kePermit=Object.assign({},o,{pendingKauoenergijaEmail:keEmailObj});
-          console.log("[ESO] KE: naudojama auto-detekcija");
-        }
+        var kePermit=existingKESrcs.length>0?o:(Object.assign({},o,{pendingKauoenergijaEmail:await preparePendingKauoenergijaEmail(o,null)}));
         await approveAndSendKauoenergija(kePermit);
-      }catch(e){console.warn("[Auto] KE laiško siuntimas nepavyko:",e.message);}
-    } else if(hasKE&&!o.pendingKauoenergijaEmail){
-      console.log("[ESO] KE jau išsiųstas rankiniu būdu — praleidžiama.");
+        sent.push("KE");
+      }catch(e){alert("KE klaida: "+e.message);}
     }
+    if(sent.length>0){
+      alert("✅ Išsiųsta: "+sent.join(", "));
+    } else {
+      alert("ℹ️ Telia/KE jau išsiųsti arba nereikalingi.");
+    }
+  }
 
-    // 3) Išsaugome ESO užduotį
+  async function prepareTask(){
+    sSt("saving");
+    // Telia/KE NESIUNČIAMI čia — tik po ESO formos patvirtinimo
+
+    // Išsaugome ESO užduotį
     var today=new Date();
     var plus3=new Date(today);plus3.setMonth(plus3.getMonth()+3);
     var esoStart=o.startDate||fmtDate(today);
@@ -1655,10 +1645,27 @@ function EsoSubmitBtn(p){
         {!hasPdf&&<span style={{fontSize:9,color:C.yl,fontFamily:FM}}>⚠️ Nėra PDF</span>}
       </div>}
       {st==="saving"&&<div style={{fontSize:10,color:C.t2,fontFamily:F}}>⏳ Ruošiama užduotis...</div>}
-      {st==="ready"&&<div>
-        <div style={{fontSize:10,color:C.gn,fontFamily:FM,marginBottom:4}}>✅ ESO forma atidaryta naujame skirtuke</div>
-        <div style={{fontSize:9,color:C.t2,fontFamily:F}}>Tampermonkey skriptas užpildo formą automatiškai.</div>
-      </div>}
+      {st==="ready"&&(function(){
+        var orgs=o.organizations&&o.organizations.length>0?o.organizations:(o.organization?[o.organization]:[]);
+        var needTelia=orgs.indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&!o.pendingEmail.cancelled;
+        var needKE=orgs.indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail;
+        var isFinal=FINAL_STATUSES_ESO.indexOf(o.status)!==-1;
+        return <div>
+          <div style={{fontSize:10,color:C.gn,fontFamily:FM,marginBottom:6}}>✅ ESO forma atidaryta — pateikite formą eso.lt</div>
+          {(needTelia||needKE)&&!isFinal&&<div style={{marginTop:6}}>
+            <div style={{fontSize:9,color:C.t2,fontFamily:F,marginBottom:4}}>
+              Po ESO formos pateikimo — siųskite: {[needTelia&&"Telia",needKE&&"KE"].filter(Boolean).join(", ")}
+            </div>
+            <Btn onClick={function(){(async function(){await sendTeliKEAfterEso();})()}}
+              sm style={{background:"#10B981",color:"#fff",border:"none",fontSize:10}}>
+              ✅ ESO pateikta — siųsti {[needTelia&&"Telia",needKE&&"KE"].filter(Boolean).join("+")}
+            </Btn>
+          </div>}
+          {isFinal&&<div style={{fontSize:9,color:C.t3,fontFamily:F,marginTop:4}}>
+            ⚠️ Paraiška uždaryta/atmesta — Telia/KE nesiunčiama
+          </div>}
+        </div>;
+      })()}
     </div>
   </div>
 }
