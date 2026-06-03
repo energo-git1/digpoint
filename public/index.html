@@ -4063,7 +4063,7 @@ function PermitDetail(p){
       {/* Savivaldybės pateikimo blokas — priedai + scriptas */}
       {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės pateikimas</div>
-        <SavPriedaiBlock permitId={o.id}/>
+        <SavPriedaiBlock permitId={o.id} permits={p.permits||[]}/>
       </div>}
 
       {/* Savivaldybės atsakymo blokas — Kauno sav. arba Seniūnija */}
@@ -5716,22 +5716,92 @@ function Sidebar(p){
 // SAV PRIEDAI BLOCK — priedų paketo sudarymas savivaldybei
 // ═════════════════════════════════════════════════════════════
 function SavPriedaiBlock(p){
+  // p.permitId — šiuo metu aktyvios paraiškos ID
+  // p.permits — visos paraiškos (gauti leidimai)
+  var _srcId=useState(p.permitId);var srcId=_srcId[0],sSrcId=_srcId[1];
+  var _docList=useState(null);var docList=_docList[0],sDocList=_docList[1];
+  var _selected=useState({});var selected=_selected[0],sSelected=_selected[1];
+  var _extraFiles=useState([]);var extraFiles=_extraFiles[0],sExtraFiles=_extraFiles[1];
   var _priedai=useState(null);var priedai=_priedai[0],sPriedai=_priedai[1];
   var _busy=useState(false);var busy=_busy[0],sBusy=_busy[1];
-  return <div style={{background:C.s2,borderRadius:8,border:"1px solid "+C.b1,padding:"10px 14px",marginBottom:10}}>
-    <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>📂 Priedų paketas savivaldybei</div>
-    <div style={{fontSize:9,color:C.t3,fontFamily:F,marginBottom:8,lineHeight:1.5}}>
-      Automatiškai surenka: projekto brėžinys, Telia/KE derinimai, gauti leidimai (ESO, Telia, KE), nuotraukos prieš darbus
+  var _msg=useState("");var msg=_msg[0],sMsg=_msg[1];
+
+  var permitSources=(p.permits||[]).filter(function(pm){
+    var pdfs=pm.permitPdfs||{};
+    return Object.values(pdfs).some(function(v){return v&&v.name;});
+  });
+
+  useEffect(function(){
+    if(!srcId)return;
+    fetch('/api/admin/list-sav-priedai?permitId='+srcId)
+      .then(function(r){return r.json();}).then(function(d){
+        if(!d.ok)return;
+        var docs=d.docs||[];
+        sDocList(docs);
+        var sel={};docs.forEach(function(doc){sel[doc.filename]=true;});
+        sSelected(sel);
+        sPriedai(null);
+      }).catch(function(){});
+  },[srcId]);
+
+  if(!permitSources.length&&srcId===p.permitId)return <div style={{fontSize:10,color:C.t3,fontFamily:F,padding:"8px 0"}}>
+    Pasirinkite paraišką su gautais leidimais iš pirmiau esančio sąrašo — tada priedai bus surinkti automatiškai.
+  </div>;
+
+  return <div style={{background:C.s2,borderRadius:8,border:"1px solid "+C.b1,padding:"12px 14px",marginBottom:10}}>
+    <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:8}}>📂 Priedų paketas savivaldybei</div>
+
+    {/* Paraiška iš kurios imami dokumentai */}
+    {permitSources.length>0&&<div style={{marginBottom:10}}>
+      <label style={{fontSize:10,color:C.t3,fontFamily:F,display:"block",marginBottom:4}}>Dokumentų šaltinis (paraiška)</label>
+      <select value={srcId} onChange={function(e){sSrcId(e.target.value);}}
+        style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:11,outline:"none"}}>
+        {permitSources.map(function(pm){
+          var iCode=(pm.internalCode||'').trim();
+          var label=(iCode||pm.investNo||pm.id.slice(-5).toUpperCase())+' — '+(pm.location||'').slice(0,40);
+          return <option key={pm.id} value={pm.id}>{label}</option>;
+        })}
+      </select>
+    </div>}
+
+    {/* Dokumentų sąrašas */}
+    {docList&&docList.length>0&&<div style={{marginBottom:10}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>Dokumentai prieduose</div>
+      {docList.map(function(doc){return <label key={doc.filename} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,cursor:"pointer",fontSize:11,fontFamily:F,color:C.tx}}>
+        <input type="checkbox" checked={!!selected[doc.filename]} onChange={function(e){
+          sSelected(function(prev){var n=Object.assign({},prev);n[doc.filename]=e.target.checked;return n;});
+          sPriedai(null);
+        }}/>
+        <span>{doc.name}</span>
+        <span style={{fontSize:9,color:C.t3,fontFamily:F}}>({doc.label})</span>
+      </label>;})}
+    </div>}
+    {docList&&docList.length===0&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginBottom:8}}>⚠️ Nerasta dokumentų — patikrinkite ar gauti leidimai.</div>}
+
+    {/* Papildomi failai */}
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:4}}>Papildomi dokumentai (PDF/nuotraukos)</div>
+      <FileDropZone files={extraFiles}
+        onAdd={function(f){sExtraFiles(function(prev){return prev.concat([f]);});sPriedai(null);}}
+        onRemove={function(i){sExtraFiles(function(prev){return prev.filter(function(_,idx){return idx!==i;});});sPriedai(null);}}/>
     </div>
+
+    {msg&&<div style={{fontSize:10,color:msg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{msg}</div>}
+
     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
       <Btn sm onClick={function(){(async function(){
-        sBusy(true);
+        var selFiles=Object.keys(selected).filter(function(k){return selected[k];});
+        var extraFns=extraFiles.filter(function(f){return f.filename;}).map(function(f){return f.filename;});
+        if(!selFiles.length&&!extraFns.length){sMsg("❌ Nepasirinktas nė vienas dokumentas.");return;}
+        sBusy(true);sMsg("");sPriedai(null);
         try{
-          var r=await fetch('/api/admin/compile-sav-priedai?permitId='+p.permitId);
+          var r=await fetch('/api/admin/merge-sav-priedai',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({permitId:srcId,selectedFilenames:selFiles,extraFilenames:extraFns})});
           var d=await r.json();
-          if(d.ok)sPriedai(d);
-          else alert('Klaida: '+(d.error||'Nerasta dokumentų'));
-        }catch(e){alert('Serverio klaida');}
+          if(!d.ok){sMsg("❌ "+(d.error||"Klaida"));sBusy(false);return;}
+          sPriedai(d);
+          sMsg("✅ Sujungta "+d.pages+" psl. — peržiūrėkite ir įkelkite");
+        }catch(e){sMsg("❌ Serverio klaida");}
         sBusy(false);
       })()} } disabled={busy} style={{background:"#7C3AED",color:"#fff",border:"none",opacity:busy?0.6:1,fontSize:10}}>
         {busy?"Kompiliuojama...":"🔗 Sudaryti priedus"}
@@ -5745,7 +5815,6 @@ function SavPriedaiBlock(p){
         👁 Peržiūrėti ({priedai.pages} psl.)
       </Btn>}
     </div>
-    {priedai&&<div style={{fontSize:9,color:C.gn,fontFamily:F,marginTop:4}}>✅ {priedai.pages} psl. paruošta — bookmarklet įkels automatiškai į formą</div>}
   </div>;
 }
 

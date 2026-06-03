@@ -1604,6 +1604,93 @@ app.get('/api/admin/detect-seniunija', (req, res) => {
   res.json({ ok: true, seniunija: detected, all: SENIUNIJA_MAP.map((s) => ({ name: s.name, email: s.email })) });
 });
 
+// ── Savivaldybės priedų dokumentų sąrašas ────────────────────
+app.get('/api/admin/list-sav-priedai', (req, res) => {
+  const { permitId } = req.query;
+  if (!permitId) return res.status(400).json({ error: 'Trūksta permitId.' });
+  const permits = dbGet('kl-permits') || [];
+  const permit  = permits.find((p) => p.id === permitId);
+  if (!permit) return res.status(404).json({ error: 'Paraiška nerasta.' });
+
+  const docs = [];
+  const added = new Set();
+  function addDoc(f, label) {
+    if (!f || !f.filename || added.has(f.filename)) return;
+    added.add(f.filename);
+    docs.push({ filename: f.filename, name: f.name || f.filename, label });
+  }
+
+  const pdfs = permit.permitPdfs || {};
+
+  // Projekto brėžinys + Telia/KE derinimų puslapiai
+  for (const src of ((permit.pendingEmail || {}).attachmentSources || [])) {
+    const sf = (permit.files || []).find(f => f.name === src.sourceFileName);
+    if (sf) {
+      const fkey = sf.filename + (src.pageNumbers && src.pageNumbers.length ? '__pages:' + src.pageNumbers.join(',') : '');
+      if (!added.has(fkey)) { added.add(fkey); docs.push({ filename: fkey, name: src.filename || sf.name, label: src.filename && src.filename.toLowerCase().includes('brezinys') ? 'Projekto brėžinys' : 'Telia derinimas' }); }
+    }
+  }
+  for (const src of ((permit.pendingKauoenergijaEmail || {}).attachmentSources || [])) {
+    const sf = (permit.files || []).find(f => f.name === src.sourceFileName);
+    if (sf) {
+      const fkey = sf.filename + (src.pageNumbers && src.pageNumbers.length ? '__pages:' + src.pageNumbers.join(',') : '');
+      if (!added.has(fkey)) { added.add(fkey); docs.push({ filename: fkey, name: src.filename || sf.name, label: 'KE derinimas' }); }
+    }
+  }
+
+  // Gauti leidimai
+  if (pdfs.eso     && pdfs.eso.filename)      addDoc(pdfs.eso,      'ESO sutikimas');
+  if (pdfs.telia   && pdfs.telia.filename)    addDoc(pdfs.telia,    'Telia leidimas');
+  if (pdfs.telia_inv && pdfs.telia_inv.filename) addDoc(pdfs.telia_inv, 'Telia inv. leidimas');
+  if (pdfs.ke      && pdfs.ke.filename)       addDoc(pdfs.ke,       'KE leidimas');
+  if (pdfs.vandenys && pdfs.vandenys.filename) addDoc(pdfs.vandenys, 'Vandenys leidimas');
+  if (pdfs.litgrid && pdfs.litgrid.filename)  addDoc(pdfs.litgrid,  'LitGrid leidimas');
+
+  // Nuotraukos prieš darbus
+  for (const f of (permit.beforeFiles || [])) addDoc(f, 'Prieš darbus');
+
+  res.json({ ok: true, docs });
+});
+
+// ── Savivaldybės priedų merge (su pasirenkamais failais) ──────
+app.post('/api/admin/merge-sav-priedai', async (req, res) => {
+  const { permitId, selectedFilenames, extraFilenames } = req.body || {};
+  if (!permitId) return res.status(400).json({ error: 'Trūksta permitId.' });
+  const { PDFDocument } = require('pdf-lib');
+  const fontkit = require('@pdf-lib/fontkit');
+  try {
+    const merged = await PDFDocument.create();
+    merged.registerFontkit(fontkit);
+    const allFiles = [...(selectedFilenames || []), ...(extraFilenames || [])];
+    for (const fname of allFiles) {
+      const pagesSuffix = fname.includes('__pages:');
+      const safeBase  = path.basename(pagesSuffix ? fname.split('__pages:')[0] : fname);
+      const pagesList = pagesSuffix ? fname.split('__pages:')[1].split(',').map(Number).filter(Boolean) : [];
+      const fpath = path.join(UPLOAD_DIR, safeBase);
+      if (!fs.existsSync(fpath)) { console.warn(`[MERGE-SAV] Failas nerastas: ${safeBase}`); continue; }
+      const buf = fs.readFileSync(fpath);
+      const ext = path.extname(safeBase).toLowerCase();
+      if (ext === '.pdf') {
+        const srcDoc = await PDFDocument.load(buf, { ignoreEncryption: true });
+        const indices = pagesList.length > 0 ? pagesList.map(p => p - 1).filter(i => i >= 0 && i < srcDoc.getPageCount()) : srcDoc.getPageIndices();
+        const pages = await merged.copyPages(srcDoc, indices);
+        pages.forEach(p => merged.addPage(p));
+      } else if (/\.(jpg|jpeg|png)$/i.test(ext)) {
+        const img = ext === '.png' ? await merged.embedPng(buf) : await merged.embedJpg(buf);
+        const { width, height } = img.scale(1);
+        const scale = Math.min(550/width, 800/height, 1);
+        const page = merged.addPage([width*scale+20, height*scale+20]);
+        page.drawImage(img, { x:10, y:10, width:width*scale, height:height*scale });
+      }
+    }
+    if (merged.getPageCount() === 0) return res.status(400).json({ error: 'Nerasta dokumentų priedams.' });
+    const pdfBytes = await merged.save();
+    res.json({ ok: true, content: Buffer.from(pdfBytes).toString('base64'), filename: 'priedai_savivaldybei.pdf', pages: merged.getPageCount() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Savivaldybės priedų paketo kompiliavimas ─────────────────
 // Surenka: projekto brėžinys, Telia/KE derinimai, gauti leidimai, nuotraukos prieš darbus
 // GET /api/admin/compile-sav-priedai?permitId=xxx
