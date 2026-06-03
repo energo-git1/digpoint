@@ -1756,10 +1756,10 @@ function SavivaldybeSubmitBtn(p){
           <div style={{background:C.gnD,border:"1px solid "+C.gn+"44",borderRadius:8,padding:"10px 14px",marginBottom:10}}>
             <div style={{fontSize:11,fontWeight:700,color:C.gn,fontFamily:F,marginBottom:6}}>✅ Duomenys išsaugoti — kasimai.kaunas.lt atidarytas</div>
             <div style={{fontSize:10,color:C.t2,fontFamily:F,lineHeight:1.6}}>
-              1. Prisijunkite per e. valdžios vartus<br/>
-              2. Eikite į „Mano prašymai"<br/>
-              3. Spauskite „Kopijuoti prašymą" ties paskutiniu<br/>
-              4. Kai atsidarys forma — paleiskite bookmarklet'ą žemiau
+              1. Paleiskite bookmarklet'ą e. valdžios vartų puslapyje → jis pasirenks <strong>Swedbank</strong><br/>
+              2. Prisijunkite Swedbank (rankinis veiksmas)<br/>
+              3. Grįžę į kasimai.kaunas.lt → „Mano prašymai" → „Kopijuoti prašymą"<br/>
+              4. Kai atsidarys forma — paleiskite bookmarklet'ą dar kartą → užpildys laukus
             </div>
           </div>
           {/* Bookmarklet */}
@@ -1768,8 +1768,31 @@ function SavivaldybeSubmitBtn(p){
             <div style={{fontSize:9,color:C.t3,fontFamily:FM,marginBottom:6,lineHeight:1.5}}>
               Nuvilkite į naršyklės žymelių juostą arba nukopijuokite ir paleiskite konsolėje:
             </div>
-            <textarea readOnly rows={3} onClick={function(e){e.target.select();document.execCommand('copy');alert('Nukopijuota!');}}
-              value={"javascript:(function(){fetch('http://10.2.1.115:3001/api/store/kl-sav-task').then(r=>r.json()).then(function(d){var t=d.value;if(!t){alert('Nerasta užduotis. Pirmiau spauskite Pateikti Digpoint.');return;}function setVal(n,v){var el=document.querySelector('input[name=\"'+n+'\"]');if(!el)return;el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}var nm=(t.manager||'').split(' ');setVal('dv_vardas',nm[0]||'');setVal('dv_pavarde',nm.slice(1).join(' ')||'');setVal('dv_tel',t.managerPhone||'');setVal('darbai_pradzia',t.startDate||'');setVal('darbai_pabaiga',t.endDate||'');var sel=document.querySelector('select[name=\"planuojami_darbai\"]');if(sel){var opt=Array.from(sel.options).find(function(o){return o.text.toLowerCase().includes('elektros tinkl');});if(opt){sel.value=opt.value;sel.dispatchEvent(new Event('change',{bubbles:true}));}}alert('✅ Užpildyta: '+t.manager+' | '+t.startDate+' – '+t.endDate+'. Patikrinkite ir saugokite.');});})();"}
+            <textarea readOnly rows={4} onClick={function(e){e.target.select();document.execCommand('copy');alert('Nukopijuota!');}}
+              value={"javascript:(function(){"+
+"var SWB_ID=localStorage.getItem('swb_login_id')||'2211078';"+
+"var url=location.href;"+
+// E. valdžios vartai — pasirinkti Swedbank
+"if(url.includes('prie.viisp.lt')||url.includes('epaslaugos.lt/portal/login')||url.includes('viisp')||url.includes('loginpage')){"+
+"var btns=Array.from(document.querySelectorAll('a,button,img,div[role],li'));"+
+"var sw=btns.find(function(b){return(b.textContent||b.alt||b.src||'').toLowerCase().includes('swedbank');});"+
+"if(sw){sw.click();console.log('Swedbank pasirinktas');}else{alert('Nerasta Swedbank mygtuko.');}return;}"+
+// Swedbank prisijungimas — įvesti ID
+"if(url.includes('swedbank.lt')||url.includes('swedbank.com')){"+
+"var idField=document.querySelector('input[name=\"userId\"],input[id*=\"user\"],input[id*=\"login\"],input[placeholder*=\"ID\"],input[placeholder*=\"Vartotojo\"]');"+
+"if(idField){idField.value=SWB_ID;idField.dispatchEvent(new Event('input',{bubbles:true}));idField.dispatchEvent(new Event('change',{bubbles:true}));"+
+"idField.focus();alert('✅ Prisijungimo ID įvestas ('+SWB_ID+'). Įveskite slaptažodį ir patvirtinkite.');}"+
+"else{alert('Slaptažodžio laukas nerastas — įveskite rankiniu būdu.');}return;}"+
+// kasimai.kaunas.lt — užpildyti formą
+"if(url.includes('kasimai.kaunas.lt')){"+
+"fetch('http://10.2.1.115:3001/api/store/kl-sav-task').then(function(r){return r.json();}).then(function(d){"+
+"var t=d.value;if(!t){alert('Nerasta užduotis Digpoint.');return;}"+
+"function setVal(n,v){var el=document.querySelector('input[name=\"'+n+'\"]');if(!el)return;el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}"+
+"var nm=(t.manager||'').split(' ');setVal('dv_vardas',nm[0]||'');setVal('dv_pavarde',nm.slice(1).join(' ')||'');setVal('dv_tel',t.managerPhone||'');"+
+"setVal('darbai_pradzia',t.startDate||'');setVal('darbai_pabaiga',t.endDate||'');"+
+"var sel=document.querySelector('select[name=\"planuojami_darbai\"]');if(sel){var opt=Array.from(sel.options).find(function(o){return o.text.toLowerCase().includes('elektros tinkl');});if(opt){sel.value=opt.value;sel.dispatchEvent(new Event('change',{bubbles:true}));}}"+
+"alert('✅ Užpildyta: '+t.manager+' | '+t.startDate+' – '+t.endDate+'. Patikrinkite ir saugokite.');});return;}"+
+"alert('Paleiskite e.valdžios vartų, Swedbank arba kasimai.kaunas.lt puslapyje.');})();"}
               style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid "+C.b1,background:C.bg,color:C.t2,fontFamily:FM,fontSize:9,resize:"none",cursor:"pointer",boxSizing:"border-box"}}/>
             <div style={{fontSize:9,color:C.t3,fontFamily:F,marginTop:4}}>Spausti teksto lauką → nukopijuoja automatiškai</div>
           </div>
