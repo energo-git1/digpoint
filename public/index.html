@@ -1703,11 +1703,6 @@ function SavivaldybeSubmitBtn(p){
     };
     await sSet('kl-sav-task',task);
     window.open(SAV_URL,'_blank');
-    setTimeout(function(){
-      if(typeof window.sendPrompt==='function'){
-        window.sendPrompt('Pateik Savivaldybei');
-      }
-    },2000);
     sSt("ready");
   }
 
@@ -1756,18 +1751,33 @@ function SavivaldybeSubmitBtn(p){
           </ol>
         </div>
 
-        {st==="idle"&&<div style={{background:C.s2,borderRadius:8,padding:"10px 14px",fontSize:10,color:C.t2,fontFamily:F}}>
-          Spausk „Paruošti agentą" — Cowork lange pasakyk: <span style={{fontFamily:FM,fontWeight:700,color:C.tx}}>"Pateik Savivaldybei"</span>
-        </div>}
         {st==="saving"&&<div style={{background:C.s2,borderRadius:8,padding:"10px 14px",fontSize:11,color:C.t2,fontFamily:F,textAlign:"center"}}>⏳ Saugoma...</div>}
-        {st==="ready"&&<div style={{background:C.gnD,border:"1px solid "+C.gn+"44",borderRadius:8,padding:"10px 14px",fontSize:11,color:C.gn,fontFamily:F}}>
-          <div style={{fontWeight:700,marginBottom:4}}>✅ Paruošta</div>
-          <div style={{fontSize:10}}>Cowork lange pasakyk: <span style={{fontFamily:FM,fontWeight:700}}>"Pateik Savivaldybei"</span></div>
+        {st==="ready"&&<div>
+          <div style={{background:C.gnD,border:"1px solid "+C.gn+"44",borderRadius:8,padding:"10px 14px",marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.gn,fontFamily:F,marginBottom:6}}>✅ Duomenys išsaugoti — kasimai.kaunas.lt atidarytas</div>
+            <div style={{fontSize:10,color:C.t2,fontFamily:F,lineHeight:1.6}}>
+              1. Prisijunkite per e. valdžios vartus<br/>
+              2. Eikite į „Mano prašymai"<br/>
+              3. Spauskite „Kopijuoti prašymą" ties paskutiniu<br/>
+              4. Kai atsidarys forma — paleiskite bookmarklet'ą žemiau
+            </div>
+          </div>
+          {/* Bookmarklet */}
+          <div style={{background:C.s2,borderRadius:8,border:"1px solid "+C.b1,padding:"10px 14px",marginBottom:8}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>📎 Bookmarklet — paleiskite formoje</div>
+            <div style={{fontSize:9,color:C.t3,fontFamily:FM,marginBottom:6,lineHeight:1.5}}>
+              Nuvilkite į naršyklės žymelių juostą arba nukopijuokite ir paleiskite konsolėje:
+            </div>
+            <textarea readOnly rows={3} onClick={function(e){e.target.select();document.execCommand('copy');alert('Nukopijuota!');}}
+              value={"javascript:(function(){fetch('http://10.2.1.115:3001/api/store/kl-sav-task').then(r=>r.json()).then(function(d){var t=d.value;if(!t){alert('Nerasta užduotis. Pirmiau spauskite Pateikti Digpoint.');return;}function setVal(n,v){var el=document.querySelector('input[name=\"'+n+'\"]');if(!el)return;el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}var nm=(t.manager||'').split(' ');setVal('dv_vardas',nm[0]||'');setVal('dv_pavarde',nm.slice(1).join(' ')||'');setVal('dv_tel',t.managerPhone||'');setVal('darbai_pradzia',t.startDate||'');setVal('darbai_pabaiga',t.endDate||'');var sel=document.querySelector('select[name=\"planuojami_darbai\"]');if(sel){var opt=Array.from(sel.options).find(function(o){return o.text.toLowerCase().includes('elektros tinkl');});if(opt){sel.value=opt.value;sel.dispatchEvent(new Event('change',{bubbles:true}));}}alert('✅ Užpildyta: '+t.manager+' | '+t.startDate+' – '+t.endDate+'. Patikrinkite ir saugokite.');});})();"}
+              style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid "+C.b1,background:C.bg,color:C.t2,fontFamily:FM,fontSize:9,resize:"none",cursor:"pointer",boxSizing:"border-box"}}/>
+            <div style={{fontSize:9,color:C.t3,fontFamily:F,marginTop:4}}>Spausti teksto lauką → nukopijuoja automatiškai</div>
+          </div>
         </div>}
 
         <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
           <Btn v="secondary" onClick={function(){sOpen(false)}} sm>Uždaryti</Btn>
-          {st==="idle"&&<Btn onClick={prepareTask} sm style={{background:"#1D4ED8",color:"#fff",border:"none"}}>🚀 Pateikti</Btn>}
+          {st==="idle"&&<Btn onClick={prepareTask} sm style={{background:"#1D4ED8",color:"#fff",border:"none"}}>🚀 Paruošti ir atidaryti</Btn>}
         </div>
       </div>
     </Modal>
