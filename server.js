@@ -1302,16 +1302,30 @@ async function _checkImapMailImpl() {
 
             let bestPermit = bestPermitByInvNo;
             let bestScore  = bestPermitByInvNo ? 1.0 : 0;
-            if (!bestPermit) for (const p of candidates) {
-              // Adresas: teliaRouteTo > teliaRouteFrom > location
-              const permitAddr = p.teliaRouteTo || p.teliaRouteFrom || p.location || '';
-              const score = calcLocationScore(permitAddr, searchText);
-              // >= leidžia pakeisti tik jei tikrai geresnis (rūšiavimas jau užtikrino prioritetus)
-              if (score > bestScore) { bestScore = score; bestPermit = p; }
+
+            // Jei tik viena kandidatė ir neturi adreso — priimame iš karto be score patikros
+            const hasAddr = candidates.some((p) => p.teliaRouteTo || p.teliaRouteFrom || p.location);
+            if (!bestPermit && candidates.length === 1 && !hasAddr) {
+              bestPermit = candidates[0];
+              bestScore  = 0;
+              console.log(`[IMAP] ${org}: viena kandidatė be adreso — priimama tiesiogiai: #${bestPermit.id.slice(-5).toUpperCase()}`);
+            } else if (!bestPermit) {
+              for (const p of candidates) {
+                const permitAddr = p.teliaRouteTo || p.teliaRouteFrom || p.location || '';
+                // Tiesioginis patikrinimas: paraiškos adreso žodžiai laiške
+                let score = calcLocationScore(permitAddr, searchText);
+                // Atvirkštinis patikrinimas: laiško žodžiai paraiškos laukuose (kai permit neturi adreso)
+                if (score === 0 && !permitAddr) {
+                  const permitText = normalizeForMatch([p.investNo, p.description, p.location, p.teliaRouteTo, p.teliaRouteFrom].filter(Boolean).join(' '));
+                  const searchWords = normalizeForMatch(searchText).split(' ').filter((w) => w.length >= 4);
+                  if (permitText && searchWords.length) {
+                    score = searchWords.filter((w) => permitText.includes(w)).length / searchWords.length * 0.5;
+                  }
+                }
+                if (score > bestScore) { bestScore = score; bestPermit = p; }
+              }
             }
 
-            // Jei tik viena kandidatė ir neturi adreso — priimame be score patikros
-            const hasAddr = candidates.some((p) => p.teliaRouteTo || p.teliaRouteFrom || p.location);
             const THRESHOLD = (candidates.length === 1 && !hasAddr) ? 0 : 0.4;
 
             if (!bestPermit || bestScore < THRESHOLD) {
