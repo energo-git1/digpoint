@@ -4060,6 +4060,12 @@ function PermitDetail(p){
         </div>
       </div>}
 
+      {/* Savivaldybės pateikimo blokas — priedai + scriptas */}
+      {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės pateikimas</div>
+        <SavPriedaiBlock permitId={o.id}/>
+      </div>}
+
       {/* Savivaldybės atsakymo blokas — Kauno sav. arba Seniūnija */}
       {((o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1||(o.organizations||[]).indexOf("Seniūnija")!==-1)&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės uždarymas</div>
@@ -4114,8 +4120,8 @@ function PermitDetail(p){
           </div>}
       </div>}
 
-      {/* Seniūnijos informacinis laiškas — Kauno sav. arba Seniūnija org., admin/dok visada */}
-      {((o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1||(o.organizations||[]).indexOf("Seniūnija")!==-1)&&(isA||isD||(o.closingSubmitted||o.status==="Uždarytas"))&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+      {/* Seniūnijos informacinis laiškas — TIK Seniūnija org. */}
+      {(o.organizations||[]).indexOf("Seniūnija")!==-1&&(isA||isD||(o.closingSubmitted||o.status==="Uždarytas"))&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Laiškas seniūnijai</div>
         {o.seniunijaSent
           ?<div style={{background:"rgba(16,185,129,.1)",border:"1px solid #059669",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#059669",fontFamily:F,fontWeight:600}}>✅ Laiškas seniūnijai ({o.seniunijaName||"—"}) išsiųstas {o.seniunijaSentAt||""}</div>
