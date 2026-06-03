@@ -1014,6 +1014,35 @@ async function _checkImapMailImpl() {
               }
             }
 
+            // ── Laiško temos/kūno tikrinimas: ar minimas leidimas/sutikimas? ──
+            // Tikrinama prieš atsisiunčiant PDF — išvengiama tuščio darbo
+            const subjectLower = subject.toLowerCase();
+            const PERMIT_BODY_KEYWORDS = /sutikimas|leidimas|kasimo\s*darb|kasimo\s*leid|derinu|derinamas|derintas|suderinta|leisti\s*vykdyti|leidžiama\s*vykdyti/i;
+            const subjectHasPermit = PERMIT_BODY_KEYWORDS.test(subject);
+
+            // Laiško kūno tikrinimas (greitas — tik teksto dalys, maks 1000 simbolių)
+            let quickBodyText = '';
+            if (!subjectHasPermit) {
+              const quickTextParts = findTextPart(msg.bodyStructure);
+              for (const tp of quickTextParts.slice(0, 1)) {
+                try {
+                  const dl = await client.download(seq, tp.part);
+                  const chunks = [];
+                  for await (const chunk of dl.content) chunks.push(chunk);
+                  quickBodyText = Buffer.concat(chunks).toString('utf8').slice(0, 1000);
+                } catch (_) {}
+              }
+            }
+            const bodyHasPermit = subjectHasPermit || PERMIT_BODY_KEYWORDS.test(quickBodyText);
+
+            if (!bodyHasPermit) {
+              console.log(`[IMAP] ${org}: laiške neminimas sutikimas/leidimas — praleidžiama. Tema: "${subject}"`);
+              doneIds.add(msgId);
+              dbSet('kl-imap-done', [...doneIds]);
+              await client.messageFlagsAdd(seq, ['\\Seen']);
+              continue;
+            }
+
             const pdfParts = findPdfParts(msg.bodyStructure);
 
             if (!pdfParts.length) {
@@ -1303,21 +1332,44 @@ async function _checkImapMailImpl() {
               candidates.forEach((c, i) => console.log(`[IMAP]   [${i}] #${c.id.slice(-5).toUpperCase()} status=${c.status} inv=${c.investNo||'—'} loc=${(c.location||'').slice(0,40)}`));
             }
 
+            // Dvikryptis adreso atitikimas: PDF adresas ↔ paraiškos adresas
+            function calcBidirectionalScore(permitAddr, pdfAddr, searchText) {
+              // 1) Paraiškos adreso žodžiai PDF/email tekste
+              const s1 = calcLocationScore(permitAddr, searchText);
+              // 2) PDF adreso žodžiai paraiškos adrese (atvirkštinis)
+              const s2 = pdfAddr ? calcLocationScore(pdfAddr, permitAddr) : 0;
+              // Imame geriausią
+              return Math.max(s1, s2);
+            }
+
             let bestPermit = bestPermitByInvNo;
             let bestScore  = bestPermitByInvNo ? 1.0 : 0;
 
-            // Jei tik viena kandidatė ir neturi adreso — priimame iš karto be score patikros
+            // Jei tik viena kandidatė ir neturi adreso — priimame tik jei investNo sutampa su PDF
             const hasAddr = candidates.some((p) => p.teliaRouteTo || p.teliaRouteFrom || p.location);
             if (!bestPermit && candidates.length === 1 && !hasAddr) {
-              bestPermit = candidates[0];
-              bestScore  = 0;
-              console.log(`[IMAP] ${org}: viena kandidatė be adreso — priimama tiesiogiai: #${bestPermit.id.slice(-5).toUpperCase()}`);
+              const singleCandidate = candidates[0];
+              const candidateInvNo = (singleCandidate.investNo || '').trim();
+              // Tikrinti ar PDF tekste yra paraiškos investNo arba nors vienas adreso žodis
+              const invNoMatch = candidateInvNo && fullPdfText.includes(candidateInvNo);
+              const subjectMatch = candidateInvNo && subject.includes(candidateInvNo);
+              if (invNoMatch || subjectMatch) {
+                bestPermit = singleCandidate;
+                bestScore  = 0.5;
+                console.log(`[IMAP] ${org}: viena kandidatė — investNo atitinka (${candidateInvNo}): #${bestPermit.id.slice(-5).toUpperCase()}`);
+              } else if (!candidateInvNo) {
+                // Paraiška neturi investNo — priimame su žemu tikimybe
+                bestPermit = singleCandidate;
+                bestScore  = 0;
+                console.log(`[IMAP] ${org}: viena kandidatė be adreso ir investNo — priimama: #${bestPermit.id.slice(-5).toUpperCase()}`);
+              } else {
+                console.log(`[IMAP] ${org}: viena kandidatė bet investNo (${candidateInvNo}) neatitinka PDF — priskyrimas atšauktas`);
+              }
             } else if (!bestPermit) {
               for (const p of candidates) {
                 const permitAddr = p.teliaRouteTo || p.teliaRouteFrom || p.location || '';
-                // Tiesioginis patikrinimas: paraiškos adreso žodžiai laiške
-                let score = calcLocationScore(permitAddr, searchText);
-                // Atvirkštinis patikrinimas: laiško žodžiai paraiškos laukuose (kai permit neturi adreso)
+                let score = calcBidirectionalScore(permitAddr, pdfLocation, searchText);
+                // Papildomas patikrinimas: laiško žodžiai paraiškos laukuose (kai permit neturi adreso)
                 if (score === 0 && !permitAddr) {
                   const permitText = normalizeForMatch([p.investNo, p.description, p.location, p.teliaRouteTo, p.teliaRouteFrom].filter(Boolean).join(' '));
                   const searchWords = normalizeForMatch(searchText).split(' ').filter((w) => w.length >= 4);
