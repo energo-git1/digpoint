@@ -1435,11 +1435,28 @@ function PermitForm(p){
         <select value={srcPermitId} onChange={function(e){selectSourcePermit(e.target.value);}}
           style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid "+C.b1,background:C.bg,color:srcPermitId?C.tx:C.t3,fontFamily:F,fontSize:13,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
           <option value="">— pasirinkti objektą —</option>
-          {permitSources.map(function(x){
-            var _lParts=[];if(x.investNo)_lParts.push(x.investNo);if(x.location)_lParts.push(x.location);
-            var label=(_lParts.length>0?_lParts.join(" — "):(x.manager||x.id.slice(-6).toUpperCase()))+(x.status?" ("+x.status+")":"");
-            return <option key={x.id} value={x.id}>{label}</option>;
-          })}
+          {(function(){
+            // Grupuoti pagal internalCode, tada manualGroupId, tada investNo
+            var groupMap={};
+            var groupOrder=[];
+            permitSources.forEach(function(x){
+              var iCode=(x.internalCode||'').trim();
+              var mgid=(x.manualGroupId||'').trim();
+              var inv=(x.investNo||'').trim();
+              var key=iCode?('ic:'+iCode):mgid?('mg:'+mgid):(inv?('inv:'+inv):('id:'+x.id));
+              if(!groupMap[key]){groupMap[key]={key,code:iCode||mgid||inv||x.id.slice(-5).toUpperCase(),permits:[],location:'',status:''};groupOrder.push(key);}
+              groupMap[key].permits.push(x);
+              if(!groupMap[key].location&&x.location)groupMap[key].location=x.location;
+              if(!groupMap[key].status)groupMap[key].status=x.status;
+            });
+            return groupOrder.map(function(key){
+              var g=groupMap[key];
+              var repId=g.permits[0].id;
+              var loc=(g.location||'').slice(0,60);
+              var label=g.code+(loc?' — '+loc:'')+(g.status?' ('+g.status+')':'');
+              return <option key={key} value={repId}>{label}</option>;
+            });
+          })()}
         </select>
         {srcPermitId&&<div style={{marginTop:6,padding:"6px 10px",background:C.gnD,borderRadius:6,fontSize:10,color:C.gn,fontFamily:F}}>
           ✓ Kontaktiniai duomenys, failai ir numeriai užpildyti automatiškai
