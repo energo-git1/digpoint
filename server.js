@@ -1196,7 +1196,8 @@ async function _checkImapMailImpl() {
               }
             }
 
-            if (!looksLikePermit || !looksLikeTeliaPermit) {
+            // Griežta validacija tik Telia — KE/ESO/kiti gali turėti derinimo dok. be "leidimas" žodžio
+            if (!looksLikeTeliaPermit || (org !== 'Kauno energija' && org !== 'AB ESO' && org !== 'LitGrid' && !looksLikePermit)) {
               const reason = !looksLikeTeliaPermit
                 ? 'PDF neatrodo kaip Telia leidimas (gali būti projekto PDF persiustas atgal)'
                 : 'PDF raktažodžiai nerasti';
