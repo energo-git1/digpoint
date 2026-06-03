@@ -5684,9 +5684,15 @@ function SavPriedaiBlock(p){
         return Object.values(pdfs).some(function(vv){return vv&&vv.name;});
       });
       sAllPermits(sources);
-      // Jei dabartinė paraiška turi leidimų — naudojame ją, kitaip pirmą šaltinį
-      var hasCurrent=sources.find(function(pm){return pm.id===p.permitId;});
-      if(!hasCurrent&&sources.length>0)sSrcId(sources[0].id);
+      // Atkurti išsaugotą srcId iš dabartinės paraiškos
+      var currentPermit=(v||[]).find(function(pm){return pm.id===p.permitId;});
+      var prep=(currentPermit&&currentPermit.savivaldybePreparation)||{};
+      if(prep.srcId){
+        sSrcId(prep.srcId);
+      } else {
+        var hasCurrent=sources.find(function(pm){return pm.id===p.permitId;});
+        if(!hasCurrent&&sources.length>0)sSrcId(sources[0].id);
+      }
     }).catch(function(){});
   },[]);
 
@@ -5701,7 +5707,7 @@ function SavPriedaiBlock(p){
         sDocList(docs);
         // Atkurti išsaugotą parinkimą
         sGet('kl-permits').then(function(v){
-          var pm=(v||[]).find(function(x){return x.id===srcId;});
+          var pm=(v||[]).find(function(x){return x.id===p.permitId;});
           var prep=(pm&&pm.savivaldybePreparation)||{};
           if(prep.selectedFilenames){
             var sel={};prep.selectedFilenames.forEach(function(f){sel[f]=true;});
@@ -5817,9 +5823,10 @@ function SavPriedaiBlock(p){
         var v=await sGet('kl-permits');
         var permits=v||[];
         var updated=permits.map(function(pm){
-          if(pm.id!==srcId)return pm;
+          // Išsaugome prie DABARTINĖS paraiškos (p.permitId), ne prie šaltinio
+          if(pm.id!==p.permitId)return pm;
           return Object.assign({},pm,{savivaldybePreparation:{
-            selectedFilenames:selFiles, extraPages:extraPages, savedAt:fmtDate(new Date())
+            srcId:srcId, selectedFilenames:selFiles, extraPages:extraPages, savedAt:fmtDate(new Date())
           }});
         });
         await sSet('kl-permits',updated);
