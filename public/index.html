@@ -2575,7 +2575,7 @@ function PdfPagePickerModal(p){
         for(var pg=1;pg<=pdf.numPages;pg++){
           if(cancelled)return;
           var page=await pdf.getPage(pg);
-          var vp=page.getViewport({scale:0.85});
+          var vp=page.getViewport({scale:0.9});
           var canvas=document.createElement('canvas');
           canvas.width=vp.width;canvas.height=vp.height;
           await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
@@ -2950,10 +2950,10 @@ function PermitDetail(p){
       }
       u.pendingLitgridEmail=Object.assign({},u.pendingLitgridEmail,_lgPatch);
     }
-    p.onUpdate(u);p.onClose();
+    p.onUpdate(u); // Išsaugo BEZ uždarymo
   }
 
-  return <Modal open={true} onClose={p.onClose} title={"Paraiskas #"+o.id.slice(-5).toUpperCase()} w={600}>
+  return <Modal open={true} onClose={function(){save();}} title={"Paraiskas #"+o.id.slice(-5).toUpperCase()} w={600}>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
         <StatusBadge status={o.status}/>
@@ -3834,8 +3834,8 @@ function PermitDetail(p){
         })()}
         {(st==="Gautas leidimas"||st==="Gautas"||st==="Atmestas")&&<Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>}
         <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:8}}>
-          <Btn sm onClick={save} style={{background:"#10B981",color:"#fff",border:"none"}}>💾 Išsaugoti</Btn>
-          <Btn v="secondary" onClick={p.onClose} sm>Uždaryti</Btn>
+          <Btn sm onClick={function(){save();}} style={{background:"#10B981",color:"#fff",border:"none"}}>💾 Išsaugoti</Btn>
+          <Btn v="secondary" onClick={function(){save();}} sm>Uždaryti</Btn>
           {o.status!=="Atmestas"&&<Btn v="danger" sm onClick={function(){if(window.confirm("Istrinti sias paraiskas?")){p.onDelete(o.id);p.onClose()}}}>Istrinti</Btn>}
           {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&o.pendingLitgridEmail&&!o.pendingLitgridEmail.cancelled&&
             <Btn sm onClick={approveLG} disabled={lgAprvBusy||!((lgEmailIn||"").trim()||(o.pendingLitgridEmail||{}).to)}>
