@@ -1624,10 +1624,9 @@ function EsoSubmitBtn(p){
       createdAt:new Date().toISOString(),
       status:"pending"
     };
-    var existing=await sGet('kl-eso-tasks')||[];
-    var filtered=existing.filter(function(t){return t.permitId!==o.id});
-    var tasks=filtered.concat([task]);
-    await sSet('kl-eso-tasks',tasks);
+    // Paliekame tik šią naują užduotį — išvalome visas senas pending
+    // kad skill'as naudotų teisingus duomenis
+    await sSet('kl-eso-tasks',[task]);
 
     // 4) Atidarome ESO svetainę su duomenimis URL hash (#dp=...) — veikia ir be Tampermonkey
     var _esoTaskData={manager:o.manager,managerPhone:o.managerPhone,email:ESO_EMAIL,
