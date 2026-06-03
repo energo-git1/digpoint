@@ -2111,6 +2111,42 @@ app.get('/api/admin/imap-test', async (req, res) => {
   }
 });
 
+// Diagnostika: parodo konkrečios žinutės kūno tekstą
+app.get('/api/admin/email-body-debug', async (req, res) => {
+  const seq = parseInt(req.query.seq);
+  if (!seq) return res.status(400).json({ error: 'Trūksta seq' });
+  const IMAP_PASS = SMTP_PASS;
+  if (!IMAP_PASS) return res.status(500).json({ error: 'SMTP_PASS nenustatytas' });
+  const client = new ImapFlow({
+    host: IMAP_HOST, port: IMAP_PORT, secure: true,
+    auth: { user: IMAP_USER, pass: IMAP_PASS },
+    logger: false, tls: { rejectUnauthorized: false }, connectionTimeout: 8000,
+  });
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+    try {
+      const msg = await client.fetchOne(seq, { envelope: true, bodyStructure: true });
+      const textParts = findTextPart(msg.bodyStructure);
+      let bodyText = '';
+      for (const tp of textParts.slice(0, 2)) {
+        try {
+          const dl = await client.download(seq, tp.part);
+          const chunks = [];
+          for await (const chunk of dl.content) chunks.push(chunk);
+          bodyText += Buffer.concat(chunks).toString('utf8').slice(0, 3000);
+        } catch (_) {}
+      }
+      const allEmails = [...bodyText.matchAll(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g)].map(m=>m[1]);
+      res.json({ ok: true, subject: msg.envelope.subject, from: (msg.envelope.from||[]).map(f=>f.address), bodyPreview: bodyText.slice(0, 500), allEmailsFound: allEmails });
+    } finally { lock.release(); }
+    await client.logout();
+  } catch (e) {
+    try { await client.logout(); } catch (_) {}
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Diagnostika: parodo kas pašte yra, nieko nekeičia
 app.get('/api/admin/check-mail-debug', async (req, res) => {
   const IMAP_PASS = SMTP_PASS;
