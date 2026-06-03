@@ -1503,7 +1503,7 @@ async function _checkImapMailImpl() {
 const SENIUNIJA_MAP = [
   { name: 'Panemunės-Šančių seniūnija',  email: 'panemune-sanciai@kaunas.lt',
     keywords: ['panemun','šanč','sanciu','ivinskio','karklup','šančių','panemunė'] },
-  { name: 'Centro-Žaliakalnio seniūnija', email: 'centras@kaunas.lt',
+  { name: 'Centro-Žaliakalnio seniūnija', email: 'centras-zaliakalnis@kaunas.lt',
     keywords: ['žaliakalnis','zaliakalnis','gedimino','donelaičio','laisvės al','mickevičiaus','vytauto pr','savanorių pr'] },
   { name: 'Dainavos seniūnija',           email: 'dainava@kaunas.lt',
     keywords: ['dainav','draugystės','taikos pr','studentų','vydūno','partizanų'] },
