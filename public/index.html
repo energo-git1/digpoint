@@ -1762,6 +1762,8 @@ function SavivaldybeSubmitBtn(p){
               4. Kai atsidarys forma — paleiskite bookmarklet'ą dar kartą → užpildys laukus
             </div>
           </div>
+          {/* Priedų paketas */}
+          <SavPriedaiBlock permitId={o.id}/>
           {/* Bookmarklet */}
           <div style={{background:C.s2,borderRadius:8,border:"1px solid "+C.b1,padding:"10px 14px",marginBottom:8}}>
             <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>📎 Bookmarklet — paleiskite formoje</div>
@@ -2662,18 +2664,18 @@ function PermitDetail(p){
     var result=[];
     var added=new Set();
     function add(f,label){if(f&&f.filename&&!added.has(f.filename)){added.add(f.filename);result.push({filename:f.filename,name:f.name,label:label});}}
-    // Nuotraukos iš closeFiles ir beforeFiles
+    // Nuotraukos prieš darbus ir po darbų
     (o.beforeFiles||[]).forEach(function(f){add(f,"Prieš darbus");});
     (o.closeFiles||[]).forEach(function(f){add(f,"Gerbūvio nuotr.");});
-    // Nuotraukos iš files[] (įkeltos su paraiška)
+    // Nuotraukos iš files[]
     (o.files||[]).forEach(function(f){
       if(!f.filename)return;
       var n=(f.name||'').toLowerCase();
       if(n.match(/\.(jpg|jpeg|png|gif|webp)$/))add(f,"Nuotrauka");
     });
     // Savivaldybės leidimo PDF
-    var savPdf=(o.permitPdfs||{}).sav||null;
-    if(savPdf&&savPdf.filename){add(savPdf,"Sav. leidimas");}
+    var pdfs=o.permitPdfs||{};
+    if(pdfs.sav&&pdfs.sav.filename)add(pdfs.sav,"Sav. leidimas");
     else{
       var pf=(o.files||[]).find(function(f){return f.name&&f.name.toLowerCase().endsWith('.pdf')&&!/(RBDTD|projekt)/i.test(f.name)});
       if(pf&&pf.filename)add(pf,"Sav. leidimas");
@@ -5687,6 +5689,43 @@ function Sidebar(p){
 
 // ═════════════════════════════════════════════════════════════
 // MAIN APP
+// ═════════════════════════════════════════════════════════════
+// SAV PRIEDAI BLOCK — priedų paketo sudarymas savivaldybei
+// ═════════════════════════════════════════════════════════════
+function SavPriedaiBlock(p){
+  var _priedai=useState(null);var priedai=_priedai[0],sPriedai=_priedai[1];
+  var _busy=useState(false);var busy=_busy[0],sBusy=_busy[1];
+  return <div style={{background:C.s2,borderRadius:8,border:"1px solid "+C.b1,padding:"10px 14px",marginBottom:10}}>
+    <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>📂 Priedų paketas savivaldybei</div>
+    <div style={{fontSize:9,color:C.t3,fontFamily:F,marginBottom:8,lineHeight:1.5}}>
+      Automatiškai surenka: projekto brėžinys, Telia/KE derinimai, gauti leidimai (ESO, Telia, KE), nuotraukos prieš darbus
+    </div>
+    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+      <Btn sm onClick={function(){(async function(){
+        sBusy(true);
+        try{
+          var r=await fetch('/api/admin/compile-sav-priedai?permitId='+p.permitId);
+          var d=await r.json();
+          if(d.ok)sPriedai(d);
+          else alert('Klaida: '+(d.error||'Nerasta dokumentų'));
+        }catch(e){alert('Serverio klaida');}
+        sBusy(false);
+      })()} } disabled={busy} style={{background:"#7C3AED",color:"#fff",border:"none",opacity:busy?0.6:1,fontSize:10}}>
+        {busy?"Kompiliuojama...":"🔗 Sudaryti priedus"}
+      </Btn>
+      {priedai&&<Btn sm onClick={function(){
+        var bin=atob(priedai.content);
+        var u8=new Uint8Array(bin.length);
+        for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+        window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'})),'_blank');
+      }} style={{background:C.s2,color:C.t2,border:"1px solid "+C.b1,fontSize:10}}>
+        👁 Peržiūrėti ({priedai.pages} psl.)
+      </Btn>}
+    </div>
+    {priedai&&<div style={{fontSize:9,color:C.gn,fontFamily:F,marginTop:4}}>✅ {priedai.pages} psl. paruošta — bookmarklet įkels automatiškai į formą</div>}
+  </div>;
+}
+
 // ═════════════════════════════════════════════════════════════
 // SAV CLOSE PANEL — uždarymo eilė dokumentacijai/adminui
 // ═════════════════════════════════════════════════════════════

@@ -1604,6 +1604,91 @@ app.get('/api/admin/detect-seniunija', (req, res) => {
   res.json({ ok: true, seniunija: detected, all: SENIUNIJA_MAP.map((s) => ({ name: s.name, email: s.email })) });
 });
 
+// ── Savivaldybės priedų paketo kompiliavimas ─────────────────
+// Surenka: projekto brėžinys, Telia/KE derinimai, gauti leidimai, nuotraukos prieš darbus
+// GET /api/admin/compile-sav-priedai?permitId=xxx
+app.get('/api/admin/compile-sav-priedai', async (req, res) => {
+  const { permitId } = req.query;
+  if (!permitId) return res.status(400).json({ error: 'Trūksta permitId.' });
+
+  const permits = dbGet('kl-permits') || [];
+  const permit = permits.find((p) => p.id === permitId);
+  if (!permit) return res.status(404).json({ error: 'Paraiška nerasta.' });
+
+  const { PDFDocument } = require('pdf-lib');
+  const fontkit = require('@pdf-lib/fontkit');
+
+  try {
+    const merged = await PDFDocument.create();
+    merged.registerFontkit(fontkit);
+    const addedFiles = new Set();
+
+    async function addPdfPages(filename, pageIndices) {
+      if (!filename || addedFiles.has(filename)) return;
+      const fpath = path.join(UPLOAD_DIR, path.basename(filename));
+      if (!fs.existsSync(fpath)) return;
+      try {
+        const buf = fs.readFileSync(fpath);
+        const ext = path.extname(filename).toLowerCase();
+        if (ext === '.pdf') {
+          const srcDoc = await PDFDocument.load(buf, { ignoreEncryption: true });
+          const indices = pageIndices && pageIndices.length > 0
+            ? pageIndices.map(p => p - 1).filter(i => i >= 0 && i < srcDoc.getPageCount())
+            : srcDoc.getPageIndices();
+          const pages = await merged.copyPages(srcDoc, indices);
+          pages.forEach((p) => merged.addPage(p));
+          addedFiles.add(filename);
+        } else if (/\.(jpg|jpeg|png)$/i.test(ext)) {
+          const img = ext === '.png' ? await merged.embedPng(buf) : await merged.embedJpg(buf);
+          const { width, height } = img.scale(1);
+          const scale = Math.min(550/width, 800/height, 1);
+          const page = merged.addPage([width*scale+20, height*scale+20]);
+          page.drawImage(img, { x:10, y:10, width:width*scale, height:height*scale });
+          addedFiles.add(filename);
+        }
+      } catch (e) { console.warn(`[SAV-PRIEDAI] Klaida (${filename}): ${e.message}`); }
+    }
+
+    const pdfs = permit.permitPdfs || {};
+
+    // 1. Projekto brėžinys iš Telia attachmentSources
+    const teliaAttSrcs = ((permit.pendingEmail || {}).attachmentSources || []);
+    for (const src of teliaAttSrcs) {
+      const srcFile = (permit.files || []).find(f => f.name === src.sourceFileName);
+      if (srcFile) await addPdfPages(srcFile.filename, src.pageNumbers);
+    }
+    // KE attachmentSources
+    const keAttSrcs = ((permit.pendingKauoenergijaEmail || {}).attachmentSources || []);
+    for (const src of keAttSrcs) {
+      const srcFile = (permit.files || []).find(f => f.name === src.sourceFileName);
+      if (srcFile) await addPdfPages(srcFile.filename, src.pageNumbers);
+    }
+
+    // 2. Gauti leidimai
+    for (const key of ['eso', 'telia', 'telia_inv', 'ke', 'vandenys', 'litgrid']) {
+      if (pdfs[key] && pdfs[key].filename) await addPdfPages(pdfs[key].filename, []);
+    }
+
+    // 3. Nuotraukos prieš darbus
+    for (const f of (permit.beforeFiles || [])) {
+      if (f.filename) await addPdfPages(f.filename, []);
+    }
+
+    if (merged.getPageCount() === 0) {
+      return res.status(400).json({ error: 'Nerasta dokumentų priedams.' });
+    }
+
+    const pdfBytes = await merged.save();
+    const b64 = Buffer.from(pdfBytes).toString('base64');
+    const location = (permit.location || 'paraiskai').replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s]/g, ' ').trim();
+    console.log(`[SAV-PRIEDAI] Sukompiliuota ${merged.getPageCount()} psl. paraiška: ${permitId.slice(-5)}`);
+    res.json({ ok: true, content: b64, filename: `priedai_${location}.pdf`, pages: merged.getPageCount() });
+  } catch (e) {
+    console.error('[SAV-PRIEDAI] Klaida:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Seniūnijos dokumentų sujungimas į vieną PDF ──────────────
 // POST /api/admin/merge-seniunija-docs { permitId, filenames: ['xxx.jpg', ...] }
 // Grąžina: { content: base64, filename: 'dokumentai.pdf' }
@@ -1621,7 +1706,10 @@ app.post('/api/admin/merge-seniunija-docs', async (req, res) => {
     merged.registerFontkit(fontkit);
 
     for (const fname of filenames) {
-      const safeBase = path.basename(fname);
+      // Formas: "filename.pdf" arba "filename.pdf__pages:1,3,5" (konkretūs puslapiai)
+      const pagesSuffix = fname.includes('__pages:');
+      const safeBase = path.basename(pagesSuffix ? fname.split('__pages:')[0] : fname);
+      const pagesList = pagesSuffix ? fname.split('__pages:')[1].split(',').map(Number).filter(Boolean) : [];
       const fpath = path.join(UPLOAD_DIR, safeBase);
       if (!fs.existsSync(fpath)) { console.warn(`[MERGE] Failas nerastas: ${safeBase}`); continue; }
       const buf = fs.readFileSync(fpath);
@@ -1630,7 +1718,11 @@ app.post('/api/admin/merge-seniunija-docs', async (req, res) => {
       if (ext === 'pdf') {
         try {
           const srcDoc = await PDFDocument.load(buf, { ignoreEncryption: true });
-          const pages  = await merged.copyPages(srcDoc, srcDoc.getPageIndices());
+          // Jei nurodyti konkretūs puslapiai — imame tik juos (1-indexed → 0-indexed)
+          const indices = pagesList.length > 0
+            ? pagesList.map(p => p - 1).filter(i => i >= 0 && i < srcDoc.getPageCount())
+            : srcDoc.getPageIndices();
+          const pages = await merged.copyPages(srcDoc, indices);
           pages.forEach((p) => merged.addPage(p));
         } catch (e) { console.warn(`[MERGE] PDF merge klaida (${safeBase}): ${e.message}`); }
       } else if (ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'jpe') {
