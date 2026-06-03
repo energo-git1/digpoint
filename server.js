@@ -899,21 +899,19 @@ async function _checkImapMailImpl() {
                   const dl = await client.download(seq, tp.part);
                   const chunks = [];
                   for await (const chunk of dl.content) chunks.push(chunk);
-                  fwdBodyText += Buffer.concat(chunks).toString('utf8').slice(0, 2000);
+                  fwdBodyText += Buffer.concat(chunks).toString('utf8').slice(0, 8000);
                 } catch (_) {}
               }
-              const fwdFromMatch = fwdBodyText.match(/(?:Iš|From|Nuo)[:\s]+[^<\n]*<([^>]+@[^>]+)>/i)
-                || fwdBodyText.match(/(?:Iš|From|Nuo)[:\s]+([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i);
-              if (fwdFromMatch) {
-                forwardedOrg = detectOrgFromEmail(fwdFromMatch[1]);
-                if (forwardedOrg) {
-                  console.log(`[IMAP] Persiųstas laiškas — originalus siuntėjas: ${fwdFromMatch[1]} → org: ${forwardedOrg}`);
-                }
+              // Ieškome originalaus siuntėjo įvairiais būdais
+              const allEmails = [...fwdBodyText.matchAll(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g)].map(m=>m[1]);
+              console.log(`[IMAP] Persiųstas — rasti el. paštai: ${allEmails.slice(0,5).join(', ')}`);
+              for (const email of allEmails) {
+                const candidate = detectOrgFromEmail(email);
+                if (candidate) { forwardedOrg = candidate; console.log(`[IMAP] Persiųstas — org iš ${email}: ${candidate}`); break; }
               }
               if (!forwardedOrg) {
                 console.log(`[IMAP] Persiųstas laiškas — originalus siuntėjas neatpažintas, praleidžiama: "${subject}"`);
-                doneIds.add(msgId);
-                await client.messageFlagsAdd(seq, ['\\Seen']);
+                // NEUŽRAKINAME doneIds — paliekame nepažymėtą kad vartotojas galėtų bandyti vėl
                 continue;
               }
               org = forwardedOrg;
