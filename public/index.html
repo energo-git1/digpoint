@@ -2950,10 +2950,10 @@ function PermitDetail(p){
       }
       u.pendingLitgridEmail=Object.assign({},u.pendingLitgridEmail,_lgPatch);
     }
-    p.onUpdate(u);p.onClose();
+    p.onUpdate(u); // Tik išsaugo, neuždaro
   }
 
-  return <Modal open={true} onClose={function(){save();}} title={"Paraiskas #"+o.id.slice(-5).toUpperCase()} w={600}>
+  return <Modal open={true} onClose={p.onClose} title={"Paraiskas #"+o.id.slice(-5).toUpperCase()} w={600}>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
         <StatusBadge status={o.status}/>
