@@ -2118,6 +2118,36 @@ app.get('/api/admin/imap-test', async (req, res) => {
   }
 });
 
+// Pažymėti laiškus kaip neperskaitytus pagal seq sąrašą ir paleisti tikrinimą
+app.post('/api/admin/recheck-emails', async (req, res) => {
+  const { seqs } = req.body || {};
+  if (!Array.isArray(seqs) || !seqs.length) return res.status(400).json({ error: 'Trūksta seqs.' });
+  const IMAP_PASS = SMTP_PASS;
+  if (!IMAP_PASS) return res.status(500).json({ error: 'SMTP_PASS nenustatytas' });
+  const client = new ImapFlow({
+    host: IMAP_HOST, port: IMAP_PORT, secure: true,
+    auth: { user: IMAP_USER, pass: IMAP_PASS },
+    logger: false, tls: { rejectUnauthorized: false }, connectionTimeout: 8000,
+  });
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+    try {
+      for (const seq of seqs) {
+        await client.messageFlagsRemove(seq, ['\\Seen']);
+      }
+      console.log(`[RECHECK] ${seqs.length} laiškai pažymėti kaip neperskaityti: ${seqs.join(', ')}`);
+    } finally { lock.release(); }
+    await client.logout();
+    // Paleisti tikrinimą
+    const result = await checkImapMail();
+    res.json({ ok: true, unmarked: seqs.length, ...result });
+  } catch (e) {
+    try { await client.logout(); } catch (_) {}
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Diagnostika: parodo konkrečios žinutės kūno tekstą
 app.get('/api/admin/email-body-debug', async (req, res) => {
   const seq = parseInt(req.query.seq);
