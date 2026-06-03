@@ -4063,7 +4063,7 @@ function PermitDetail(p){
       {/* Savivaldybės pateikimo blokas — priedai + scriptas */}
       {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės pateikimas</div>
-        <SavPriedaiBlock permitId={o.id} permits={p.permits||[]}/>
+        <SavPriedaiBlock permitId={o.id}/>
       </div>}
 
       {/* Savivaldybės atsakymo blokas — Kauno sav. arba Seniūnija */}
@@ -5716,8 +5716,6 @@ function Sidebar(p){
 // SAV PRIEDAI BLOCK — priedų paketo sudarymas savivaldybei
 // ═════════════════════════════════════════════════════════════
 function SavPriedaiBlock(p){
-  // p.permitId — šiuo metu aktyvios paraiškos ID
-  // p.permits — visos paraiškos (gauti leidimai)
   var _srcId=useState(p.permitId);var srcId=_srcId[0],sSrcId=_srcId[1];
   var _docList=useState(null);var docList=_docList[0],sDocList=_docList[1];
   var _selected=useState({});var selected=_selected[0],sSelected=_selected[1];
@@ -5725,11 +5723,22 @@ function SavPriedaiBlock(p){
   var _priedai=useState(null);var priedai=_priedai[0],sPriedai=_priedai[1];
   var _busy=useState(false);var busy=_busy[0],sBusy=_busy[1];
   var _msg=useState("");var msg=_msg[0],sMsg=_msg[1];
+  var _allPermits=useState([]);var allPermits=_allPermits[0],sAllPermits=_allPermits[1];
 
-  var permitSources=(p.permits||[]).filter(function(pm){
-    var pdfs=pm.permitPdfs||{};
-    return Object.values(pdfs).some(function(v){return v&&v.name;});
-  });
+  useEffect(function(){
+    sGet('kl-permits').then(function(v){
+      var sources=(v||[]).filter(function(pm){
+        var pdfs=pm.permitPdfs||{};
+        return Object.values(pdfs).some(function(vv){return vv&&vv.name;});
+      });
+      sAllPermits(sources);
+      // Jei dabartinė paraiška turi leidimų — naudojame ją, kitaip pirmą šaltinį
+      var hasCurrent=sources.find(function(pm){return pm.id===p.permitId;});
+      if(!hasCurrent&&sources.length>0)sSrcId(sources[0].id);
+    }).catch(function(){});
+  },[]);
+
+  var permitSources=allPermits;
 
   useEffect(function(){
     if(!srcId)return;
