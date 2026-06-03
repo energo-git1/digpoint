@@ -1372,17 +1372,18 @@ async function _checkImapMailImpl() {
               if (org === 'AB ESO' && esoDates.start) {
                 console.log(`[IMAP] AB ESO datos iš PDF: pradžia=${esoDates.start} pabaiga=${esoDates.end||'(nėra)'}`);
               }
-              // Nustatome permitPdfs raktą pagal RASTOS PARAIŠKOS organizaciją
-              // (Telia domenui gali priklausyti ir Telia, Kaunas, ir Telia, investiciniai)
+              // orgKey visada nustatomas pagal SIUNTĖJĄ (org), ne pagal paraiškos organizacijas
+              // Telia atveju papildomai skiriame telia vs telia_inv pagal paraiškos org
               const bestOrgs = Array.isArray(bestPermit.organizations) && bestPermit.organizations.length > 0
                 ? bestPermit.organizations : [bestPermit.organization || ''];
-              const orgKey = bestOrgs.includes('Telia, investiciniai') && !bestOrgs.includes('Telia, Kaunas')
-                           ? 'telia_inv'
-                           : (bestOrgs.includes('Telia, Kaunas') || org === 'Telia, Kaunas') ? 'telia'
-                           : org === 'Kauno energija' ? 'ke'
+              const orgKey = org === 'AB ESO'           ? 'eso'
+                           : org === 'Kauno energija'  ? 'ke'
                            : org === 'Kauno vandenys'  ? 'vandenys'
-                           : org === 'AB ESO'           ? 'eso'
                            : org === 'LitGrid'          ? 'litgrid'
+                           : org === 'Telia, Kaunas'   ? (
+                               bestOrgs.includes('Telia, investiciniai') && !bestOrgs.includes('Telia, Kaunas')
+                                 ? 'telia_inv' : 'telia'
+                             )
                            : null;
               const updated    = allPermits.map((p) => {
                 if (p.id !== bestPermit.id) return p;
