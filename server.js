@@ -1638,13 +1638,23 @@ app.get('/api/admin/list-sav-priedai', (req, res) => {
     }
   }
 
-  // Gauti leidimai
+  // Gauti leidimai iš permitPdfs
   if (pdfs.eso     && pdfs.eso.filename)      addDoc(pdfs.eso,      'ESO sutikimas');
   if (pdfs.telia   && pdfs.telia.filename)    addDoc(pdfs.telia,    'Telia leidimas');
   if (pdfs.telia_inv && pdfs.telia_inv.filename) addDoc(pdfs.telia_inv, 'Telia inv. leidimas');
   if (pdfs.ke      && pdfs.ke.filename)       addDoc(pdfs.ke,       'KE leidimas');
   if (pdfs.vandenys && pdfs.vandenys.filename) addDoc(pdfs.vandenys, 'Vandenys leidimas');
   if (pdfs.litgrid && pdfs.litgrid.filename)  addDoc(pdfs.litgrid,  'LitGrid leidimas');
+
+  // Taip pat tikrinti files[] — jei yra leidimų failų (LZD, Sutikimas ir kt.) bet jų nėra permitPdfs
+  for (const f of (permit.files || [])) {
+    if (!f.filename || !f.name) continue;
+    const fn = f.name.toLowerCase();
+    if (/^lzd[_\-]/i.test(f.name))       addDoc(f, 'Telia leidimas (files)');
+    else if (/^sutikimas[_\-]/i.test(f.name)) addDoc(f, 'ESO sutikimas (files)');
+    else if (/^ke[_\-]|^kaun.*energ/i.test(f.name)) addDoc(f, 'KE leidimas (files)');
+    else if (/^litgrid/i.test(f.name))    addDoc(f, 'LitGrid leidimas (files)');
+  }
 
   // Nuotraukos prieš darbus
   for (const f of (permit.beforeFiles || [])) addDoc(f, 'Prieš darbus');
