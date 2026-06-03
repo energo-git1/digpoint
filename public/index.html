@@ -5720,6 +5720,9 @@ function SavPriedaiBlock(p){
   var _docList=useState(null);var docList=_docList[0],sDocList=_docList[1];
   var _selected=useState({});var selected=_selected[0],sSelected=_selected[1];
   var _extraFiles=useState([]);var extraFiles=_extraFiles[0],sExtraFiles=_extraFiles[1];
+  var _extraPages=useState({});var extraPages=_extraPages[0],sExtraPages=_extraPages[1];
+  var _showPicker=useState(null);var showPicker=_showPicker[0],sShowPicker=_showPicker[1];
+  var _saved=useState(false);var saved=_saved[0],sSaved=_saved[1];
   var _priedai=useState(null);var priedai=_priedai[0],sPriedai=_priedai[1];
   var _busy=useState(false);var busy=_busy[0],sBusy=_busy[1];
   var _msg=useState("");var msg=_msg[0],sMsg=_msg[1];
@@ -5747,8 +5750,22 @@ function SavPriedaiBlock(p){
         if(!d.ok)return;
         var docs=d.docs||[];
         sDocList(docs);
-        var sel={};docs.forEach(function(doc){sel[doc.filename]=true;});
-        sSelected(sel);
+        // Atkurti išsaugotą parinkimą
+        sGet('kl-permits').then(function(v){
+          var pm=(v||[]).find(function(x){return x.id===srcId;});
+          var prep=(pm&&pm.savivaldybePreparation)||{};
+          if(prep.selectedFilenames){
+            var sel={};prep.selectedFilenames.forEach(function(f){sel[f]=true;});
+            sSelected(sel);
+          } else {
+            var sel={};docs.forEach(function(doc){sel[doc.filename]=true;});
+            sSelected(sel);
+          }
+          if(prep.extraPages)sExtraPages(prep.extraPages);
+        }).catch(function(){
+          var sel={};docs.forEach(function(doc){sel[doc.filename]=true;});
+          sSelected(sel);
+        });
         sPriedai(null);
       }).catch(function(){});
   },[srcId]);
@@ -5788,19 +5805,86 @@ function SavPriedaiBlock(p){
     {docList&&docList.length===0&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginBottom:8}}>⚠️ Nerasta dokumentų — patikrinkite ar gauti leidimai.</div>}
 
     {/* Papildomi failai */}
+    {/* Puslapių parinkiklis */}
+    {showPicker&&<PdfPagePickerModal
+      pdfFile={showPicker}
+      pdfData={showPicker.data||null}
+      selected={extraPages[showPicker.filename]||[]}
+      onConfirm={function(pages){
+        sExtraPages(function(prev){var n=Object.assign({},prev);n[showPicker.filename]=pages;return n;});
+        sShowPicker(null);sPriedai(null);
+      }}
+      onClose={function(){sShowPicker(null);}}/>}
+
     <div style={{marginBottom:10}}>
       <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:4}}>Papildomi dokumentai (PDF/nuotraukos)</div>
       <FileDropZone files={extraFiles}
-        onAdd={function(f){sExtraFiles(function(prev){return prev.concat([f]);});sPriedai(null);}}
-        onRemove={function(i){sExtraFiles(function(prev){return prev.filter(function(_,idx){return idx!==i;});});sPriedai(null);}}/>
+        onAdd={function(f){
+          sExtraFiles(function(prev){return prev.concat([f]);});
+          sPriedai(null);sSaved(false);
+          // Auto-tikrinimas: jei PDF ≤ 2 psl. — nereikia rinkti, imame viską
+          if(f.name&&f.name.toLowerCase().endsWith('.pdf')&&f.filename){
+            getPdfDataUrl(f).then(function(dataUrl){
+              if(!dataUrl)return;
+              var base64=dataUrl.split(',')[1];
+              var binary=atob(base64);
+              var bytes=new Uint8Array(binary.length);
+              for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+              pdfjsLib.getDocument({data:bytes}).promise.then(function(pdf){
+                if(pdf.numPages<=2){
+                  // Automatiškai pažymėti visus puslapius
+                  var allPages=[];for(var i=1;i<=pdf.numPages;i++)allPages.push(i);
+                  sExtraPages(function(prev){var n=Object.assign({},prev);n[f.filename]=allPages;return n;});
+                }
+                // Jei >2 psl. — vartotojas turi pats pasirinkti
+              }).catch(function(){});
+            }).catch(function(){});
+          }
+        }}
+        onRemove={function(i){
+          var removed=extraFiles[i];
+          sExtraFiles(function(prev){return prev.filter(function(_,idx){return idx!==i;});});
+          if(removed&&removed.filename){sExtraPages(function(prev){var n=Object.assign({},prev);delete n[removed.filename];return n;});}
+          sPriedai(null);sSaved(false);
+        }}/>
+      {/* Puslapių parinkimas kiekvienam PDF */}
+      {extraFiles.filter(function(f){return f.name&&f.name.toLowerCase().endsWith('.pdf');}).map(function(f){
+        var selPgs=extraPages[f.filename];
+        return <div key={f.filename} style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}>
+          <span style={{fontSize:9,color:C.t3,fontFamily:F,flex:1}}>{f.name}</span>
+          <Btn sm onClick={function(){sShowPicker(f);}} style={{fontSize:9,padding:"2px 8px"}}>
+            {selPgs&&selPgs.length>0?('✅ '+selPgs.length+' psl.'):'Pasirinkti puslapius'}
+          </Btn>
+        </div>;
+      })}
     </div>
 
     {msg&&<div style={{fontSize:10,color:msg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{msg}</div>}
 
     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+      {/* Išsaugoti paruošimą */}
       <Btn sm onClick={function(){(async function(){
         var selFiles=Object.keys(selected).filter(function(k){return selected[k];});
-        var extraFns=extraFiles.filter(function(f){return f.filename;}).map(function(f){return f.filename;});
+        var v=await sGet('kl-permits');
+        var permits=v||[];
+        var updated=permits.map(function(pm){
+          if(pm.id!==srcId)return pm;
+          return Object.assign({},pm,{savivaldybePreparation:{
+            selectedFilenames:selFiles, extraPages:extraPages, savedAt:fmtDate(new Date())
+          }});
+        });
+        await sSet('kl-permits',updated);
+        sSaved(true);
+        setTimeout(function(){sSaved(false);},2000);
+      })()} } style={{background:C.s2,color:C.t2,border:"1px solid "+C.b1,fontSize:10}}>
+        {saved?"✅ Išsaugota":"💾 Išsaugoti"}
+      </Btn>
+      <Btn sm onClick={function(){(async function(){
+        var selFiles=Object.keys(selected).filter(function(k){return selected[k];});
+        var extraFns=extraFiles.filter(function(f){return f.filename;}).map(function(f){
+          var pgs=extraPages[f.filename];
+          return pgs&&pgs.length>0?f.filename+'__pages:'+pgs.join(','):f.filename;
+        });
         if(!selFiles.length&&!extraFns.length){sMsg("❌ Nepasirinktas nė vienas dokumentas.");return;}
         sBusy(true);sMsg("");sPriedai(null);
         try{
