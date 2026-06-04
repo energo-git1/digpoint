@@ -3074,80 +3074,99 @@ function parseSavPermitText(text) {
   if (!text) return {};
   const result = {};
 
-  // Iš antraštės: "2026-05-28 (43-27-765) Šermuonėlių g. 4 (Centro-Žaliakalnio sen.)"
-  // Normalizuojame tekstą dėl lietuviškų simbolių kodavimo PDF'uose
-  const normText = text
-    .replace(/Š/g,'Š').replace(/š/g,'š')
-    .replace(/Ž/g,'Ž').replace(/ž/g,'ž')
-    .replace(/Č/g,'Č').replace(/č/g,'č')
-    .replace(/Ė/g,'Ė').replace(/ė/g,'ė')
-    .replace(/Ą/g,'Ą').replace(/ą/g,'ą')
-    .replace(/Į/g,'Į').replace(/į/g,'į')
-    .replace(/Ū/g,'Ū').replace(/ū/g,'ū')
-    .replace(/Ų/g,'Ų').replace(/ų/g,'ų');
+  // Normalizavimas — lietuviški simboliai kartais skirtingai koduojami PDF'uose
+  const normLT = (s) => (s||'').toLowerCase()
+    .replace(/[šŠ]/g,'s').replace(/[žŽ]/g,'z').replace(/[čČ]/g,'c')
+    .replace(/[ėĖ]/g,'e').replace(/[ęĘ]/g,'e').replace(/[ąĄ]/g,'a')
+    .replace(/[įĮ]/g,'i').replace(/[ūŪ]/g,'u').replace(/[ųŲ]/g,'u');
 
-  // Titulas gali būti pirmoje eilutėje arba antroje (po dokumento antraštės)
-  const lines = normText.split('\n').map(l => l.trim()).filter(l => l.length > 5);
-  for (const line of lines.slice(0, 5)) {
-    const headerM = line.match(/(\d{4}-\d{2}-\d{2})\s*\((\d{2}-\d{2}-\d+)\)\s*([^(]{3,80?}?)\s*\(([^)]{5,80}?(?:sen\b|seniūnija|seniounija))/i);
-    if (headerM) {
-      result.savPrasymosKodas = headerM[2].trim();
-      result.location = headerM[3].trim().replace(/\s+/g, ' ').replace(/,\s*$/, '');
-      const senRaw = headerM[4].trim();
-      result.seniunijaName = senRaw.endsWith('seniūnija') ? senRaw
-        : senRaw.replace(/\s*sen\.?\s*$/i, ' seniūnija').trim();
+  // ── 1. Prašymo kodas iš titulo ─────────────────────────────
+  // Formatas: "2026-05-28 (43-27-765) Šermuonėlių g. 4 (Centro-Žaliakalnio sen.)"
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 3);
+  for (const line of lines.slice(0, 8)) {
+    // Leidžiame daugiau tarpų ir variantų
+    const m = line.match(/\d{4}-\d{2}-\d{2}\s*\(\s*(\d{2}-\d{2}-\d+)\s*\)\s*(.+?)\s*\(\s*([^)]{5,80}?(?:seni[uū]nija|sen\b|seniounija))/i);
+    if (m) {
+      result.savPrasymosKodas = m[1].trim();
+      result.location = m[2].trim().replace(/\s+/g,' ').replace(/[,\s]+$/,'');
+      const senRaw = m[3].trim();
+      result.seniunijaName = /seni[uū]nija$/i.test(senRaw) ? senRaw
+        : senRaw.replace(/\s*sen\.?\s*$/i,' seniūnija').trim();
       break;
     }
   }
 
-  // Darbų periodas
+  // ── 2. Seniūnija fallback — ieškome bet kur tekste ─────────
+  if (!result.seniunijaName) {
+    // Paieška: "(Centro-Žaliakalnio seniūnija)" arba "Centro-Žaliakalnio sen."
+    const senM = text.match(/\(\s*([A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž\-]+(?:\s+[A-Za-ząčęėįšųūž\-]+)?\s*(?:seniūnija|sen\.))\s*\)/i)
+      || text.match(/([A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž\-]+(?:-[A-Za-ząčęėįšųūž]+)?\s+(?:seniūnija|sen\.))/i);
+    if (senM) {
+      const raw = senM[1].trim();
+      result.seniunijaName = /seniūnija$/i.test(raw) ? raw
+        : raw.replace(/\s*sen\.?\s*$/i,' seniūnija').trim();
+    }
+  }
+
+  // ── 3. Adresas fallback jei antraštėje nerastas ──────────────
+  if (!result.location) {
+    // Iš eilučių su gatvės pavadinimais
+    for (const line of lines.slice(0, 10)) {
+      if (/\b(g\.|pr\.|al\.|pl\.|gatvė|alėja|prospektas)\b/i.test(line) && line.length < 80) {
+        const loc = line.replace(/\(.*?\)/g,'').trim();
+        if (loc.length > 5) { result.location = loc; break; }
+      }
+    }
+  }
+
+  // ── 4. Datos ────────────────────────────────────────────────
   const periodM = text.match(/Darb[uų]\s+periodas[:\s\n•]+(\d{4}-\d{2}-\d{2})\s*[-–]\s*(\d{4}-\d{2}-\d{2})/i);
   if (periodM) { result.startDate = periodM[1]; result.endDate = periodM[2]; }
 
-  // Leidimo galiojimas
   const galM = text.match(/Galiojimas[:\s]+(\d{4}-\d{2}-\d{2})\s*[-–]\s*(\d{4}-\d{2}-\d{2})/i);
   if (galM) { result.permitValidFrom = galM[1]; result.permitValidUntil = galM[2]; }
 
-  // Leidimo Nr.
-  const lNrM = text.match(/Leidimo\s+nr\.[:\s]+(\d+)/i);
+  // ── 5. Leidimo Nr. ──────────────────────────────────────────
+  const lNrM = text.match(/Leidimo\s+nr\.[:\s]+(\d+)/i) || text.match(/Leidimo numeris[:\s]+(\d+)/i);
   if (lNrM) result.savLeidimosNr = lNrM[1];
 
-  // Atliekamų darbų tipas → workType
+  // ── 6. Darbų tipas ──────────────────────────────────────────
   const tipasM = text.match(/Atliekam[uų]\s+darb[uų]\s+tipas[:\s\n•]+([^\n•]+)/i);
   if (tipasM) {
-    const t = tipasM[1].toLowerCase();
-    result.workType = t.includes('avarin') ? 'avarinius' : 'planinius';
+    result.workType = normLT(tipasM[1]).includes('avarin') ? 'avarinius' : 'planinius';
   }
 
-  // Planuojami vykdyti darbai → description
+  // ── 7. Aprašymas ────────────────────────────────────────────
   const darbyM = text.match(/Planuojami\s+vykdyti\s+darbai[:\s\n•]+([^\n•]+)/i);
   if (darbyM) result.description = darbyM[1].trim();
 
-  // Numatomos ardyti dangos → surfaces[]
-  const SURFACE_KW = [
-    ['Asfaltbetonis', /asfaltbeton|važiuojamosios\s+gatvės/i],
-    ['Žvyras', /žvyr/i],
-    ['Trinkelės', /trinkel/i],
-    ['Plytelės', /plytel/i],
-    ['Gruntas', /grunt/i],
-    ['Betonas', /(?<![Aa]sfalt)beton(?!is\s+\-)/i],
-    ['Žalieji plotai', /žali[ae]j/i],
-    ['Kietos dangos', /kietos?\s+dang/i],
-  ];
-  const dangosM = text.match(/Numatomos\s+ardyti\s+dangos[:\s]+([\s\S]*?)(?:Užsakovas|Rangovas|$)/i);
-  if (dangosM) {
-    const dangTxt = dangosM[1];
-    result.surfaces = SURFACE_KW.filter(([,re]) => re.test(dangTxt)).map(([name]) => name);
-  }
+  // ── 8. Dangos — ištraukiamos iš "Numatomos ardyti dangos" sekcijos ──
+  // Dangų sekcija: antraštės tokios kaip "Važiuojamosios gatvės dalis:", "Žalieji plotai:" ir kt.
+  const dangosM = text.match(/Numatomos\s+ardyti\s+dangos[:\s]*([\s\S]*?)(?:Užsakovas|Rangovas|Techninis|Darbų\s+vadovas|$)/i);
+  const dangTxt = dangosM ? dangosM[1] : text; // jei nerastas — skanuojam visą tekstą
 
-  // Darbų vadovas: Vardas Pavardė; Adresas; +3706XXXXXXX; el@pastas.lt
-  const dvM = text.match(/Darb[uų]\s+vadovas:\s*([^;]+);\s*[^;]+;\s*([+\d\s]{7,20});\s*([\w.\-+]+@[\w.\-]+)/i);
+  const SURFACE_MAP = [
+    ['Asfaltbetonis',  /važiuojamosios\s+gatvės|asfaltbeton/i],
+    ['Žvyras',         /žvyr/i],
+    ['Trinkelės',      /trinkel/i],
+    ['Plytelės',       /plytel/i],
+    ['Gruntas',        /\bgruntas?\b|gruntinis/i],
+    ['Betonas',        /\bbetonas?\b(?!\s*\d)/i],
+    ['Žalieji plotai', /žali[ae]j[ii]\s+plota[ii]|žalioji\s+danga/i],
+    ['Kietos dangos',  /kietos?\s+dang/i],
+  ];
+  const foundSurfaces = SURFACE_MAP.filter(([,re]) => re.test(dangTxt)).map(([n]) => n);
+  if (foundSurfaces.length > 0) result.surfaces = foundSurfaces;
+
+  // ── 9. Darbų vadovas ────────────────────────────────────────
+  const dvM = text.match(/Darb[uų]\s+vadovas[:\s]+([^;]+);\s*[^;]*;\s*([+\d\s\(\)]{7,20});\s*([\w.\-+]+@[\w.\-]+)/i);
   if (dvM) {
     result.manager      = dvM[1].trim();
-    result.managerPhone = dvM[2].trim().replace(/\s+/g, '');
+    result.managerPhone = dvM[2].trim().replace(/\s+/g,'');
     result.managerEmail = dvM[3].trim();
   }
 
+  console.log('[SAV-PARSE] Rezultatas:', JSON.stringify(result));
   return result;
 }
 
