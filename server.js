@@ -1933,13 +1933,16 @@ app.post('/api/admin/send-seniunija-closure', async (req, res) => {
 
   // Žymime kaip išsiųstą
   const today = fmtDateSrv(new Date());
+  const isSeniunijaOrg = (permit.organizations || []).includes('Seniūnija');
   dbSet('kl-permits', permits.map((p) => p.id !== permitId ? p : {
     ...p,
     seniunijaSent: true,
     seniunijaSentAt: today,
     seniunijaName,
+    // Seniūnija paraiška → automatiškai uždaroma
+    ...(isSeniunijaOrg ? { status: 'Uždarytas' } : {}),
     history: [...(p.history || []), {
-      status: p.status, date: today,
+      status: isSeniunijaOrg ? 'Uždarytas' : p.status, date: today,
       note: `Seniūnijai (${seniunijaName}) išsiųstas informacinis laiškas apie atliktus darbus`,
     }],
   }));

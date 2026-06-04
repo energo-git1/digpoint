@@ -4227,8 +4227,11 @@ function PermitDetail(p){
                 var d=await r.json();
                 if(!r.ok){sSeniunijaMsg("❌ "+(d.error||"Klaida"));sSeniunijaBusy(false);return;}
                 sSeniunijaMsg("✅ Laiškas seniūnijai išsiųstas!");
+                var isSen=(o.organizations||[]).indexOf("Seniūnija")!==-1;
+                var newSt=isSen?"Uždarytas":o.status;
                 p.onUpdate(Object.assign({},o,{seniunijaSent:true,seniunijaSentAt:fmtDate(new Date()),seniunijaName:name,
-                  history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Seniūnijai ("+name+") išsiųstas informacinis laiškas"}])}));
+                  status:newSt,
+                  history:(o.history||[]).concat([{status:newSt,date:fmtDate(new Date()),note:"Seniūnijai ("+name+") išsiųstas informacinis laiškas"}])}));
               }catch(e){sSeniunijaMsg("❌ Serverio klaida");}
               sSeniunijaBusy(false);
             })()}} sm disabled={seniunijaBusy||!mergedPdf} style={{background:"#2563EB",color:"#fff",border:"none",opacity:(seniunijaBusy||!mergedPdf)?0.6:1}}>
