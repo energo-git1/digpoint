@@ -5717,6 +5717,18 @@ function SavPriedaiBlock(p){
             sSelected(sel);
           }
           if(prep.extraPages)sExtraPages(prep.extraPages);
+          // Auto-kompiliuoti jei yra išsaugotų pasirinkimų
+          if(prep.selectedFilenames&&prep.selectedFilenames.length>0){
+            var selFiles=prep.selectedFilenames;
+            var extraFns=[];
+            sBusy(true);
+            fetch('/api/admin/merge-sav-priedai',{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({permitId:prep.srcId||srcId,selectedFilenames:selFiles,extraFilenames:extraFns})})
+              .then(function(r){return r.json();}).then(function(d){
+                if(d.ok){sPriedai(d);sMsg("✅ Priedai atkurti ("+d.pages+" psl.)");}
+                sBusy(false);
+              }).catch(function(){sBusy(false);});
+          }
         }).catch(function(){
           var sel={};docs.forEach(function(doc){sel[doc.filename]=true;});
           sSelected(sel);
