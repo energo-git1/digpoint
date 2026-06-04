@@ -2729,8 +2729,9 @@ function PermitDetail(p){
     // Jei Seniūnija paraiška ir yra PDF files[] — auto-parsavimas
     if(hasSen&&!o.location){
       var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.toLowerCase().endsWith('.pdf')&&!/(RBDTD|projekt)/i.test(f.name);});
-      if(pdfFile&&pdfFile.filename){
-        fetch('/api/parse-sav-permit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:pdfFile.filename})})
+      var pdfFn=pdfFile&&(pdfFile.filename||(pdfFile.url&&pdfFile.url.split('/').pop()));
+      if(pdfFn){
+        fetch('/api/parse-sav-permit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:pdfFn})})
           .then(function(r){return r.json();}).then(function(d){
             if(!d.ok||!d.data)return;
             var ex=d.data;
@@ -3845,6 +3846,7 @@ function PermitDetail(p){
         <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:8}}>
           <Btn sm onClick={function(){save();}} style={{background:"#10B981",color:"#fff",border:"none"}}>💾 Išsaugoti</Btn>
           <Btn v="secondary" onClick={function(){p.onClose();}} sm>Uždaryti</Btn>
+          {isA&&o.status!=="Uždarytas"&&o.status!=="Atmestas"&&<Btn sm onClick={function(){if(window.confirm("Uždaryti paraišką #"+o.id.slice(-5).toUpperCase()+"?")){var u=Object.assign({},o,{status:"Uždarytas",history:(o.history||[]).concat([{status:"Uždarytas",date:fmtDate(new Date()),note:"Rankiniu būdu uždaryta"}])});p.onUpdate(u);}}} style={{background:"#059669",color:"#fff",border:"none"}}>✓ Uždaryti</Btn>}
           {o.status!=="Atmestas"&&<Btn v="danger" sm onClick={function(){if(window.confirm("Istrinti sias paraiskas?")){p.onDelete(o.id);p.onClose()}}}>Istrinti</Btn>}
           {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&o.pendingLitgridEmail&&!o.pendingLitgridEmail.cancelled&&
             <Btn sm onClick={approveLG} disabled={lgAprvBusy||!((lgEmailIn||"").trim()||(o.pendingLitgridEmail||{}).to)}>
@@ -4143,7 +4145,7 @@ function PermitDetail(p){
             {(function(){
               var surfTxt=buildSurfaceText(surfaces);
               var autoSubj="Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — "+(o.location||"—");
-              var autoBody="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", elektros tinklų "+(o.description||"įrengimas")+".\nDarbai yra baigti, "+surfTxt+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\nEnergoLT";
+              var autoBody="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", elektros tinklų "+(o.description||"įrengimas")+".\nDarbai yra baigti, "+surfTxt+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu";
               var curSubj=senSubjEdit!==null?senSubjEdit:autoSubj;
               var curBody=senBodyEdit!==null?senBodyEdit:autoBody;
               return <div style={{marginBottom:10}}>
@@ -4216,7 +4218,7 @@ function PermitDetail(p){
               try{
                 var surfTxt2=buildSurfaceText(surfaces);
                 var autoSubj2="Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — "+(o.location||"—");
-                var autoBody2="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", elektros tinklų "+(o.description||"įrengimas")+".\nDarbai yra baigti, "+surfTxt2+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\nEnergoLT";
+                var autoBody2="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", elektros tinklų "+(o.description||"įrengimas")+".\nDarbai yra baigti, "+surfTxt2+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu";
                 var r=await fetch('/api/admin/send-seniunija-closure',{method:'POST',headers:{'Content-Type':'application/json'},
                   body:JSON.stringify({permitId:o.id,workType,surfaces,seniunijaEmail:email,seniunijaName:name,
                     emailSubject:senSubjEdit!==null?senSubjEdit:autoSubj2,

@@ -1890,7 +1890,8 @@ app.post('/api/admin/send-seniunija-closure', async (req, res) => {
   const surfTxt   = buildSurfaceTextSrv(Array.isArray(surfaces) ? surfaces : []);
 
   const autoSubject = `Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — ${location}`;
-  const autoBody = `Laba diena,\n\nNuo ${startDate} iki ${endDate} vykdėme ${wt} kasimo darbus ${seniunijaName}, ${location}, elektros tinklų ${desc}.\nDarbai yra baigti, ${surfTxt}. Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\nEnergoLT`;
+  const SIGNATURE = `\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu`;
+  const autoBody = `Laba diena,\n\nNuo ${startDate} iki ${endDate} vykdėme ${wt} kasimo darbus ${seniunijaName}, ${location}, elektros tinklų ${desc}.\nDarbai yra baigti, ${surfTxt}. Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.${SIGNATURE}`;
   const finalSubject = (emailSubject && emailSubject.trim()) ? emailSubject.trim() : autoSubject;
   const bodyText = (emailBody && emailBody.trim()) ? emailBody.trim() : autoBody;
 
