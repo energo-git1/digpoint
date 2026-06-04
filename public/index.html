@@ -5692,16 +5692,18 @@ function SavPriedaiBlock(p){
   var _autoSaveTimer=useState(null);var autoSaveTimer=_autoSaveTimer[0],sAutoSaveTimer=_autoSaveTimer[1];
 
   // Auto-išsaugojimas kai keičiasi pasirinkimai (su debounce)
-  function autoSave(newSrcId, newSelected, newExtraPages){
+  function autoSave(newSrcId, newSelected, newExtraPages, newExtraFiles){
     if(autoSaveTimer)clearTimeout(autoSaveTimer);
     var t=setTimeout(function(){(async function(){
       var selFiles=Object.keys(newSelected||selected).filter(function(k){return (newSelected||selected)[k];});
+      // Išsaugome extraFiles metaduomenis (be data - tik filename/name/url)
+      var extraFilesMeta=(newExtraFiles||extraFiles).map(function(f){return {filename:f.filename,name:f.name,url:f.url,size:f.size};}).filter(function(f){return f.filename;});
       var v=await sGet('kl-permits');
       var permits=v||[];
       var updated=permits.map(function(pm){
         if(pm.id!==p.permitId)return pm;
         return Object.assign({},pm,{savivaldybePreparation:{
-          srcId:newSrcId||srcId,selectedFilenames:selFiles,extraPages:newExtraPages||extraPages,savedAt:fmtDate(new Date())
+          srcId:newSrcId||srcId,selectedFilenames:selFiles,extraPages:newExtraPages||extraPages,extraFiles:extraFilesMeta,savedAt:fmtDate(new Date())
         }});
       });
       await sSet('kl-permits',updated);
@@ -5750,6 +5752,7 @@ function SavPriedaiBlock(p){
             sSelected(sel);
           }
           if(prep.extraPages)sExtraPages(prep.extraPages);
+          if(prep.extraFiles&&prep.extraFiles.length)sExtraFiles(prep.extraFiles);
           // Auto-kompiliuoti jei yra išsaugotų pasirinkimų
           if(prep.selectedFilenames&&prep.selectedFilenames.length>0){
             var selFiles=prep.selectedFilenames;
@@ -5826,7 +5829,7 @@ function SavPriedaiBlock(p){
       <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:4}}>Papildomi dokumentai (PDF/nuotraukos)</div>
       <FileDropZone files={extraFiles}
         onAdd={function(f){
-          sExtraFiles(function(prev){return prev.concat([f]);});
+          sExtraFiles(function(prev){var nf=prev.concat([f]);autoSave(srcId,selected,extraPages,nf);return nf;});
           sPriedai(null);sSaved(false);
           // Auto-tikrinimas: jei PDF ≤ 2 psl. — nereikia rinkti, imame viską
           if(f.name&&f.name.toLowerCase().endsWith('.pdf')&&f.filename){
