@@ -5689,6 +5689,25 @@ function SavPriedaiBlock(p){
   var _priedai=useState(null);var priedai=_priedai[0],sPriedai=_priedai[1];
   var _busy=useState(false);var busy=_busy[0],sBusy=_busy[1];
   var _msg=useState("");var msg=_msg[0],sMsg=_msg[1];
+  var _autoSaveTimer=useState(null);var autoSaveTimer=_autoSaveTimer[0],sAutoSaveTimer=_autoSaveTimer[1];
+
+  // Auto-išsaugojimas kai keičiasi pasirinkimai (su debounce)
+  function autoSave(newSrcId, newSelected, newExtraPages){
+    if(autoSaveTimer)clearTimeout(autoSaveTimer);
+    var t=setTimeout(function(){(async function(){
+      var selFiles=Object.keys(newSelected||selected).filter(function(k){return (newSelected||selected)[k];});
+      var v=await sGet('kl-permits');
+      var permits=v||[];
+      var updated=permits.map(function(pm){
+        if(pm.id!==p.permitId)return pm;
+        return Object.assign({},pm,{savivaldybePreparation:{
+          srcId:newSrcId||srcId,selectedFilenames:selFiles,extraPages:newExtraPages||extraPages,savedAt:fmtDate(new Date())
+        }});
+      });
+      await sSet('kl-permits',updated);
+    })();},800);
+    sAutoSaveTimer(t);
+  }
   var _allPermits=useState([]);var allPermits=_allPermits[0],sAllPermits=_allPermits[1];
 
   useEffect(function(){
@@ -5761,7 +5780,7 @@ function SavPriedaiBlock(p){
     {/* Paraiška iš kurios imami dokumentai */}
     {permitSources.length>0&&<div style={{marginBottom:10}}>
       <label style={{fontSize:10,color:C.t3,fontFamily:F,display:"block",marginBottom:4}}>Dokumentų šaltinis (paraiška)</label>
-      <select value={srcId} onChange={function(e){sSrcId(e.target.value);}}
+      <select value={srcId} onChange={function(e){var v=e.target.value;sSrcId(v);autoSave(v,selected,extraPages);}}
         style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:11,outline:"none"}}>
         {permitSources.map(function(pm){
           var iCode=(pm.internalCode||'').trim();
@@ -5776,7 +5795,8 @@ function SavPriedaiBlock(p){
       <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>Dokumentai prieduose <span style={{fontWeight:400,color:C.t3}}>(↑↓ keisti eiliškumą)</span></div>
       {docList.map(function(doc,idx){return <div key={doc.filename} style={{display:"flex",alignItems:"center",gap:4,marginBottom:4}}>
         <input type="checkbox" checked={!!selected[doc.filename]} onChange={function(e){
-          sSelected(function(prev){var n=Object.assign({},prev);n[doc.filename]=e.target.checked;return n;});
+          var chk=e.target.checked;var fn=doc.filename;
+          sSelected(function(prev){var n=Object.assign({},prev);n[fn]=chk;autoSave(srcId,n,extraPages);return n;});
           sPriedai(null);
         }} style={{flexShrink:0}}/>
         <span style={{flex:1,fontSize:11,fontFamily:F,color:C.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{doc.name} <span style={{fontSize:9,color:C.t3}}>({doc.label})</span></span>
