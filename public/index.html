@@ -5771,17 +5771,22 @@ function SavPriedaiBlock(p){
       </select>
     </div>}
 
-    {/* Dokumentų sąrašas */}
+    {/* Dokumentų sąrašas su eiliškumo keitimu */}
     {docList&&docList.length>0&&<div style={{marginBottom:10}}>
-      <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>Dokumentai prieduose</div>
-      {docList.map(function(doc){return <label key={doc.filename} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,cursor:"pointer",fontSize:11,fontFamily:F,color:C.tx}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>Dokumentai prieduose <span style={{fontWeight:400,color:C.t3}}>(↑↓ keisti eiliškumą)</span></div>
+      {docList.map(function(doc,idx){return <div key={doc.filename} style={{display:"flex",alignItems:"center",gap:4,marginBottom:4}}>
         <input type="checkbox" checked={!!selected[doc.filename]} onChange={function(e){
           sSelected(function(prev){var n=Object.assign({},prev);n[doc.filename]=e.target.checked;return n;});
           sPriedai(null);
-        }}/>
-        <span>{doc.name}</span>
-        <span style={{fontSize:9,color:C.t3,fontFamily:F}}>({doc.label})</span>
-      </label>;})}
+        }} style={{flexShrink:0}}/>
+        <span style={{flex:1,fontSize:11,fontFamily:F,color:C.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{doc.name} <span style={{fontSize:9,color:C.t3}}>({doc.label})</span></span>
+        <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
+          <button onClick={function(){if(idx===0)return;sDocList(function(prev){var a=prev.slice();var t=a[idx];a[idx]=a[idx-1];a[idx-1]=t;return a;});sPriedai(null);}}
+            disabled={idx===0} style={{padding:"0 4px",fontSize:9,lineHeight:1.4,border:"1px solid "+C.b1,borderRadius:3,background:C.s2,color:idx===0?C.t3:C.t2,cursor:idx===0?"default":"pointer"}}>↑</button>
+          <button onClick={function(){if(idx===docList.length-1)return;sDocList(function(prev){var a=prev.slice();var t=a[idx];a[idx]=a[idx+1];a[idx+1]=t;return a;});sPriedai(null);}}
+            disabled={idx===docList.length-1} style={{padding:"0 4px",fontSize:9,lineHeight:1.4,border:"1px solid "+C.b1,borderRadius:3,background:C.s2,color:idx===docList.length-1?C.t3:C.t2,cursor:idx===docList.length-1?"default":"pointer"}}>↓</button>
+        </div>
+      </div>;})}
     </div>}
     {docList&&docList.length===0&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginBottom:8}}>⚠️ Nerasta dokumentų — patikrinkite ar gauti leidimai.</div>}
 

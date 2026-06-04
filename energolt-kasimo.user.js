@@ -161,7 +161,32 @@
     return;
   }
 
-  // ── 5. kasimai.kaunas.lt — formos pildymas ────────────────────
+  // ── 5. kasimai.kaunas.lt — mano prašymai: atidaryti pirmą ir kopijuoti ──
+  if (url.includes('kasimai.kaunas.lt/mano-prasymai')) {
+    log('kasimai — mano prašymai, laukiama sąrašo');
+    // Tikrinti ar yra aktyvus kl-sav-task
+    digpointGet('/api/store/kl-sav-task', (err, data) => {
+      if (err || !data || !data.value) {
+        log('Nėra aktyvios užduoties — nieko nedarome');
+        return;
+      }
+      log('Yra aktyvus kl-sav-task — kopijuojame pirmą prašymą');
+      // Laukiame kol sąrašas užsikrauna
+      waitFor('a[href*="collapsePrasymas"]', (firstLink) => {
+        setTimeout(() => {
+          click(firstLink);
+          log('Pirmasis prašymas atidarytas');
+          // Laukiame "Kopijuoti prašymą" mygtuko
+          waitForText('button', 'Kopijuoti prašymą', (btn) => {
+            setTimeout(() => { click(btn); log('"Kopijuoti prašymą" paspaustas'); }, 600);
+          }, 8000);
+        }, 1000);
+      }, 10000);
+    });
+    return;
+  }
+
+  // ── 6. kasimai.kaunas.lt — formos pildymas ────────────────────
   if (url.includes('kasimai.kaunas.lt/naujas-prasymas')) {
     log('kasimai.kaunas.lt — formos pildymas');
 
