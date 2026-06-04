@@ -1,0 +1,333 @@
+// ==UserScript==
+// @name         EnergoLT — Kasimo leidimai
+// @namespace    http://energolt.eu/
+// @version      1.0.0
+// @description  Automatizuotas Kauno m. sav. ir ESO kasimo leidimų paraiškų pildymas
+// @author       EnergoLT
+// @match        https://kasimai.kaunas.lt/*
+// @match        https://ap.epaslaugos.lt/*
+// @match        https://log-in.swedbank.lt/*
+// @match        https://www.swedbank.lt/banklink/*
+// @match        https://www.eso.lt/aktualios-formos/kasimo-darbai/*
+// @grant        GM_xmlhttpRequest
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_log
+// @connect      10.2.1.115
+// @run-at       document-idle
+// ==/UserScript==
+
+(function () {
+  'use strict';
+
+  const DIGPOINT = 'http://10.2.1.115:3001';
+  const SWB_ID   = GM_getValue('swb_login_id', '2211078');
+  const log      = (msg) => console.log('[EnergoLT]', msg);
+
+  // ─── Pagalbinės funkcijos ──────────────────────────────────────
+
+  // Laukia elemento iki timeout ms, tada iškviečia callback
+  function waitFor(selector, callback, timeout = 15000, interval = 250) {
+    const start = Date.now();
+    const check = setInterval(() => {
+      const el = document.querySelector(selector);
+      if (el) {
+        clearInterval(check);
+        log(`Rastas: ${selector}`);
+        callback(el);
+      } else if (Date.now() - start > timeout) {
+        clearInterval(check);
+        log(`Timeout (${timeout}ms): ${selector}`);
+      }
+    }, interval);
+  }
+
+  // Laukia elemento pagal tekstą
+  function waitForText(selector, text, callback, timeout = 15000) {
+    const start = Date.now();
+    const check = setInterval(() => {
+      const els = Array.from(document.querySelectorAll(selector));
+      const el = els.find(e => (e.textContent || '').includes(text));
+      if (el) {
+        clearInterval(check);
+        callback(el);
+      } else if (Date.now() - start > timeout) {
+        clearInterval(check);
+        log(`Timeout tekstui "${text}" selector "${selector}"`);
+      }
+    }, 300);
+  }
+
+  // Nustato Angular input reikšmę
+  function setAngularVal(el, value) {
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    nativeInputValueSetter.call(el, value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // Nustato įprasto input reikšmę
+  function setVal(name, value) {
+    const el = document.querySelector(`input[name="${name}"]`);
+    if (!el) { log(`Laukas nerastas: ${name}`); return; }
+    el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // Gauna duomenis iš Digpoint
+  function digpointGet(path, callback) {
+    GM_xmlhttpRequest({
+      method: 'GET',
+      url: `${DIGPOINT}${path}`,
+      onload: (r) => {
+        try { callback(null, JSON.parse(r.responseText)); }
+        catch (e) { callback(e, null); }
+      },
+      onerror: (e) => callback(e, null),
+    });
+  }
+
+  // Siunčia mygtuko paspaudimą
+  function click(el) {
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  }
+
+  // Sukuria File objektą iš base64 ir priskiria input
+  function uploadBase64(input, base64, filename) {
+    const binary = atob(base64);
+    const bytes  = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const file = new File([bytes], filename, { type: 'application/pdf' });
+    const dt   = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    log(`Įkeltas failas: ${filename} (${(bytes.length / 1024).toFixed(1)} KB)`);
+  }
+
+  // ─── Puslapių valdikliai ───────────────────────────────────────
+
+  const url = location.href;
+
+  // ── 1. E. valdžios vartai — pasirinkti Swedbank ───────────────
+  if (url.includes('epaslaugos.lt') && url.includes('/login')) {
+    log('E. valdžios vartai — ieškoma Swedbank');
+    waitFor('img[alt*="Swedbank"]', (img) => {
+      // Mažas delay kad puslapiui stabilizuotis
+      setTimeout(() => {
+        const parent = img.closest('a,button,div[role="button"]') || img.parentElement;
+        click(parent);
+        log('Swedbank pasirinktas');
+      }, 500);
+    });
+    return;
+  }
+
+  // ── 2. E. valdžios vartai — duomenų perdavimo patvirtinimas ──
+  if (url.includes('epaslaugos.lt/auth-redirect')) {
+    log('E. valdžios vartai — Asmens duomenų perdavimas');
+    waitForText('button', 'Prisijungti', (btn) => {
+      setTimeout(() => { click(btn); log('Prisijungti paspaustas'); }, 800);
+    });
+    return;
+  }
+
+  // ── 3. Swedbank — įvesti vartotojo ID ─────────────────────────
+  if (url.includes('log-in.swedbank.lt')) {
+    log('Swedbank — pildomas prisijungimo ID');
+    waitFor('#login-widget-user-id-simple', (idField) => {
+      setTimeout(() => {
+        setAngularVal(idField, SWB_ID);
+        log(`ID įvestas: ${SWB_ID}`);
+        // Spausti Prisijungti po 0.5s
+        setTimeout(() => {
+          waitForText('button', 'Prisijungti', (btn) => {
+            click(btn);
+            log('Prisijungti paspaustas — laukiame telefono patvirtinimo...');
+          });
+        }, 500);
+      }, 300);
+    });
+    return;
+  }
+
+  // ── 4. Swedbank — duomenų siuntimas (banklink) ────────────────
+  if (url.includes('swedbank.lt/banklink/auth')) {
+    log('Swedbank — Siųsti duomenis');
+    waitFor('input[type="button"][value="Siųsti duomenis"]', (btn) => {
+      setTimeout(() => { click(btn); log('Siųsti duomenis paspaustas'); }, 600);
+    });
+    return;
+  }
+
+  // ── 5. kasimai.kaunas.lt — formos pildymas ────────────────────
+  if (url.includes('kasimai.kaunas.lt/naujas-prasymas')) {
+    log('kasimai.kaunas.lt — formos pildymas');
+
+    // Gauname užduoties duomenis iš Digpoint
+    digpointGet('/api/store/kl-sav-task', (err, data) => {
+      if (err || !data || !data.value) {
+        log('Nerasta kl-sav-task — formą pildykite rankiniu būdu');
+        return;
+      }
+      const t = data.value;
+      log(`Duomenys gauti: ${t.manager}, ${t.startDate}–${t.endDate}`);
+
+      // Laukiame kol formos laukai bus paruošti
+      waitFor('input[name="dv_vardas"]', () => {
+        setTimeout(() => {
+          const nameParts = (t.manager || '').split(' ');
+          setVal('dv_vardas',   nameParts[0] || '');
+          setVal('dv_pavarde',  nameParts.slice(1).join(' ') || '');
+          setVal('dv_tel',      t.managerPhone || '');
+          setVal('darbai_pradzia', t.startDate || '');
+          setVal('darbai_pabaiga', t.endDate   || '');
+
+          // Planuojami darbai — "Elektros tinklų įrengimas"
+          const sel = document.querySelector('select[name="planuojami_darbai"]');
+          if (sel) {
+            const opt = Array.from(sel.options).find(o => o.text.toLowerCase().includes('elektros tinkl'));
+            if (opt) {
+              sel.value = opt.value;
+              sel.dispatchEvent(new Event('change', { bubbles: true }));
+              log('Darbų tipas: Elektros tinklų įrengimas');
+            }
+          }
+
+          log('Formos laukai užpildyti');
+
+          // Įkeliame priedų PDF jei yra permitId
+          if (t.permitId) {
+            const fileInput = document.querySelector('input[type="file"]');
+            if (fileInput) {
+              GM_xmlhttpRequest({
+                method: 'GET',
+                url: `${DIGPOINT}/api/admin/compile-sav-priedai?permitId=${t.permitId}`,
+                onload: (r) => {
+                  try {
+                    const d = JSON.parse(r.responseText);
+                    if (d.ok && d.content) {
+                      uploadBase64(fileInput, d.content, d.filename || 'priedai_savivaldybei.pdf');
+                      log(`Priedų PDF įkeltas: ${d.pages} psl.`);
+                    }
+                  } catch (e) { log('Priedų PDF klaida: ' + e.message); }
+                },
+              });
+            }
+          }
+        }, 400);
+      });
+    });
+    return;
+  }
+
+  // ── 6. ESO forma — pildymas su Angular laukimu ────────────────
+  if (url.includes('eso.lt/aktualios-formos/kasimo-darbai')) {
+    // Bandome gauti duomenis iš URL hash arba kl-eso-tasks
+    const hashMatch = location.hash.match(/dp=([A-Za-z0-9+/=]+)/);
+
+    function fillEsoForm(task) {
+      log(`ESO forma — pildoma: ${task.location}`);
+      const ph = (task.managerPhone || '').replace(/^\+370/, '').replace(/\s/g, '');
+
+      // Angular scope pildymas
+      const fillAngular = () => {
+        const el = document.querySelector('input[name="obj_address"]');
+        if (!el) { log('Angular forma dar nekraunama'); return false; }
+
+        try {
+          const scope = angular.element(el).scope();
+          let s = scope;
+          while (s && !s.postData) s = s.$parent;
+          if (!s) { log('Angular scope nerastas'); return false; }
+
+          s.$apply(() => {
+            s.postData.legal_company_name         = 'EnergoLT';
+            s.postData.legal_manager_name         = task.manager    || '';
+            s.postData.legal_manager_phone        = ph;
+            s.postData.acceptance_email           = task.email      || 'uzklausos@energolt.eu';
+            s.postData.obj_address                = task.location   || '';
+            s.postData.excavation_purpose         = 'Elektros tinklų įrengimas';
+            s.postData.excavation_start           = task.startDate  || '';
+            s.postData.excavation_end             = task.endDate    || '';
+            s.postData.technical_eso_investment_nr = task.investNo  || '';
+            s.postData.agree_to_terms             = true;
+          });
+
+          // Savivaldybė
+          const munSel = document.querySelector('select#obj_municipality');
+          if (munSel) {
+            const opt = Array.from(munSel.options).find(o => o.text.includes('Kauno m'));
+            if (opt) s.$apply(() => { s.postData.obj_municipality = opt.value; });
+          }
+
+          // Checkbox
+          const cb = document.querySelector('input#terms');
+          if (cb && !cb.checked) cb.click();
+
+          log('ESO forma užpildyta ✅');
+          return true;
+        } catch (e) {
+          log('Angular klaida: ' + e.message);
+          return false;
+        }
+      };
+
+      // Pirma reikia paspausti "ESO rangovas" → "Toliau"
+      // Laukiame kol atsiras sekcija
+      const tryFill = (attempt = 0) => {
+        if (attempt > 40) { log('ESO: timeout, bandykite rankiniu būdu'); return; }
+
+        // Jei Angular forma dar nekraunama — laukiame
+        const addrInput = document.querySelector('input[name="obj_address"]');
+        if (!addrInput) {
+          // Gal reikia spausti "Toliau" ties "ESO rangovas"
+          const toliau = Array.from(document.querySelectorAll('button')).find(b =>
+            b.textContent.includes('Toliau') && b.closest('[class*="rangovas"],[class*="step"],[class*="section"]')
+          );
+          if (!toliau) {
+            // Bandome rasti bet kokį "Toliau" mygtuką
+            const anyToliau = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Toliau');
+            if (anyToliau && attempt < 3) {
+              log(`ESO: spaudžiamas "Toliau" (${attempt + 1})`);
+              anyToliau.click();
+            }
+          } else {
+            toliau.click();
+            log('ESO: "Toliau" paspaustas');
+          }
+          setTimeout(() => tryFill(attempt + 1), 500);
+          return;
+        }
+
+        // Forma paruošta — pildome
+        if (!fillAngular()) {
+          setTimeout(() => tryFill(attempt + 1), 500);
+        }
+      };
+
+      // Pradedame po 1s (puslapiui stabilizuotis)
+      setTimeout(() => tryFill(), 1000);
+    }
+
+    if (hashMatch) {
+      try {
+        const task = JSON.parse(decodeURIComponent(escape(atob(hashMatch[1]))));
+        log('ESO: duomenys iš URL hash');
+        fillEsoForm(task);
+      } catch (e) { log('Hash klaida: ' + e.message); }
+    } else {
+      // Bandome iš kl-eso-tasks
+      digpointGet('/api/store/kl-eso-tasks', (err, data) => {
+        if (err || !data || !data.value) { log('ESO: nėra užduočių'); return; }
+        const tasks = (data.value || []).filter(t => t.status === 'pending');
+        if (!tasks.length) { log('ESO: nėra pending užduočių'); return; }
+        log(`ESO: rasta ${tasks.length} užduotis`);
+        fillEsoForm(tasks[0]);
+      });
+    }
+    return;
+  }
+
+})();
