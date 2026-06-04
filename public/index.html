@@ -4145,7 +4145,7 @@ function PermitDetail(p){
             {(function(){
               var surfTxt=buildSurfaceText(surfaces);
               var autoSubj="Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — "+(o.location||"—");
-              var autoBody="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", elektros tinklų "+(o.description||"įrengimas")+".\nDarbai yra baigti, "+surfTxt+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu";
+              var autoBody="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", elektros tinklų "+(o.description||"įrengimas")+".\nDarbai yra baigti, "+surfTxt+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB EnergoLT\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +37068313705\nEl. p. uzklausos@energolt.eu”;
               var curSubj=senSubjEdit!==null?senSubjEdit:autoSubj;
               var curBody=senBodyEdit!==null?senBodyEdit:autoBody;
               return <div style={{marginBottom:10}}>
@@ -4218,7 +4218,7 @@ function PermitDetail(p){
               try{
                 var surfTxt2=buildSurfaceText(surfaces);
                 var autoSubj2="Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — "+(o.location||"—");
-                var autoBody2="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", elektros tinklų "+(o.description||"įrengimas")+".\nDarbai yra baigti, "+surfTxt2+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu";
+                var autoBody2="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", elektros tinklų "+(o.description||"įrengimas")+".\nDarbai yra baigti, "+surfTxt2+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB EnergoLT\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +37068313705\nEl. p. uzklausos@energolt.eu”;
                 var r=await fetch('/api/admin/send-seniunija-closure',{method:'POST',headers:{'Content-Type':'application/json'},
                   body:JSON.stringify({permitId:o.id,workType,surfaces,seniunijaEmail:email,seniunijaName:name,
                     emailSubject:senSubjEdit!==null?senSubjEdit:autoSubj2,
