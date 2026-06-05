@@ -1704,14 +1704,13 @@ function EsoSubmitBtn(p){
 function SavivaldybeSubmitBtn(p){
   var o=p.permit;
   var currentUser=p.user||{};
-  var _open=useState(false);var open=_open[0],sOpen=_open[1];
   var _st=useState("idle");var st=_st[0],sSt=_st[1];
 
   async function prepareTask(){
     sSt("saving");
     var today=new Date();
-    var plus7=new Date(today);plus7.setDate(plus7.getDate()+6); // imtinai 7 dienos
     var savStart=o.startDate||fmtDate(today);
+    var plus7=new Date(today);plus7.setDate(plus7.getDate()+6);
     var savEnd=o.endDate||fmtDate(plus7);
     var task={
       permitId:o.id,
