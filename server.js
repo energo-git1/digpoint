@@ -2125,9 +2125,21 @@ app.post('/api/admin/send-sav-completion', async (req, res) => {
     if (fs.existsSync(fp)) attachments.push({ filename: fn, content: fs.readFileSync(fp) });
   }
 
+  // Jei yra prašymo numeris — ieškoti gauto laiško kl-sav-close-requests ir atsakyti į temą
+  const closeRequests = dbGet('kl-sav-close-requests') || [];
+  const matchedReq = finalPrasNr
+    ? closeRequests.find((r) => r.leidNr === finalPrasNr || (r.subject && r.subject.includes(finalPrasNr)) || (r.bodyPreview && r.bodyPreview.includes(finalPrasNr)))
+    : null;
+  const mailOpts = matchedReq
+    ? { from: MAIL_FROM_EXTERNAL, to: matchedReq.from || SAV_EMAIL,
+        subject: matchedReq.subject ? (matchedReq.subject.startsWith('Re:') ? matchedReq.subject : 'Re: ' + matchedReq.subject) : subject,
+        text: bodyText, attachments, inReplyTo: matchedReq.messageId, references: matchedReq.messageId }
+    : { from: MAIL_FROM_EXTERNAL, to: SAV_EMAIL, subject, text: bodyText, attachments };
+
   try {
-    await sendAndSave({ from: MAIL_FROM_EXTERNAL, to: SAV_EMAIL, subject, text: bodyText, attachments });
-    console.log(`[SAV-COMPLETION] Išsiųsta → ${SAV_EMAIL} | ${location} | ${attachments.length} nuotr.`);
+    await sendAndSave(mailOpts);
+    const mode = matchedReq ? `atsakymas į temą (${matchedReq.subject})` : 'naujas laiškas';
+    console.log(`[SAV-COMPLETION] Išsiųsta (${mode}) → ${mailOpts.to} | ${location} | ${attachments.length} nuotr.`);
   } catch (e) {
     console.error(`[SAV-COMPLETION] Klaida: ${e.message}`);
     return res.status(500).json({ error: e.message });

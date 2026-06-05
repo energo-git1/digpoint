@@ -3999,6 +3999,14 @@ function PermitDetail(p){
           ?<div style={{background:"rgba(16,185,129,.1)",border:"1px solid #059669",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#059669",fontFamily:F,fontWeight:600}}>✅ Pranešimas savivaldybei (kasimo.darbai@kaunas.lt) išsiųstas {o.savCompletionSentAt||""}</div>
           :<div>
             <div style={{marginBottom:8}}>
+              <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>
+                Prašymo numeris <span style={{fontWeight:400,color:C.t3}}>(jei įvestas — sistema ieškos gauto laiško ir atsakys į temą)</span>
+              </label>
+              <input value={savPrasNr} onChange={function(e){sSavPrasNr(e.target.value);}}
+                placeholder="pvz. 43-27-802"
+                style={{width:"100%",padding:"6px 10px",borderRadius:7,border:"1.5px solid "+(savPrasNr?C.ac:C.b1),background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{marginBottom:8}}>
               <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Laiško tekstas <span style={{fontWeight:400,color:C.t3}}>(neprivaloma — auto-sugeneruojamas)</span></label>
               <textarea value={savCompText} rows={3} onChange={function(e){sSavCompText(e.target.value);}}
                 placeholder={"Laba diena,\n\nPranešame, kad kasimo darbai "+(o.location||"—")+" yra baigti. Pridedam gerbūvio nuotraukas."}
