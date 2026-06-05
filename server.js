@@ -2080,16 +2080,18 @@ app.post('/api/admin/send-seniunija-closure', async (req, res) => {
   // Žymime kaip išsiųstą
   const today = fmtDateSrv(new Date());
   const isSeniunijaOrg = (permit.organizations || []).includes('Seniūnija');
+  const isAvarinis     = permit.workType === 'avarinius' || permit.workType === 'avariniai';
+  const shouldClose    = isSeniunijaOrg || isAvarinis;
   dbSet('kl-permits', permits.map((p) => p.id !== permitId ? p : {
     ...p,
     seniunijaSent: true,
     seniunijaSentAt: today,
     seniunijaName,
-    // Seniūnija paraiška → automatiškai uždaroma
-    ...(isSeniunijaOrg ? { status: 'Uždarytas' } : {}),
+    // Seniūnija paraiška arba avariniai darbai → automatiškai uždaroma
+    ...(shouldClose ? { status: 'Uždarytas', closingDone: true, closingDoneAt: today } : {}),
     history: [...(p.history || []), {
-      status: isSeniunijaOrg ? 'Uždarytas' : p.status, date: today,
-      note: `Seniūnijai (${seniunijaName}) išsiųstas informacinis laiškas apie atliktus darbus`,
+      status: shouldClose ? 'Uždarytas' : p.status, date: today,
+      note: `Seniūnijai (${seniunijaName}) išsiųstas informacinis laiškas apie atliktus darbus${isAvarinis ? ' (avariniai darbai — automatiškai uždaryta)' : ''}`,
     }],
   }));
 
