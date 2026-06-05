@@ -5679,8 +5679,27 @@ function SavPriedaiBlock(p){
 
   useEffect(function(){
     if(!srcId)return;
-    // Avariniai darbai — dokumentų sąrašo nereikia, tik papildomi failai
-    if(p.workType==="avarinius"||p.workType==="avariniai"){sDocList([]);return;}
+    // Avariniai darbai — docList iš pačios paraiškos failų (beforeFiles, closeFiles, files[])
+    if(p.workType==="avarinius"||p.workType==="avariniai"){
+      sGet('kl-permits').then(function(v){
+        var cur=(v||[]).find(function(pm){return pm.id===p.permitId;});
+        if(!cur){sDocList([]);return;}
+        var docs=[];var added=new Set();
+        function addD(f,label){if(!f||!f.filename||added.has(f.filename))return;added.add(f.filename);docs.push({filename:f.filename,name:f.name||f.filename,label:label,url:f.url||('/uploads/'+f.filename)});}
+        (cur.beforeFiles||[]).forEach(function(f){addD(f,'Prieš darbus');});
+        (cur.closeFiles||[]).forEach(function(f){addD(f,'Po darbų');});
+        (cur.files||[]).forEach(function(f){
+          if(!f.filename||!f.name)return;
+          var fn=f.name.toLowerCase();
+          if(fn.endsWith('.pdf'))addD(f,'Projekto dok.');
+          else if(fn.match(/\.(jpg|jpeg|png|gif|webp)$/))addD(f,'Nuotrauka');
+        });
+        sDocList(docs);
+        var sel={};docs.forEach(function(d){sel[d.filename]=true;});
+        sSelected(function(prev){return Object.keys(prev).length?prev:sel;});
+      }).catch(function(){sDocList([]);});
+      return;
+    }
     fetch('/api/admin/list-sav-priedai?permitId='+srcId+'&currentPermitId='+p.permitId)
       .then(function(r){return r.json();}).then(function(d){
         if(!d.ok)return;
@@ -5767,7 +5786,7 @@ function SavPriedaiBlock(p){
       })}
     </div>}
     {docList&&docList.length===0&&!(p.workType==="avarinius"||p.workType==="avariniai")&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginBottom:8}}>⚠️ Nerasta dokumentų — patikrinkite ar gauti leidimai.</div>}
-    {(p.workType==="avarinius"||p.workType==="avariniai")&&<div style={{fontSize:10,color:C.t3,fontFamily:F,marginBottom:8}}>Avariniai darbai — įkelkite reikiamus dokumentus žemiau.</div>}
+    {(p.workType==="avarinius"||p.workType==="avariniai")&&<div style={{fontSize:10,color:C.t3,fontFamily:F,marginBottom:8}}>Avariniai darbai — paraiškos failai surinkti automatiškai. Galite pridėti papildomų.</div>}
 
     {/* Papildomi failai */}
     {/* Puslapių parinkiklis */}
