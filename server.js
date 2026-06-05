@@ -1617,7 +1617,7 @@ app.get('/api/admin/list-sav-priedai', (req, res) => {
   function addDoc(f, label) {
     if (!f || !f.filename || added.has(f.filename)) return;
     added.add(f.filename);
-    docs.push({ filename: f.filename, name: f.name || f.filename, label });
+    docs.push({ filename: f.filename, name: f.name || f.filename, label, url: f.url || `/uploads/${f.filename}` });
   }
 
   const pdfs = permit.permitPdfs || {};
@@ -3280,6 +3280,4 @@ app.listen(PORT, () => {
       checkImapMail().then((r) => {
         if (r.checked > 0) console.log(`[IMAP] Tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
       });
-    }, 15 * 60 * 1000); // kas 15 minučių
-  }, 10000);
-});
+    }, 15 * 60 * 1000); 

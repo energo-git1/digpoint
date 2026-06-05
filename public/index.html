@@ -5695,6 +5695,7 @@ function SavPriedaiBlock(p){
   var _extraFiles=useState([]);var extraFiles=_extraFiles[0],sExtraFiles=_extraFiles[1];
   var _extraPages=useState({});var extraPages=_extraPages[0],sExtraPages=_extraPages[1];
   var _showPicker=useState(null);var showPicker=_showPicker[0],sShowPicker=_showPicker[1];
+  var _docPages=useState({});var docPages=_docPages[0],sDocPages=_docPages[1]; // {filename:[pages]} puslapių parinkimas docList elementams
   var _saved=useState(false);var saved=_saved[0],sSaved=_saved[1];
   var _priedai=useState(null);var priedai=_priedai[0],sPriedai=_priedai[1];
   var _busy=useState(false);var busy=_busy[0],sBusy=_busy[1];
@@ -5713,7 +5714,7 @@ function SavPriedaiBlock(p){
       var updated=permits.map(function(pm){
         if(pm.id!==p.permitId)return pm;
         return Object.assign({},pm,{savivaldybePreparation:{
-          srcId:newSrcId||srcId,selectedFilenames:selFiles,extraPages:newExtraPages||extraPages,extraFiles:extraFilesMeta,savedAt:fmtDate(new Date())
+          srcId:newSrcId||srcId,selectedFilenames:selFiles,extraPages:newExtraPages||extraPages,docPages:docPages,extraFiles:extraFilesMeta,savedAt:fmtDate(new Date())
         }});
       });
       await sSet('kl-permits',updated);
@@ -5762,6 +5763,7 @@ function SavPriedaiBlock(p){
             sSelected(sel);
           }
           if(prep.extraPages)sExtraPages(prep.extraPages);
+          if(prep.docPages)sDocPages(prep.docPages);
           if(prep.extraFiles&&prep.extraFiles.length)sExtraFiles(prep.extraFiles);
           // Auto-kompiliuoti jei yra išsaugotų pasirinkimų
           if(prep.selectedFilenames&&prep.selectedFilenames.length>0){
@@ -5806,20 +5808,28 @@ function SavPriedaiBlock(p){
     {/* Dokumentų sąrašas su eiliškumo keitimu */}
     {docList&&docList.length>0&&<div style={{marginBottom:10}}>
       <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>Dokumentai prieduose <span style={{fontWeight:400,color:C.t3}}>(↑↓ keisti eiliškumą)</span></div>
-      {docList.map(function(doc,idx){return <div key={doc.filename} style={{display:"flex",alignItems:"center",gap:4,marginBottom:4}}>
-        <input type="checkbox" checked={!!selected[doc.filename]} onChange={function(e){
-          var chk=e.target.checked;var fn=doc.filename;
-          sSelected(function(prev){var n=Object.assign({},prev);n[fn]=chk;autoSave(srcId,n,extraPages);return n;});
-          sPriedai(null);
-        }} style={{flexShrink:0}}/>
-        <span style={{flex:1,fontSize:11,fontFamily:F,color:C.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{doc.name} <span style={{fontSize:9,color:C.t3}}>({doc.label})</span></span>
-        <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
-          <button onClick={function(){if(idx===0)return;sDocList(function(prev){var a=prev.slice();var t=a[idx];a[idx]=a[idx-1];a[idx-1]=t;return a;});sPriedai(null);}}
-            disabled={idx===0} style={{padding:"0 4px",fontSize:9,lineHeight:1.4,border:"1px solid "+C.b1,borderRadius:3,background:C.s2,color:idx===0?C.t3:C.t2,cursor:idx===0?"default":"pointer"}}>↑</button>
-          <button onClick={function(){if(idx===docList.length-1)return;sDocList(function(prev){var a=prev.slice();var t=a[idx];a[idx]=a[idx+1];a[idx+1]=t;return a;});sPriedai(null);}}
-            disabled={idx===docList.length-1} style={{padding:"0 4px",fontSize:9,lineHeight:1.4,border:"1px solid "+C.b1,borderRadius:3,background:C.s2,color:idx===docList.length-1?C.t3:C.t2,cursor:idx===docList.length-1?"default":"pointer"}}>↓</button>
-        </div>
-      </div>;})}
+      {docList.map(function(doc,idx){
+        var isPdf=doc.filename&&!doc.filename.includes('__pages:')&&doc.name&&doc.name.toLowerCase().endsWith('.pdf');
+        var hasDocPgs=docPages[doc.filename]&&docPages[doc.filename].length>0;
+        return <div key={doc.filename} style={{display:"flex",alignItems:"center",gap:4,marginBottom:4}}>
+          <input type="checkbox" checked={!!selected[doc.filename]} onChange={function(e){
+            var chk=e.target.checked;var fn=doc.filename;
+            sSelected(function(prev){var n=Object.assign({},prev);n[fn]=chk;autoSave(srcId,n,extraPages);return n;});
+            sPriedai(null);
+          }} style={{flexShrink:0}}/>
+          <span style={{flex:1,fontSize:11,fontFamily:F,color:C.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={doc.name}>{doc.name} <span style={{fontSize:9,color:C.t3}}>({doc.label})</span></span>
+          {isPdf&&<button onClick={function(){sShowPicker(Object.assign({},doc,{url:doc.url||('/uploads/'+doc.filename),_isDocItem:true}));}}
+            style={{fontSize:9,padding:"1px 6px",border:"1px solid "+(hasDocPgs?C.ac:C.b1),borderRadius:3,background:hasDocPgs?C.acD:C.s2,color:hasDocPgs?C.ac:C.t2,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
+            {hasDocPgs?'✅ '+docPages[doc.filename].length+' psl.':'📄 psl.'}
+          </button>}
+          <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
+            <button onClick={function(){if(idx===0)return;sDocList(function(prev){var a=prev.slice();var t=a[idx];a[idx]=a[idx-1];a[idx-1]=t;return a;});sPriedai(null);}}
+              disabled={idx===0} style={{padding:"0 4px",fontSize:9,lineHeight:1.4,border:"1px solid "+C.b1,borderRadius:3,background:C.s2,color:idx===0?C.t3:C.t2,cursor:idx===0?"default":"pointer"}}>↑</button>
+            <button onClick={function(){if(idx===docList.length-1)return;sDocList(function(prev){var a=prev.slice();var t=a[idx];a[idx]=a[idx+1];a[idx+1]=t;return a;});sPriedai(null);}}
+              disabled={idx===docList.length-1} style={{padding:"0 4px",fontSize:9,lineHeight:1.4,border:"1px solid "+C.b1,borderRadius:3,background:C.s2,color:idx===docList.length-1?C.t3:C.t2,cursor:idx===docList.length-1?"default":"pointer"}}>↓</button>
+          </div>
+        </div>;
+      })}
     </div>}
     {docList&&docList.length===0&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginBottom:8}}>⚠️ Nerasta dokumentų — patikrinkite ar gauti leidimai.</div>}
 
@@ -5828,9 +5838,13 @@ function SavPriedaiBlock(p){
     {showPicker&&<PdfPagePickerModal
       pdfFile={showPicker}
       pdfData={showPicker.data||null}
-      selected={extraPages[showPicker.filename]||[]}
+      selected={showPicker._isDocItem?docPages[showPicker.filename]||[]:extraPages[showPicker.filename]||[]}
       onConfirm={function(pages){
-        sExtraPages(function(prev){var n=Object.assign({},prev);n[showPicker.filename]=pages;return n;});
+        if(showPicker._isDocItem){
+          sDocPages(function(prev){var n=Object.assign({},prev);n[showPicker.filename]=pages;return n;});
+        } else {
+          sExtraPages(function(prev){var n=Object.assign({},prev);n[showPicker.filename]=pages;return n;});
+        }
         sShowPicker(null);sPriedai(null);
       }}
       onClose={function(){sShowPicker(null);}}/>}
@@ -5890,7 +5904,7 @@ function SavPriedaiBlock(p){
           // Išsaugome prie DABARTINĖS paraiškos (p.permitId), ne prie šaltinio
           if(pm.id!==p.permitId)return pm;
           return Object.assign({},pm,{savivaldybePreparation:{
-            srcId:srcId, selectedFilenames:selFiles, extraPages:extraPages, savedAt:fmtDate(new Date())
+            srcId:srcId, selectedFilenames:selFiles, extraPages:extraPages, docPages:docPages, savedAt:fmtDate(new Date())
           }});
         });
         await sSet('kl-permits',updated);
@@ -5905,11 +5919,17 @@ function SavPriedaiBlock(p){
           var pgs=extraPages[f.filename];
           return pgs&&pgs.length>0?f.filename+'__pages:'+pgs.join(','):f.filename;
         });
-        if(!selFiles.length&&!extraFns.length){sMsg("❌ Nepasirinktas nė vienas dokumentas.");return;}
+        // docPages — pasirinkti puslapiai iš docList elementų (projekto dokumentai)
+        var selFilesWithPages=selFiles.map(function(fn){
+          var rawFn=fn.split('__pages:')[0]; // jei jau turi puslapius
+          var pgs=docPages[rawFn];
+          return pgs&&pgs.length>0?rawFn+'__pages:'+pgs.join(','):fn;
+        });
+        if(!selFilesWithPages.length&&!extraFns.length){sMsg("❌ Nepasirinktas nė vienas dokumentas.");return;}
         sBusy(true);sMsg("");sPriedai(null);
         try{
           var r=await fetch('/api/admin/merge-sav-priedai',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({permitId:srcId,selectedFilenames:selFiles,extraFilenames:extraFns})});
+            body:JSON.stringify({permitId:srcId,selectedFilenames:selFilesWithPages,extraFilenames:extraFns})});
           var d=await r.json();
           if(!d.ok){sMsg("❌ "+(d.error||"Klaida"));sBusy(false);return;}
           sPriedai(d);
@@ -6662,34 +6682,4 @@ function App(){
             return <PermitRow key={pm.id} permit={pm} users={users} viewMode={view}
               draggable={canMerge}
               onDragStart={canMerge?function(e){e.dataTransfer.setData("permitId",pm.id);sDragId(pm.id);}:undefined}
-              onDragOver={canMerge&&dragId&&dragId!==pm.id?function(e){e.preventDefault();sDropId(pm.id);}:undefined}
-              onDragLeave={canMerge?function(){if(dropId===pm.id)sDropId(null);}:undefined}
-              onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");if(src&&src!==pm.id){sMergeConfirm({aId:src,bId:pm.id});}sDragId(null);sDropId(null);}:undefined}
-              isDragOver={dropId===pm.id&&dragId!==pm.id}
-              onClick={function(){setDetail(pm)}}/>;
-          }
-          return <PermitGroup key={entry.key} group={entry.items} users={users} viewMode={view} onSelect={setDetail}
-            manual={entry.manual} internalCode={entry.internalCode||null} onUnmerge={entry.manual?doUnmerge:undefined}
-            onDragStart={canMerge?function(e,pmId){e.dataTransfer.setData("permitId",pmId);sDragId(pmId);}:undefined}
-            onDragOver={canMerge&&dragId?function(e){e.preventDefault();}:undefined}
-            onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");var tgt=entry.items[0].id;if(src&&src!==tgt){sMergeConfirm({aId:src,bId:tgt});}sDragId(null);sDropId(null);}:undefined}
-            dragId={dragId}/>;
-        });
-      })()}
-    </div>;
-  }
-
-  return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
-    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
-      onUpdate={function(u){updatePermit(u);setDetail(u)}}
-      onSend={function(u){updatePermit(u);setDetail(null)}}
-      onDelete={function(id){deletePermit(id);setDetail(null)}}
-      onClose={function(){setDetail(null)}}/>}
-  </div>
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+              onDragOver={canMerge&&dragId&&dragId!==pm.id?function(e){e.preventDefault();sDropId(pm.id);}:undefine
