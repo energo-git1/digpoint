@@ -4000,11 +4000,30 @@ function PermitDetail(p){
           :<div>
             <div style={{marginBottom:8}}>
               <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>
-                Prašymo numeris <span style={{fontWeight:400,color:C.t3}}>(jei įvestas — sistema ieškos gauto laiško ir atsakys į temą)</span>
+                Prašymo numeris <span style={{fontWeight:400,color:C.t3}}>(įveskite ir spauskite 🔍 — sistema ieškos gauto laiško)</span>
               </label>
-              <input value={savPrasNr} onChange={function(e){sSavPrasNr(e.target.value);}}
-                placeholder="pvz. 43-27-802"
-                style={{width:"100%",padding:"6px 10px",borderRadius:7,border:"1.5px solid "+(savPrasNr?C.ac:C.b1),background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+              <div style={{display:"flex",gap:6}}>
+                <input value={savPrasNr} onChange={function(e){sSavPrasNr(e.target.value);sSavCompMsg("");}}
+                  placeholder="pvz. 43-27-802"
+                  style={{flex:1,padding:"6px 10px",borderRadius:7,border:"1.5px solid "+(savPrasNr?C.ac:C.b1),background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+                <Btn sm onClick={function(){
+                  if(!savPrasNr.trim()){sSavCompMsg("⚠️ Įveskite prašymo numerį");return;}
+                  fetch('/api/admin/sav-close-requests').then(function(r){return r.json();}).then(function(d){
+                    var reqs=d.requests||[];
+                    var found=reqs.find(function(r){
+                      return r.leidNr===savPrasNr||(r.subject&&r.subject.includes(savPrasNr))||(r.bodyPreview&&r.bodyPreview.includes(savPrasNr));
+                    });
+                    if(found){
+                      var linked=Object.assign({},found,{permitId:o.id});
+                      sCloseReqs(reqs.map(function(r){return r.id===found.id?linked:r;}));
+                      sSavCompMsg("✅ Rastas laiškas — bus atsakyta į temą");
+                    } else {
+                      sCloseReqs(reqs);
+                      sSavCompMsg("⚠️ Laiškas nerastas — bus siųstas naujas");
+                    }
+                  }).catch(function(){sSavCompMsg("❌ Serverio klaida");});
+                }}>🔍</Btn>
+              </div>
             </div>
             <div style={{marginBottom:8}}>
               <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Laiško tekstas <span style={{fontWeight:400,color:C.t3}}>(neprivaloma — auto-sugeneruojamas)</span></label>
