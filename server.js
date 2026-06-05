@@ -54,6 +54,15 @@ const LDAP_SVC_PASS   = process.env.LDAP_SVC_PASS || '';
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
+// Tampermonkey userscript — automatinis atnaujinimas
+app.get('/energolt-kasimo.user.js', (req, res) => {
+  const fpath = path.join(__dirname, 'energolt-kasimo.user.js');
+  if (!fs.existsSync(fpath)) return res.status(404).send('Not found');
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(fpath);
+});
+
 // index.html — įterpiame APP_VERSION iš package.json
 app.get('/', (req, res) => {
   try {
@@ -3269,19 +3278,4 @@ app.listen(PORT, () => {
   setTimeout(() => {
     const settings = dbGet('kl-settings') || {};
     syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
-      console.log('[SYNC] El. pašto sinchronizacija:', r.log.join('\n       '));
-    });
-  }, 3000);
-
-  // IMAP tikrinimas: iš karto po 10 sek., tada kas 15 min.
-  setTimeout(() => {
-    checkImapMail().then((r) => {
-      if (r.checked > 0) console.log(`[IMAP] Pradinis tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
-    });
-    setInterval(() => {
-      checkImapMail().then((r) => {
-        if (r.checked > 0) console.log(`[IMAP] Tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
-      });
-    }, 15 * 60 * 1000); // kas 15 minučių
-  }, 10000);
-});
+      console.log('[SYNC] El. pašto sinchronizacija:

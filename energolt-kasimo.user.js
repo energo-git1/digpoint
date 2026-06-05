@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EnergoLT — Kasimo leidimai
 // @namespace    http://energolt.eu/
-// @version      1.0.0
+// @version      1.0.2
 // @description  Automatizuotas Kauno m. sav. ir ESO kasimo leidimų paraiškų pildymas
 // @author       EnergoLT
 // @match        https://kasimai.kaunas.lt/*
@@ -9,6 +9,8 @@
 // @match        https://log-in.swedbank.lt/*
 // @match        https://www.swedbank.lt/banklink/*
 // @match        https://www.eso.lt/aktualios-formos/kasimo-darbai/*
+// @updateURL    http://10.2.1.115:3001/energolt-kasimo.user.js
+// @downloadURL  http://10.2.1.115:3001/energolt-kasimo.user.js
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -336,60 +338,4 @@
         }
       };
 
-      // Pirma reikia paspausti "ESO rangovas" → "Toliau"
-      // Laukiame kol atsiras sekcija
-      const tryFill = (attempt = 0) => {
-        if (attempt > 40) { log('ESO: timeout, bandykite rankiniu būdu'); return; }
-
-        // Jei Angular forma dar nekraunama — laukiame
-        const addrInput = document.querySelector('input[name="obj_address"]');
-        if (!addrInput) {
-          // Gal reikia spausti "Toliau" ties "ESO rangovas"
-          const toliau = Array.from(document.querySelectorAll('button')).find(b =>
-            b.textContent.includes('Toliau') && b.closest('[class*="rangovas"],[class*="step"],[class*="section"]')
-          );
-          if (!toliau) {
-            // Bandome rasti bet kokį "Toliau" mygtuką
-            const anyToliau = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Toliau');
-            if (anyToliau && attempt < 3) {
-              log(`ESO: spaudžiamas "Toliau" (${attempt + 1})`);
-              anyToliau.click();
-            }
-          } else {
-            toliau.click();
-            log('ESO: "Toliau" paspaustas');
-          }
-          setTimeout(() => tryFill(attempt + 1), 500);
-          return;
-        }
-
-        // Forma paruošta — pildome
-        if (!fillAngular()) {
-          setTimeout(() => tryFill(attempt + 1), 500);
-        }
-      };
-
-      // Pradedame po 1s (puslapiui stabilizuotis)
-      setTimeout(() => tryFill(), 1000);
-    }
-
-    if (hashMatch) {
-      try {
-        const task = JSON.parse(decodeURIComponent(escape(atob(hashMatch[1]))));
-        log('ESO: duomenys iš URL hash');
-        fillEsoForm(task);
-      } catch (e) { log('Hash klaida: ' + e.message); }
-    } else {
-      // Bandome iš kl-eso-tasks
-      digpointGet('/api/store/kl-eso-tasks', (err, data) => {
-        if (err || !data || !data.value) { log('ESO: nėra užduočių'); return; }
-        const tasks = (data.value || []).filter(t => t.status === 'pending');
-        if (!tasks.length) { log('ESO: nėra pending užduočių'); return; }
-        log(`ESO: rasta ${tasks.length} užduotis`);
-        fillEsoForm(tasks[0]);
-      });
-    }
-    return;
-  }
-
-})();
+      // Pirma reikia paspausti "E
