@@ -1439,8 +1439,8 @@ function PermitForm(p){
         </div>
         {!workType&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:6}}>Pasirinkite darbų tipą.</div>}
       </div>
-      {/* Objekto parinkimas iš esamų paraiškų */}
-      {permitSources.length>0&&<div>
+      {/* Objekto parinkimas iš esamų paraiškų — tik planiniai darbai */}
+      {workType==="planiniai"&&permitSources.length>0&&<div>
         <div style={{fontSize:11,fontWeight:600,color:C.t2,marginBottom:6,fontFamily:F}}>Objektas <span style={{fontSize:10,color:C.t3,fontWeight:400}}>(pasirinkti iš gautų leidimų)</span></div>
         <select value={srcPermitId} onChange={function(e){selectSourcePermit(e.target.value);}}
           style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid "+C.b1,background:C.bg,color:srcPermitId?C.tx:C.t3,fontFamily:F,fontSize:13,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
@@ -1472,7 +1472,7 @@ function PermitForm(p){
           ✓ Kontaktiniai duomenys, failai ir numeriai užpildyti automatiškai
         </div>}
       </div>}
-      {permitSources.length===0&&<div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:4}}>
+      {workType==="planiniai"&&permitSources.length===0&&<div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:4}}>
         Sistemoje nėra paraiškų su gautais dokumentais. Duomenis įveskite rankiniu būdu.
       </div>}
     </div>}
