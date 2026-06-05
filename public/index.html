@@ -1303,6 +1303,8 @@ function PermitForm(p){
       teliaRouteFrom:trFrom,teliaRouteTo:trTo,
       workType:hasSav?workType:null,
       sourcePermitId:hasSav&&srcPermitId?srcPermitId:null,
+      // Išsaugome savivaldybės dokumentų šaltinį kad SavPriedaiBlock žinotų kurį naudoti
+      savivaldybePreparation:hasSav&&srcPermitId?{srcId:srcPermitId,savedAt:fmtDate(new Date())}:null,
       createdBy:p.user.id,status:"Laukiama tvirtinimo",assignedTo:null,
       createdAt:fmtDate(new Date()),history:[{status:"Laukiama tvirtinimo",date:fmtDate(new Date())}]};
   }
@@ -5727,14 +5729,14 @@ function SavPriedaiBlock(p){
         return Object.values(pdfs).some(function(vv){return vv&&vv.name;});
       });
       sAllPermits(sources);
-      // Atkurti išsaugotą srcId iš dabartinės paraiškos
+      // Atkurti išsaugotą srcId — pirmenybė: savivaldybePreparation.srcId arba sourcePermitId
       var currentPermit=(v||[]).find(function(pm){return pm.id===p.permitId;});
       var prep=(currentPermit&&currentPermit.savivaldybePreparation)||{};
-      if(prep.srcId){
-        sSrcId(prep.srcId);
-      } else {
-        var hasCurrent=sources.find(function(pm){return pm.id===p.permitId;});
-        if(!hasCurrent&&sources.length>0)sSrcId(sources[0].id);
+      var savedSrcId=prep.srcId||(currentPermit&&currentPermit.sourcePermitId)||null;
+      if(savedSrcId&&sources.find(function(pm){return pm.id===savedSrcId;})){
+        sSrcId(savedSrcId);
+      } else if(!sources.find(function(pm){return pm.id===p.permitId;})&&sources.length>0){
+        sSrcId(sources[0].id);
       }
     }).catch(function(){});
   },[]);
