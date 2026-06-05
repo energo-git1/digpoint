@@ -164,25 +164,37 @@
   // ── 5. kasimai.kaunas.lt — mano prašymai: atidaryti pirmą ir kopijuoti ──
   if (url.includes('kasimai.kaunas.lt/mano-prasymai')) {
     log('kasimai — mano prašymai, laukiama sąrašo');
-    // Tikrinti ar yra aktyvus kl-sav-task
-    digpointGet('/api/store/kl-sav-task', (err, data) => {
-      if (err || !data || !data.value) {
-        log('Nėra aktyvios užduoties — nieko nedarome');
-        return;
+
+    // Tikrinti ar vartotojas prisijungęs — jei ne, spausti "Prisijungti"
+    setTimeout(() => {
+      const loginBtn = Array.from(document.querySelectorAll('a, button')).find(el => {
+        const txt = (el.textContent || '').trim();
+        return txt.startsWith('Prisijungti') && !el.closest('nav, header, .navbar');
+      });
+      if (loginBtn) {
+        log('Vartotojas neprisijungęs — spaudžiamas "Prisijungti"');
+        click(loginBtn);
+        return; // po redirect script'as paleis iš naujo
       }
-      log('Yra aktyvus kl-sav-task — kopijuojame pirmą prašymą');
-      // Laukiame kol sąrašas užsikrauna
-      waitFor('a[href*="collapsePrasymas"]', (firstLink) => {
-        setTimeout(() => {
-          click(firstLink);
-          log('Pirmasis prašymas atidarytas');
-          // Laukiame "Kopijuoti prašymą" mygtuko
-          waitForText('button', 'Kopijuoti prašymą', (btn) => {
-            setTimeout(() => { click(btn); log('"Kopijuoti prašymą" paspaustas'); }, 600);
-          }, 8000);
-        }, 1000);
-      }, 10000);
-    });
+
+      // Prisijungęs — tikrinti ar yra aktyvus kl-sav-task
+      digpointGet('/api/store/kl-sav-task', (err, data) => {
+        if (err || !data || !data.value) {
+          log('Nėra aktyvios užduoties — nieko nedarome');
+          return;
+        }
+        log('Yra aktyvus kl-sav-task — kopijuojame pirmą prašymą');
+        waitFor('a[href*="collapsePrasymas"]', (firstLink) => {
+          setTimeout(() => {
+            click(firstLink);
+            log('Pirmasis prašymas atidarytas');
+            waitForText('button', 'Kopijuoti prašymą', (btn) => {
+              setTimeout(() => { click(btn); log('"Kopijuoti prašymą" paspaustas'); }, 600);
+            }, 8000);
+          }, 1000);
+        }, 10000);
+      });
+    }, 1500);
     return;
   }
 
