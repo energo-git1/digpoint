@@ -1206,7 +1206,15 @@ function PermitForm(p){
     if(src.location)sEsoLoc(src.location);
     if(src.teliaRouteFrom)sTrFrom(src.teliaRouteFrom);
     if(src.teliaRouteTo)sTrTo(src.teliaRouteTo);
-    if(src.files&&src.files.length>0)sFiles(src.files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i);}));
+    // Sujungiame esamus failus su šaltinio failais (be dublikatų)
+    if(src.files&&src.files.length>0){
+      var srcPdfs=src.files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i);});
+      sFiles(function(prev){
+        var existing=prev.map(function(f){return f.filename||f.name;});
+        var toAdd=srcPdfs.filter(function(f){return !existing.includes(f.filename||f.name);});
+        return prev.concat(toAdd);
+      });
+    }
   }
   var isESO=orgs.indexOf("AB ESO")!==-1;
   var isTelia=orgs.indexOf("Telia, Kaunas")!==-1;
