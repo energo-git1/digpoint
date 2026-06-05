@@ -1059,25 +1059,34 @@ async function _checkImapMailImpl() {
               if (org === 'Kauno miesto savivaldybe' && fromAddr.toLowerCase().includes('kasimo.darbai@kaunas.lt')) {
                 let bodyText = '';
                 const textPartsClose = findTextPart(msg.bodyStructure);
-                for (const tp of textPartsClose.slice(0, 2)) {
+                for (const tp of textPartsClose.slice(0, 3)) {
                   try {
                     const dl = await client.download(seq, tp.part);
                     const chunks = [];
                     for await (const chunk of dl.content) chunks.push(chunk);
-                    bodyText += Buffer.concat(chunks).toString('utf8');
+                    let raw = Buffer.concat(chunks).toString('utf8');
+                    // Quoted-printable dekodavimas
+                    raw = raw.replace(/=\r?\n/g, '').replace(/=([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+                    // Jei HTML — ištraukti tekstą (pakeisti tagus tarpais)
+                    if (tp.type === 'text/html') {
+                      raw = raw.replace(/<br\s*\/?>/gi, '\n').replace(/<\/?(td|th|p|div|li)[^>]*>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                    }
+                    bodyText += raw + '\n';
                   } catch (_) {}
                 }
 
+                console.log(`[IMAP] Kaunas bodyText (pirmieji 300): ${bodyText.slice(0, 300).replace(/\n/g, '|')}`);
+
                 if (/išduotas leidimas/i.test(bodyText + ' ' + subject)) {
                   // Išparsinti leidimo duomenis iš laiško teksto
-                  const addrMatchI  = bodyText.match(/Darb[uų]\s+vieta\s*\(prad[žz][iī]a\)[:\s]+([^\n(]{5,100})/i);
+                  const addrMatchI  = bodyText.match(/Darb[uų]\s+vieta[\s\S]{0,20}?prad[žz][iī]a[\s\S]{0,10}?[:\s]+([^\n(]{5,100})/i);
                   const rawAddrI    = addrMatchI ? addrMatchI[1].trim() : '';
-                  const leidNrMatch = bodyText.match(/Leidimo\s+numeris[:\s]+([^\s\n]{3,30})/i);
+                  const leidNrMatch = bodyText.match(/Leidimo\s+numeris[\s:]+([0-9][\d\-]{2,20})/i);
                   const leidNr      = leidNrMatch ? leidNrMatch[1].trim() : null;
-                  const leidDatesM  = bodyText.match(/Leidimo\s+galiojimas[:\s]+(\d{4}-\d{2}-\d{2})\s*[-–]\s*(\d{4}-\d{2}-\d{2})/i);
+                  const leidDatesM  = bodyText.match(/Leidimo\s+galiojimas[\s:]+(\d{4}-\d{2}-\d{2})\s*[-–]\s*(\d{4}-\d{2}-\d{2})/i);
                   const leidFrom    = leidDatesM ? leidDatesM[1] : null;
                   const leidUntil   = leidDatesM ? leidDatesM[2] : null;
-                  const prasNrMatch = bodyText.match(/Pra[sš]ymo\s+numeris[:\s]+([^\s\n]{3,30})/i);
+                  const prasNrMatch = bodyText.match(/Pra[sš]ymo\s+numeris[\s:]+([0-9][\d\-]{2,20})/i);
                   const prasNr      = prasNrMatch ? prasNrMatch[1].trim() : null;
 
                   console.log(`[IMAP] 📬 Kauno sav. "Išduotas leidimas" | adresas: ${rawAddrI||'—'} | leid.nr: ${leidNr||'—'} | galioja: ${leidFrom||'—'}–${leidUntil||'—'}`);
@@ -3236,118 +3245,4 @@ function parseSavPermitText(text) {
     ['Asfaltbetonis',  /važiuojamosios\s+gatvės|asfaltbeton/i],
     ['Žvyras',         /žvyr/i],
     ['Trinkelės',      /trinkel/i],
-    ['Plytelės',       /plytel/i],
-    ['Gruntas',        /\bgruntas?\b|gruntinis/i],
-    ['Betonas',        /\bbetonas?\b(?!\s*\d)/i],
-    ['Žalieji plotai', /žali[ae]j[ii]\s+plota[ii]|žalioji\s+danga/i],
-    ['Kietos dangos',  /kietos?\s+dang/i],
-  ];
-  const foundSurfaces = SURFACE_MAP.filter(([,re]) => re.test(dangTxt)).map(([n]) => n);
-  if (foundSurfaces.length > 0) result.surfaces = foundSurfaces;
-
-  // ── 9. Darbų vadovas ────────────────────────────────────────
-  const dvM = text.match(/Darb[uų]\s+vadovas[:\s]+([^;]+);\s*[^;]*;\s*([+\d\s\(\)]{7,20});\s*([\w.\-+]+@[\w.\-]+)/i);
-  if (dvM) {
-    result.manager      = dvM[1].trim();
-    result.managerPhone = dvM[2].trim().replace(/\s+/g,'');
-    result.managerEmail = dvM[3].trim();
-  }
-
-  console.log('[SAV-PARSE] Rezultatas:', JSON.stringify(result));
-  return result;
-}
-
-app.post('/api/parse-sav-permit', async (req, res) => {
-  const { filename, debug } = req.body || {};
-  if (!filename) return res.status(400).json({ error: 'Trūksta filename.' });
-  const fpath = path.join(UPLOAD_DIR, path.basename(filename));
-  if (!fs.existsSync(fpath)) return res.status(404).json({ error: 'Failas nerastas.' });
-  try {
-    const buf    = fs.readFileSync(fpath);
-    const parsed = await pdfParse(buf);
-    const text   = parsed.text || '';
-    const data   = parseSavPermitText(text);
-    console.log(`[SAV-PARSE] ${path.basename(filename)}: ${JSON.stringify(data)}`);
-    res.json({ ok: true, data, ...(debug ? { rawText: text.slice(0, 500) } : {}) });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ── Savivaldybės ištraukimas iš PDF ──────────────────────────
-// Patikrina PDF failo tekstą ir grąžina savivaldybės pavadinimą.
-// POST /api/extract-municipality  { filename: "..." arba url: "/uploads/..." }
-app.post('/api/extract-municipality', async (req, res) => {
-  const { filename, url } = req.body || {};
-  try {
-    let fpath;
-    if (filename) {
-      fpath = path.join(__dirname, 'uploads', path.basename(filename));
-    } else if (url) {
-      // url gali būti "/uploads/xxx.pdf" arba "/public/xxx.pdf"
-      const rel = url.replace(/^\/+/, '');
-      fpath = path.join(__dirname, rel);
-      if (!fs.existsSync(fpath)) fpath = path.join(__dirname, 'public', rel);
-    }
-    if (!fpath || !fs.existsSync(fpath)) {
-      return res.json({ municipality: null, error: 'Failas nerastas: ' + (fpath || '?') });
-    }
-    const buf = fs.readFileSync(fpath);
-    const parsed = await pdfParse(buf);
-    const text = parsed.text || '';
-
-    // Ieškome savivaldybės pavadinimo PDF tekste
-    const municipality = extractMunicipalityFromText(text);
-    console.log('[MUN] Iš PDF:', path.basename(fpath), '→', municipality || 'nerasta');
-    res.json({ municipality, text: text.slice(0, 800) });
-  } catch (e) {
-    console.warn('[MUN] Klaida:', e.message);
-    res.json({ municipality: null, error: e.message });
-  }
-});
-
-function extractMunicipalityFromText(text) {
-  if (!text) return null;
-  // 1. Ieškome "X r. sav." arba "X m. sav." (pilnas pavadinimas)
-  const m1 = text.match(/([A-ZŠŽČĘĖĮŪĄ][a-ząšžčęėįūąA-ZŠŽČĘĖĮŪĄ\-]+(?: [a-ząšžčęėįūą]+)?)\s+(?:r|m)\.\s*sav\./);
-  if (m1) return m1[0].replace(/\s+/g, ' ').trim();
-  // 2. Ieškome "X sav." (pvz. Marijampolės sav., Elektrėnų sav.)
-  const m2 = text.match(/([A-ZŠŽČĘĖĮŪĄ][a-ząšžčęėįūąA-ZŠŽČĘĖĮŪĄ\-]+(?: [a-ząšžčęėįūą]+)?)\s+sav\./);
-  if (m2) return m2[0].replace(/\s+/g, ' ').trim();
-  return null;
-}
-
-// ── Versija iš package.json ───────────────────────────────────
-app.get('/api/version', (req, res) => {
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
-    res.json({ version: pkg.version });
-  } catch (e) {
-    res.json({ version: '?' });
-  }
-});
-
-// ── Start server ──────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n  🚧 Kasimo leidimai veikia: http://localhost:${PORT}\n`);
-  console.log(`  🗄️  Duomenų bazė: ${DB_FILE}`);
-
-  setTimeout(() => {
-    const settings = dbGet('kl-settings') || {};
-    syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
-      console.log('[SYNC] El. pašto sinchronizacija:', r.log.join('\n       '));
-    });
-  }, 3000);
-
-  // IMAP tikrinimas: iš karto po 10 sek., tada kas 15 min.
-  setTimeout(() => {
-    checkImapMail().then((r) => {
-      if (r.checked > 0) console.log(`[IMAP] Pradinis tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
-    });
-    setInterval(() => {
-      checkImapMail().then((r) => {
-        if (r.checked > 0) console.log(`[IMAP] Tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
-      });
-    }, 15 * 60 * 1000); // kas 15 minučių
-  }, 10000);
-});
+    ['P
