@@ -1095,8 +1095,21 @@ async function _checkImapMailImpl() {
 
                 // Išduotas leidimas — tikrinti ir temoje, ir kūne (normalizuota)
                 const bodyNorm = bodyText.toLowerCase().replace(/š/g,'s').replace(/ž/g,'z').replace(/č/g,'c').replace(/ė/g,'e').replace(/ę/g,'e').replace(/ą/g,'a').replace(/į/g,'i').replace(/ū/g,'u').replace(/ų/g,'u');
-                const isIsduotas = /i[sš]duotas\s+leidimas/i.test(bodyText + ' ' + subject) || /isduotas\s+leidimas/i.test(bodyNorm);
-                console.log(`[IMAP] Kaunas isIsduotas=${isIsduotas} | subject="${subject}"`);
+                // Ištraukiame "Prašymo būsena" reikšmę — padeda kai decoding suluošintas
+                const busenaRawM = bodyText.match(/Pra[sš]ymo\s+b[uū]sena[:\s]+([^\n<]{3,80})/i)
+                                || bodyNorm.match(/prasymo\s+busena[:\s]+([^\n<]{3,80})/i);
+                const busenaRaw = busenaRawM ? busenaRawM[1].trim() : '';
+                const busenaRawNorm = busenaRaw.toLowerCase().replace(/š/g,'s').replace(/ž/g,'z').replace(/č/g,'c').replace(/ė/g,'e').replace(/ę/g,'e').replace(/ą/g,'a').replace(/į/g,'i').replace(/ū/g,'u').replace(/ų/g,'u');
+                const isIsduotas = /i[sš]duotas\s+leidimas/i.test(bodyText + ' ' + subject)
+                  || /isduotas\s+leidimas/i.test(bodyNorm)
+                  || /leidimas\s+i[sš]duotas/i.test(bodyText)
+                  || /leidimas\s+isduotas/i.test(bodyNorm)
+                  || /isduotas\s*leid/i.test(busenaRawNorm);
+                console.log(`[IMAP] Kaunas isIsduotas=${isIsduotas} | busena="${busenaRaw||'—'}" | subject="${subject}"`);
+                // Išsaugome el. pašto įrašą debugui (kl-sav-email-log)
+                const savEmailLog = dbGet('kl-sav-email-log') || [];
+                savEmailLog.unshift({ date: new Date().toISOString(), subject, from: fromAddr, isIsduotas, busena: busenaRaw || '—', bodyPreview: bodyText.slice(0, 800) });
+                dbSet('kl-sav-email-log', savEmailLog.slice(0, 10));
 
                 if (isIsduotas) {
                   // Išparsinti leidimo duomenis — platesnės regex
@@ -2680,6 +2693,11 @@ async function syncAdEmailsPromise(emailDomain) {
   if (updatedCount > 0) dbSet('kl-users', updated);
   return { updated: updatedCount, log };
 }
+
+// Paskutinių Kauno sav. laiškų debug log'as
+app.get('/api/admin/sav-email-log', (req, res) => {
+  res.json(dbGet('kl-sav-email-log') || []);
+});
 
 app.post('/api/admin/sync-ad-emails', async (req, res) => {
   try {

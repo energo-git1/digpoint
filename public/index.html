@@ -5359,6 +5359,8 @@ function SystemTools(){
   var _reprocRes=useState(null);var reprocRes=_reprocRes[0],sReprocRes=_reprocRes[1];
   var _fixDatesBusy=useState(false);var fixDatesBusy=_fixDatesBusy[0],sFixDatesBusy=_fixDatesBusy[1];
   var _fixDatesRes=useState(null);var fixDatesRes=_fixDatesRes[0],sFixDatesRes=_fixDatesRes[1];
+  var _savLogBusy=useState(false);var savLogBusy=_savLogBusy[0],sSavLogBusy=_savLogBusy[1];
+  var _savLogRes=useState(null);var savLogRes=_savLogRes[0],sSavLogRes=_savLogRes[1];
 
   function checkMail(){
     sMailBusy(true);sMailRes(null);
@@ -5409,6 +5411,13 @@ function SystemTools(){
       .then(function(d){sFixDatesRes(d);sFixDatesBusy(false)})
       .catch(function(e){sFixDatesRes({error:e.message});sFixDatesBusy(false)});
   }
+  function loadSavLog(){
+    sSavLogBusy(true);sSavLogRes(null);
+    fetch("/api/admin/sav-email-log")
+      .then(function(r){return r.json()})
+      .then(function(d){sSavLogRes(d);sSavLogBusy(false)})
+      .catch(function(e){sSavLogRes({error:e.message});sSavLogBusy(false)});
+  }
 
   var section={marginBottom:24,padding:"16px 18px",background:C.s2,border:"1px solid "+C.b1,borderRadius:10};
   var secTitle={fontSize:10,fontWeight:700,color:C.t3,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1};
@@ -5447,9 +5456,25 @@ function SystemTools(){
         <Btn v="danger" sm onClick={clearImapDone} disabled={clearBusy}>{clearBusy?"⏳ Valoma...":"🗑️ Išvalyti apdorotus"}</Btn>
         <Btn v="primary" sm onClick={reprocessUnattached} disabled={reprocBusy}>{reprocBusy?"⏳ Priskiriama...":"🔗 Priskirti nepriskirtus PDF"}</Btn>
         <Btn v="secondary" sm onClick={fixPermitDates} disabled={fixDatesBusy}>{fixDatesBusy?"⏳ Taisoma...":"📅 Taisyti galiojimo datas"}</Btn>
+        <Btn v="secondary" sm onClick={loadSavLog} disabled={savLogBusy}>{savLogBusy?"⏳ Kraunama...":"📋 Kauno sav. laiškų log'as"}</Btn>
       </div>
       {fixDatesRes&&<div style={{padding:"8px 12px",borderRadius:8,background:fixDatesRes.ok?C.gnD:C.rdD,border:"1px solid "+(fixDatesRes.ok?C.gn:C.rd)+"44",fontSize:11,fontFamily:FM,marginTop:6}}>
         {fixDatesRes.ok?("✅ Pataisyta paraiškų: "+fixDatesRes.fixed):"❌ Klaida: "+(fixDatesRes.error||"?")}
+      </div>}
+      {savLogRes&&<div style={{marginTop:8,padding:"10px 12px",borderRadius:8,background:C.s3,border:"1px solid "+C.b1,fontSize:11,fontFamily:FM}}>
+        <div style={{fontWeight:700,color:C.tx,marginBottom:6}}>📋 Kauno sav. laiškų istorija (paskutiniai {(savLogRes||[]).length})</div>
+        {Array.isArray(savLogRes)&&savLogRes.length===0&&<span style={{color:C.t3}}>Nėra įrašų. Paleiskite „Tikrinti el. paštą dabar" ir grįžkite čia.</span>}
+        {Array.isArray(savLogRes)&&savLogRes.map(function(e,i){return(
+          <div key={i} style={{marginBottom:10,paddingBottom:10,borderBottom:i<savLogRes.length-1?"1px solid "+C.b1:"none"}}>
+            <div style={{display:"flex",gap:12,marginBottom:3}}>
+              <span style={{color:C.t3}}>{new Date(e.date).toLocaleString("lt-LT")}</span>
+              <span style={{color:e.isIsduotas?C.gn:C.t2,fontWeight:700}}>{e.isIsduotas?"✅ isIsduotas=true":"⚠️ isIsduotas=false"}</span>
+            </div>
+            <div style={{color:C.tx,marginBottom:2}}><b>Tema:</b> {e.subject||"—"}</div>
+            <div style={{color:C.tx,marginBottom:2}}><b>Būsena laiške:</b> <span style={{color:C.gn}}>{e.busena||"—"}</span></div>
+            <div style={{color:C.t3,whiteSpace:"pre-wrap",wordBreak:"break-all",maxHeight:120,overflow:"auto",background:C.bg,padding:6,borderRadius:6,fontSize:10}}>{e.bodyPreview||"(tuščia)"}</div>
+          </div>
+        );})}
       </div>}
       {imapRes&&<div style={{marginBottom:8,padding:"10px 12px",borderRadius:8,background:imapRes.ok?C.gnD:C.rdD,border:"1px solid "+(imapRes.ok?C.gn:C.rd)+"44",fontSize:11,fontFamily:FM}}>
         <div style={{fontWeight:700,color:imapRes.ok?C.gn:C.rd,marginBottom:6}}>{imapRes.ok?"✅ IMAP prisijungta":"❌ IMAP klaida"}</div>
