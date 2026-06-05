@@ -3280,6 +3280,4 @@ app.listen(PORT, () => {
       checkImapMail().then((r) => {
         if (r.checked > 0) console.log(`[IMAP] Tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
       });
-    }, 15 * 60 * 1000); // kas 15 minučių
-  }, 10000);
-});
+    }, 15 * 60 * 1000); 
