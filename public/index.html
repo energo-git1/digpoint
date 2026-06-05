@@ -5677,6 +5677,8 @@ function SavPriedaiBlock(p){
 
   useEffect(function(){
     if(!srcId)return;
+    // Avariniai darbai — dokumentų sąrašo nereikia, tik papildomi failai
+    if(p.workType==="avarinius"||p.workType==="avariniai"){sDocList([]);return;}
     fetch('/api/admin/list-sav-priedai?permitId='+srcId+'&currentPermitId='+p.permitId)
       .then(function(r){return r.json();}).then(function(d){
         if(!d.ok)return;
@@ -5762,7 +5764,8 @@ function SavPriedaiBlock(p){
         </div>;
       })}
     </div>}
-    {docList&&docList.length===0&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginBottom:8}}>⚠️ Nerasta dokumentų — patikrinkite ar gauti leidimai.</div>}
+    {docList&&docList.length===0&&!(p.workType==="avarinius"||p.workType==="avariniai")&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginBottom:8}}>⚠️ Nerasta dokumentų — patikrinkite ar gauti leidimai.</div>}
+    {(p.workType==="avarinius"||p.workType==="avariniai")&&<div style={{fontSize:10,color:C.t3,fontFamily:F,marginBottom:8}}>Avariniai darbai — įkelkite reikiamus dokumentus žemiau.</div>}
 
     {/* Papildomi failai */}
     {/* Puslapių parinkiklis */}
