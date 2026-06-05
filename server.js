@@ -1155,23 +1155,28 @@ async function _checkImapMailImpl() {
 
                   if (bestPermitI && bestScoreI >= THRESHOLD_I) {
                     const today = fmtDateSrv(new Date());
+                    const isAvarinis = bestPermitI.workType === 'avarinius' || bestPermitI.workType === 'avariniai';
+                    const finalStatusI = isAvarinis ? 'Uždarytas' : 'Gautas leidimas';
                     const updatedPermitsI = allPermitsI.map((p) => {
                       if (p.id !== bestPermitI.id) return p;
+                      const hist = [...(p.history || []), {
+                        status: 'Gautas leidimas', date: today,
+                        note: `Savivaldybė išdavė leidimą ${leidNr||'—'} (${leidFrom||''}–${leidUntil||''}) — gautas automatiškai iš el. pašto`,
+                      }];
+                      if (isAvarinis) hist.push({ status: 'Uždarytas', date: today, note: 'Avariniai darbai — automatiškai uždaryta gavus leidimą' });
                       return {
                         ...p,
-                        status: 'Gautas leidimas',
+                        status: finalStatusI,
+                        ...(isAvarinis ? { closingDone: true, closingDoneAt: today } : {}),
                         savivaldybeCode: leidNr || p.savivaldybeCode || null,
                         savivaldybePrasNr: prasNr || p.savivaldybePrasNr || null,
                         permitValidFrom:  leidFrom  || p.permitValidFrom  || '',
                         permitValidUntil: leidUntil || p.permitValidUntil || '',
-                        history: [...(p.history || []), {
-                          status: 'Gautas leidimas', date: today,
-                          note: `Savivaldybė išdavė leidimą ${leidNr||'—'} (${leidFrom||''}–${leidUntil||''}) — gautas automatiškai iš el. pašto`,
-                        }],
+                        history: hist,
                       };
                     });
                     dbSet('kl-permits', updatedPermitsI);
-                    console.log(`[IMAP] ✅ #${bestPermitI.id.slice(-5).toUpperCase()} → Gautas leidimas | leid.nr: ${leidNr||'—'} | score: ${bestScoreI.toFixed(2)}`);
+                    console.log(`[IMAP] ✅ #${bestPermitI.id.slice(-5).toUpperCase()} → ${finalStatusI}${isAvarinis?' (avariniai: auto-uždarytas)':''} | leid.nr: ${leidNr||'—'} | score: ${bestScoreI.toFixed(2)}`);
                     processed++;
                   } else {
                     console.log(`[IMAP] Kauno sav. "Išduotas leidimas": paraiška nerasta (score: ${bestScoreI.toFixed(2)}, candidates: ${candidatesI.length})`);
@@ -2080,18 +2085,16 @@ app.post('/api/admin/send-seniunija-closure', async (req, res) => {
   // Žymime kaip išsiųstą
   const today = fmtDateSrv(new Date());
   const isSeniunijaOrg = (permit.organizations || []).includes('Seniūnija');
-  const isAvarinis     = permit.workType === 'avarinius' || permit.workType === 'avariniai';
-  const shouldClose    = isSeniunijaOrg || isAvarinis;
   dbSet('kl-permits', permits.map((p) => p.id !== permitId ? p : {
     ...p,
     seniunijaSent: true,
     seniunijaSentAt: today,
     seniunijaName,
-    // Seniūnija paraiška arba avariniai darbai → automatiškai uždaroma
-    ...(shouldClose ? { status: 'Uždarytas', closingDone: true, closingDoneAt: today } : {}),
+    // Seniūnija paraiška → automatiškai uždaroma
+    ...(isSeniunijaOrg ? { status: 'Uždarytas', closingDone: true, closingDoneAt: today } : {}),
     history: [...(p.history || []), {
-      status: shouldClose ? 'Uždarytas' : p.status, date: today,
-      note: `Seniūnijai (${seniunijaName}) išsiųstas informacinis laiškas apie atliktus darbus${isAvarinis ? ' (avariniai darbai — automatiškai uždaryta)' : ''}`,
+      status: isSeniunijaOrg ? 'Uždarytas' : p.status, date: today,
+      note: `Seniūnijai (${seniunijaName}) išsiųstas informacinis laiškas apie atliktus darbus`,
     }],
   }));
 
@@ -2286,12 +2289,20 @@ app.post('/api/permits/:id/status', (req, res) => {
   const idx = permits.findIndex(p => p.id === id);
   if (idx === -1) return res.status(404).json({ error: 'Paraiška nerasta.' });
   const today = fmtDateSrv(new Date());
-  const updated = { ...permits[idx], status,
-    history: [...(permits[idx].history || []), { status, date: today, note: note || '' }],
+  const isAvarinis = permits[idx].workType === 'avarinius' || permits[idx].workType === 'avariniai';
+  // Avariniai darbai: kai gaunamas leidimas → iš karto uždaroma
+  const finalStatus = (status === 'Gautas leidimas' && isAvarinis) ? 'Uždarytas' : status;
+  const history = [...(permits[idx].history || []), { status, date: today, note: note || '' }];
+  if (finalStatus !== status) {
+    history.push({ status: finalStatus, date: today, note: 'Avariniai darbai — automatiškai uždaryta gavus leidimą' });
+  }
+  const updated = { ...permits[idx], status: finalStatus,
+    ...(finalStatus === 'Uždarytas' && isAvarinis ? { closingDone: true, closingDoneAt: today } : {}),
+    history,
   };
   permits[idx] = updated;
   dbSet('kl-permits', permits);
-  console.log(`[STATUS] Paraiška ${id.slice(-5).toUpperCase()} → "${status}"${note ? ' ('+note+')' : ''}`);
+  console.log(`[STATUS] Paraiška ${id.slice(-5).toUpperCase()} → "${finalStatus}"${isAvarinis && finalStatus !== status ? ' (avariniai: auto-uždarytas)' : ''}${note ? ' ('+note+')' : ''}`);
   res.json({ ok: true, permit: updated });
 });
 

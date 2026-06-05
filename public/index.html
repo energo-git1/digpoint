@@ -3987,8 +3987,8 @@ function PermitDetail(p){
 
       {/* Savivaldybės uždarymas perkeltas į Uždaryti skirtuko SavClosePanel */}
 
-      {/* Seniūnijos informacinis laiškas — Seniūnija org. arba Kauno sav. avariniai */}
-      {((o.organizations||[]).indexOf("Seniūnija")!==-1||((o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(o.workType==="avarinius"||o.workType==="avariniai")))&&(isA||isD||(o.closingSubmitted||o.status==="Gautas leidimas"||o.status==="Uždarytas"))&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+      {/* Seniūnijos informacinis laiškas — TIK Seniūnija org. */}
+      {(o.organizations||[]).indexOf("Seniūnija")!==-1&&(isA||isD||(o.closingSubmitted||o.status==="Uždarytas"))&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Laiškas seniūnijai</div>
         {o.seniunijaSent
           ?<div style={{background:"rgba(16,185,129,.1)",border:"1px solid #059669",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#059669",fontFamily:F,fontWeight:600}}>✅ Laiškas seniūnijai ({o.seniunijaName||"—"}) išsiųstas {o.seniunijaSentAt||""}</div>
@@ -4052,7 +4052,9 @@ function PermitDetail(p){
             {(function(){
               var surfTxt=buildSurfaceText(surfaces);
               var autoSubj="Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — "+(o.location||"—");
-              var autoBody="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", elektros tinklų "+(o.description||"įrengimas")+".\nDarbai yra baigti, "+surfTxt+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB EnergoLT\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +37068313705\nEl. p. uzklausos@energolt.eu";
+              var _isAvarin=workType==="avarinius"||workType==="avariniai";
+              var _darbDesc=_isAvarin?"elektros tinklo remontas":"elektros tinklų "+(o.description||"įrengimas");
+              var autoBody="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", "+_darbDesc+".\nDarbai yra baigti, "+surfTxt+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB EnergoLT\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +37068313705\nEl. p. uzklausos@energolt.eu";
               var curSubj=senSubjEdit!==null?senSubjEdit:autoSubj;
               var curBody=senBodyEdit!==null?senBodyEdit:autoBody;
               return <div style={{marginBottom:10}}>
@@ -4125,7 +4127,9 @@ function PermitDetail(p){
               try{
                 var surfTxt2=buildSurfaceText(surfaces);
                 var autoSubj2="Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — "+(o.location||"—");
-                var autoBody2="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", elektros tinklų "+(o.description||"įrengimas")+".\nDarbai yra baigti, "+surfTxt2+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB EnergoLT\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +37068313705\nEl. p. uzklausos@energolt.eu";
+                var _isAvarin2=workType==="avarinius"||workType==="avariniai";
+                var _darbDesc2=_isAvarin2?"elektros tinklo remontas":"elektros tinklų "+(o.description||"įrengimas");
+                var autoBody2="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", "+_darbDesc2+".\nDarbai yra baigti, "+surfTxt2+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB EnergoLT\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +37068313705\nEl. p. uzklausos@energolt.eu";
                 var r=await fetch('/api/admin/send-seniunija-closure',{method:'POST',headers:{'Content-Type':'application/json'},
                   body:JSON.stringify({permitId:o.id,workType,surfaces,seniunijaEmail:email,seniunijaName:name,
                     emailSubject:senSubjEdit!==null?senSubjEdit:autoSubj2,
@@ -4135,12 +4139,10 @@ function PermitDetail(p){
                 if(!r.ok){sSeniunijaMsg("❌ "+(d.error||"Klaida"));sSeniunijaBusy(false);return;}
                 sSeniunijaMsg("✅ Laiškas seniūnijai išsiųstas!");
                 var isSen=(o.organizations||[]).indexOf("Seniūnija")!==-1;
-                var isAvarin=o.workType==="avarinius"||o.workType==="avariniai";
-                var shouldClose=isSen||isAvarin;
-                var newSt=shouldClose?"Uždarytas":o.status;
+                var newSt=isSen?"Uždarytas":o.status;
                 p.onUpdate(Object.assign({},o,{seniunijaSent:true,seniunijaSentAt:fmtDate(new Date()),seniunijaName:name,
                   status:newSt,
-                  history:(o.history||[]).concat([{status:newSt,date:fmtDate(new Date()),note:"Seniūnijai ("+name+") išsiųstas informacinis laiškas"+(isAvarin?" (avariniai darbai — automatiškai uždaryta)":"")}])}));
+                  history:(o.history||[]).concat([{status:newSt,date:fmtDate(new Date()),note:"Seniūnijai ("+name+") išsiųstas informacinis laiškas"}])}));
               }catch(e){sSeniunijaMsg("❌ Serverio klaida");}
               sSeniunijaBusy(false);
             })()}} sm disabled={seniunijaBusy||!mergedPdf} style={{background:"#2563EB",color:"#fff",border:"none",opacity:(seniunijaBusy||!mergedPdf)?0.6:1}}>
