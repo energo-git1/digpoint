@@ -1064,56 +1064,80 @@ async function _checkImapMailImpl() {
                     const chunks = [];
                     for await (const chunk of dl.content) chunks.push(chunk);
                     const rawBuf = Buffer.concat(chunks);
+                    const enc = (tp.encoding || '').toLowerCase();
+                    console.log(`[IMAP] Kaunas part type=${tp.type} encoding=${enc} size=${rawBuf.length}`);
                     let raw;
-                    if (tp.encoding === 'base64') {
-                      // Base64 koduotas kūnas
+                    if (enc === 'base64') {
                       raw = Buffer.from(rawBuf.toString('latin1').replace(/\s/g, ''), 'base64').toString('utf8');
-                    } else {
-                      // Quoted-printable (arba 7bit/8bit) — UTF-8 multi-byte teisingas dekodavimas
+                    } else if (enc === 'quoted-printable' || enc === 'qp') {
                       raw = rawBuf.toString('latin1');
                       raw = raw.replace(/=\r?\n/g, '');
-                      raw = raw.replace(/((?:=[0-9A-Fa-f]{2})+)/gi, (seq) => {
-                        const bytes = seq.match(/=[0-9A-Fa-f]{2}/gi).map(s => parseInt(s.slice(1), 16));
-                        try { return Buffer.from(bytes).toString('utf8'); } catch (_) { return seq; }
+                      raw = raw.replace(/((?:=[0-9A-Fa-f]{2})+)/gi, (s) => {
+                        const bytes = s.match(/=[0-9A-Fa-f]{2}/gi).map(h => parseInt(h.slice(1), 16));
+                        try { return Buffer.from(bytes).toString('utf8'); } catch (_) { return s; }
                       });
+                    } else {
+                      // 7bit / 8bit — tiesiog UTF-8
+                      raw = rawBuf.toString('utf8');
                     }
-                    // Jei HTML — ištraukti tekstą (pakeisti tagus tarpais)
                     if (tp.type === 'text/html') {
-                      raw = raw.replace(/<br\s*\/?>/gi, '\n').replace(/<\/?(td|th|p|div|li)[^>]*>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                      raw = raw.replace(/<br\s*\/?>/gi, '\n')
+                               .replace(/<\/?(td|th|p|div|li|h[1-6]|tr)[^>]*>/gi, ' ')
+                               .replace(/<[^>]+>/g, '')
+                               .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+                               .replace(/&lt;/g, '<').replace(/&gt;/g, '>');
                     }
                     bodyText += raw + '\n';
-                  } catch (_) {}
+                  } catch (e) { console.log(`[IMAP] Kaunas download klaida: ${e.message}`); }
                 }
 
-                console.log(`[IMAP] Kaunas bodyText (pirmieji 300): ${bodyText.slice(0, 300).replace(/\n/g, '|')}`);
+                console.log(`[IMAP] Kaunas bodyText (300): ${bodyText.slice(0, 300).replace(/[\r\n]+/g, '|')}`);
 
-                if (/išduotas leidimas/i.test(bodyText + ' ' + subject)) {
-                  // Išparsinti leidimo duomenis iš laiško teksto
-                  const addrMatchI  = bodyText.match(/Darb[uų]\s+vieta[\s\S]{0,20}?prad[žz][iī]a[\s\S]{0,10}?[:\s]+([^\n(]{5,100})/i);
+                // Išduotas leidimas — tikrinti ir temoje, ir kūne (normalizuota)
+                const bodyNorm = bodyText.toLowerCase().replace(/š/g,'s').replace(/ž/g,'z').replace(/č/g,'c').replace(/ė/g,'e').replace(/ę/g,'e').replace(/ą/g,'a').replace(/į/g,'i').replace(/ū/g,'u').replace(/ų/g,'u');
+                const isIsduotas = /i[sš]duotas\s+leidimas/i.test(bodyText + ' ' + subject) || /isduotas\s+leidimas/i.test(bodyNorm);
+                console.log(`[IMAP] Kaunas isIsduotas=${isIsduotas} | subject="${subject}"`);
+
+                if (isIsduotas) {
+                  // Išparsinti leidimo duomenis — platesnės regex
+                  const addrMatchI  = bodyText.match(/Darb[uų]?\s+vieta[^:\n]*[:\s]+([^\n(]{5,100})/i)
+                                   || bodyText.match(/vieta\s*\([^)]*prad[^\)]*\)[:\s]+([^\n(]{5,100})/i);
                   const rawAddrI    = addrMatchI ? addrMatchI[1].trim() : '';
-                  const leidNrMatch = bodyText.match(/Leidimo\s+numeris[\s:]+([0-9][\d\-]{2,20})/i);
+                  const leidNrMatch = bodyText.match(/Leidimo\s+numeris[:\s]+([0-9][\d\-\/]{2,20})/i);
                   const leidNr      = leidNrMatch ? leidNrMatch[1].trim() : null;
-                  const leidDatesM  = bodyText.match(/Leidimo\s+galiojimas[\s:]+(\d{4}-\d{2}-\d{2})\s*[-–]\s*(\d{4}-\d{2}-\d{2})/i);
+                  const leidDatesM  = bodyText.match(/Leidimo\s+galiojimas[:\s]+(\d{4}-\d{2}-\d{2})\s*[-–]\s*(\d{4}-\d{2}-\d{2})/i);
                   const leidFrom    = leidDatesM ? leidDatesM[1] : null;
                   const leidUntil   = leidDatesM ? leidDatesM[2] : null;
-                  const prasNrMatch = bodyText.match(/Pra[sš]ymo\s+numeris[\s:]+([0-9][\d\-]{2,20})/i);
+                  const prasNrMatch = bodyText.match(/Pra[sš]ymo\s+numeris[:\s]+([0-9][\d\-]{2,20})/i);
                   const prasNr      = prasNrMatch ? prasNrMatch[1].trim() : null;
 
-                  console.log(`[IMAP] 📬 Kauno sav. "Išduotas leidimas" | adresas: ${rawAddrI||'—'} | leid.nr: ${leidNr||'—'} | galioja: ${leidFrom||'—'}–${leidUntil||'—'}`);
+                  console.log(`[IMAP] 📬 Kauno sav. "Išduotas leidimas" | adresas: "${rawAddrI||'—'}" | prasNr: ${prasNr||'—'} | leid.nr: ${leidNr||'—'} | galioja: ${leidFrom||'—'}–${leidUntil||'—'}`);
 
-                  // Surasti paraišką pagal adresą
                   const allPermitsI = dbGet('kl-permits') || [];
                   const candidatesI = allPermitsI.filter((p) => {
                     if (p.status === 'Uždarytas' || p.status === 'Atmestas') return false;
                     const orgs = Array.isArray(p.organizations) ? p.organizations : (p.organization ? [p.organization] : []);
                     return orgs.includes('Kauno miesto savivaldybe');
                   });
-                  let bestPermitI = null, bestScoreI = 0;
-                  for (const p of candidatesI) {
-                    const score = calcLocationScore(p.location || '', rawAddrI + ' ' + bodyText);
-                    if (score > bestScoreI) { bestScoreI = score; bestPermitI = p; }
+                  console.log(`[IMAP] Kaunas kandidatai: ${candidatesI.length} | ${candidatesI.map(p=>`#${p.id.slice(-5).toUpperCase()} "${p.location||'?'}" prasNr=${p.savivaldybePrasNr||'—'}`).join(', ')}`);
+
+                  // 1. Pirmiausia — atitikimas pagal prašymo numerį (tikslus)
+                  let bestPermitI = prasNr ? candidatesI.find(p => p.savivaldybePrasNr === prasNr) : null;
+                  let bestScoreI  = bestPermitI ? 1.0 : 0;
+                  let matchMethod = bestPermitI ? 'prasNr' : '';
+
+                  // 2. Atsarginis — atitikimas pagal adresą
+                  if (!bestPermitI) {
+                    for (const p of candidatesI) {
+                      const score = calcLocationScore(p.location || '', rawAddrI + ' ' + bodyText);
+                      if (score > bestScoreI) { bestScoreI = score; bestPermitI = p; matchMethod = 'adresas'; }
+                    }
                   }
+
+                  // 3. Jei tik viena kandidatė — priskirti be slenksčio
                   const THRESHOLD_I = candidatesI.length === 1 ? 0 : 0.35;
+                  if (!bestPermitI && candidatesI.length === 1) { bestPermitI = candidatesI[0]; bestScoreI = 0; matchMethod = 'vienintelė'; }
+                  console.log(`[IMAP] Kaunas atitikimas: ${bestPermitI ? '#'+bestPermitI.id.slice(-5).toUpperCase() : 'nerasta'} | score=${bestScoreI.toFixed(2)} | metodas=${matchMethod}`);
 
                   if (bestPermitI && bestScoreI >= THRESHOLD_I) {
                     const today = fmtDateSrv(new Date());
