@@ -1,35 +1,24 @@
 @echo off
 cd /d "%~dp0"
 
-echo Uzdarau GitHub Desktop...
-taskkill /f /im GitHubDesktop.exe 2>nul
-timeout /t 2 /nobreak >nul
-
-echo Salinu uzraktus...
-del /f /q ".git\index.lock" 2>nul
-del /f /q ".git\HEAD.lock" 2>nul
-del /f /q ".git\refs\heads\main.lock" 2>nul
-del /f /q ".git\objects\maintenance.lock" 2>nul
+echo Salinu visus git uzraktus...
+del /f .git\index.lock 2>nul
+del /f .git\HEAD.lock 2>nul
+del /f .git\refs\heads\main.lock 2>nul
+del /f .git\packed-refs.lock 2>nul
+echo Uzraktai salinti.
 
 echo Ieškau git...
-set GIT=
-for /f "delims=" %%G in ('dir /s /b "%LOCALAPPDATA%\GitHubDesktop\git.exe" 2^>nul') do if not defined GIT set GIT=%%G
-if not defined GIT for /f "delims=" %%G in ('dir /s /b "%LOCALAPPDATA%\GitHubDesktop\cmd\git.exe" 2^>nul') do if not defined GIT set GIT=%%G
-if not defined GIT if exist "C:\Program Files\Git\cmd\git.exe" set GIT=C:\Program Files\Git\cmd\git.exe
-if not defined GIT for /f "delims=" %%G in ('where git 2^>nul') do if not defined GIT set GIT=%%G
+for /f "delims=" %%i in ('where git 2^>nul') do set GIT="%%i" & goto :found
+for /f "delims=" %%i in ('dir /s /b "%LOCALAPPDATA%\GitHubDesktop\app-*\resources\app\git\cmd\git.exe" 2^>nul') do set GIT="%%i" & goto :found
+for /f "delims=" %%i in ('dir /s /b "C:\Program Files\Git\cmd\git.exe" 2^>nul') do set GIT="%%i" & goto :found
+echo GIT NERASTAS.
+pause
+exit /b 1
 
-if not defined GIT (
-    echo.
-    echo GIT NERASTAS. Bandau per PowerShell...
-    powershell -ExecutionPolicy Bypass -Command "& { Set-Location '%~dp0'; $g = (Get-ChildItem $env:LOCALAPPDATA\GitHubDesktop -Recurse -Filter git.exe -EA SilentlyContinue | Where { $_.FullName -match 'cmd.git' } | Select -First 1).FullName; if($g){Write-Host \"Rastas: $g\"; & $g push origin main} else {Write-Host 'Git nerastas!'} }"
-    goto :end
-)
-
-echo Rastas: %GIT%
-echo Stumiame i GitHub...
-"%GIT%" push origin main
-
-:end
+:found
+echo Git rastas: %GIT%
+%GIT% push origin main
 echo.
-echo === BAIGTA ===
+echo === ATLIKTA. Serveris atsistatys per ~1 min. ===
 pause
