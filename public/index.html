@@ -5705,7 +5705,7 @@ function SavPriedaiBlock(p){
   function autoSave(newSrcId, newSelected, newExtraPages, newExtraFiles){
     if(autoSaveTimer)clearTimeout(autoSaveTimer);
     var t=setTimeout(function(){(async function(){
-      var selFiles=Object.keys(newSelected||selected).filter(function(k){return (newSelected||selected)[k];});
+      var _sel=newSelected||selected;var selFiles=(docList||[]).filter(function(doc){return _sel[doc.filename];}).map(function(doc){return doc.filename;});
       // Išsaugome extraFiles metaduomenis (be data - tik filename/name/url)
       var extraFilesMeta=(newExtraFiles||extraFiles).map(function(f){return {filename:f.filename,name:f.name,url:f.url,size:f.size};}).filter(function(f){return f.filename;});
       var v=await sGet('kl-permits');
@@ -5896,7 +5896,7 @@ function SavPriedaiBlock(p){
     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
       {/* Išsaugoti paruošimą */}
       <Btn sm onClick={function(){(async function(){
-        var selFiles=Object.keys(selected).filter(function(k){return selected[k];});
+        var selFiles=(docList||[]).filter(function(doc){return selected[doc.filename];}).map(function(doc){return doc.filename;});
         var v=await sGet('kl-permits');
         var permits=v||[];
         var updated=permits.map(function(pm){
@@ -5913,7 +5913,7 @@ function SavPriedaiBlock(p){
         {saved?"✅ Išsaugota":"💾 Išsaugoti"}
       </Btn>
       <Btn sm onClick={function(){(async function(){
-        var selFiles=Object.keys(selected).filter(function(k){return selected[k];});
+        var selFiles=(docList||[]).filter(function(doc){return selected[doc.filename];}).map(function(doc){return doc.filename;});
         var extraFns=extraFiles.filter(function(f){return f.filename;}).map(function(f){
           var pgs=extraPages[f.filename];
           return pgs&&pgs.length>0?f.filename+'__pages:'+pgs.join(','):f.filename;
