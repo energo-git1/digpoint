@@ -2317,6 +2317,70 @@ app.post('/api/admin/clear-imap-done', (req, res) => {
 
 // Senoji Telia/KE-only reprocess versija pašalinta — naudojama pilna versija žemiau
 
+// ── Ieškoti savivaldybės laiško pagal prašymo numerį ─────────
+// POST /api/admin/find-sav-email-by-prasnr { prasNr }
+app.post('/api/admin/find-sav-email-by-prasnr', async (req, res) => {
+  const { prasNr } = req.body || {};
+  if (!prasNr) return res.status(400).json({ error: 'Trūksta prasNr.' });
+  if (!SMTP_PASS) return res.status(500).json({ error: 'SMTP_PASS nenustatytas.' });
+
+  // 1. Pirma tikrinti kl-sav-close-requests
+  const stored = dbGet('kl-sav-close-requests') || [];
+  const found = stored.find((r) =>
+    r.leidNr === prasNr ||
+    (r.subject && r.subject.includes(prasNr)) ||
+    (r.bodyPreview && r.bodyPreview.includes(prasNr))
+  );
+  if (found) return res.json({ ok: true, source: 'stored', request: found });
+
+  // 2. Ieškoti IMAP pašte
+  const client = new ImapFlow({
+    host: IMAP_HOST, port: IMAP_PORT, secure: true,
+    auth: { user: IMAP_USER, pass: SMTP_PASS },
+    logger: false, tls: { rejectUnauthorized: false }, connectionTimeout: 10000,
+  });
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+    let result = null;
+    try {
+      // Ieškome pagal temą arba kūną
+      const uids = await client.search({ from: 'kasimo.darbai@kaunas.lt' });
+      for (const uid of uids.slice(-50).reverse()) { // Paskutiniai 50, naujausi pirmi
+        const msg = await client.fetchOne(uid, { envelope: true, bodyStructure: true, source: true });
+        if (!msg) continue;
+        const raw = msg.source ? msg.source.toString('utf8') : '';
+        if (!raw.includes(prasNr)) continue;
+        // Rastas — išsaugome kl-sav-close-requests
+        const msgId = msg.envelope?.messageId || String(uid);
+        const subject = msg.envelope?.subject || '';
+        const fromAddr = msg.envelope?.from?.[0]?.address || 'kasimo.darbai@kaunas.lt';
+        const alreadyStored2 = stored.some((r) => r.messageId === msgId);
+        if (!alreadyStored2) {
+          const newReq = {
+            id: srvUid(), messageId: msgId, subject, from: fromAddr,
+            date: new Date().toISOString(), address: '', leidNr: prasNr,
+            permitId: null, bodyPreview: raw.slice(0, 600),
+          };
+          stored.push(newReq);
+          dbSet('kl-sav-close-requests', stored);
+          result = newReq;
+        } else {
+          result = stored.find((r) => r.messageId === msgId) || null;
+        }
+        break;
+      }
+    } finally { lock.release(); }
+    await client.logout();
+    if (result) return res.json({ ok: true, source: 'imap', request: result });
+    return res.json({ ok: false, message: 'Laiškas su šiuo numeriu nerastas.' });
+  } catch (e) {
+    try { await client.logout(); } catch (_) {}
+    console.error(`[FIND-SAV-EMAIL] Klaida: ${e.message}`);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
 // Rankinis IMAP tikrinimo paleidimas per API
 app.post('/api/admin/check-mail', async (req, res) => {
   const meta = {

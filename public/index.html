@@ -4008,20 +4008,20 @@ function PermitDetail(p){
                   style={{flex:1,padding:"6px 10px",borderRadius:7,border:"1.5px solid "+(savPrasNr?C.ac:C.b1),background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
                 <Btn sm onClick={function(){
                   if(!savPrasNr.trim()){sSavCompMsg("⚠️ Įveskite prašymo numerį");return;}
-                  fetch('/api/admin/sav-close-requests').then(function(r){return r.json();}).then(function(d){
-                    var reqs=d.requests||[];
-                    var found=reqs.find(function(r){
-                      return r.leidNr===savPrasNr||(r.subject&&r.subject.includes(savPrasNr))||(r.bodyPreview&&r.bodyPreview.includes(savPrasNr));
-                    });
-                    if(found){
-                      var linked=Object.assign({},found,{permitId:o.id});
-                      sCloseReqs(reqs.map(function(r){return r.id===found.id?linked:r;}));
-                      sSavCompMsg("✅ Rastas laiškas — bus atsakyta į temą");
-                    } else {
-                      sCloseReqs(reqs);
-                      sSavCompMsg("⚠️ Laiškas nerastas — bus siųstas naujas");
-                    }
-                  }).catch(function(){sSavCompMsg("❌ Serverio klaida");});
+                  sSavCompMsg("🔍 Ieškoma...");
+                  fetch('/api/admin/find-sav-email-by-prasnr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prasNr:savPrasNr})})
+                    .then(function(r){return r.json();}).then(function(d){
+                      if(d.ok&&d.request){
+                        var linked=Object.assign({},d.request,{permitId:o.id});
+                        sCloseReqs(function(prev){
+                          var exists=prev.some(function(r){return r.id===linked.id;});
+                          return exists?prev.map(function(r){return r.id===linked.id?linked:r;}):[linked].concat(prev);
+                        });
+                        sSavCompMsg("✅ Rastas laiškas ("+(d.source==='imap'?'iš pašto':'išsaugotas')+") — bus atsakyta į temą");
+                      } else {
+                        sSavCompMsg("⚠️ Laiškas nerastas — bus siųstas naujas laiškas");
+                      }
+                    }).catch(function(){sSavCompMsg("❌ Serverio klaida");});
                 }}>🔍</Btn>
               </div>
             </div>
