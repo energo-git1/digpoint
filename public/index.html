@@ -3987,8 +3987,8 @@ function PermitDetail(p){
 
       {/* Savivaldybės uždarymas perkeltas į Uždaryti skirtuko SavClosePanel */}
 
-      {/* Seniūnijos informacinis laiškas — TIK Seniūnija org. */}
-      {(o.organizations||[]).indexOf("Seniūnija")!==-1&&(isA||isD||(o.closingSubmitted||o.status==="Uždarytas"))&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+      {/* Seniūnijos informacinis laiškas — Seniūnija org. arba avariniai (tik Uždarytas) */}
+      {((o.organizations||[]).indexOf("Seniūnija")!==-1||(( o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(o.workType==="avarinius"||o.workType==="avariniai")))&&(o.status==="Uždarytas"||(((o.organizations||[]).indexOf("Seniūnija")!==-1)&&(isA||isD||o.closingSubmitted)))&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Laiškas seniūnijai</div>
         {o.seniunijaSent
           ?<div style={{background:"rgba(16,185,129,.1)",border:"1px solid #059669",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#059669",fontFamily:F,fontWeight:600}}>✅ Laiškas seniūnijai ({o.seniunijaName||"—"}) išsiųstas {o.seniunijaSentAt||""}</div>
