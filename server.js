@@ -2104,7 +2104,7 @@ app.post('/api/admin/send-seniunija-closure', async (req, res) => {
 // ── Pranešimas savivaldybei apie darbų pabaigą ───────────────
 // POST /api/admin/send-sav-completion { permitId, emailBody, photoFilenames }
 app.post('/api/admin/send-sav-completion', async (req, res) => {
-  const { permitId, emailBody, photoFilenames } = req.body || {};
+  const { permitId, emailBody, photoFilenames, prasNr: reqPrasNr } = req.body || {};
   if (!permitId) return res.status(400).json({ error: 'Trūksta permitId.' });
 
   const permits = dbGet('kl-permits') || [];
@@ -2112,10 +2112,10 @@ app.post('/api/admin/send-sav-completion', async (req, res) => {
   if (!permit) return res.status(404).json({ error: 'Paraiška nerasta.' });
 
   const location  = permit.location || '—';
-  const savCode   = permit.savivaldybeCode || permit.savivaldybePrasNr || '';
+  const finalPrasNr = reqPrasNr || permit.savivaldybePrasNr || permit.savivaldybeCode || '';
   const SAV_EMAIL = 'kasimo.darbai@kaunas.lt';
   const SIGNATURE = `\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu`;
-  const subject   = `Darbų pabaiga — ${location}${savCode ? ' (leid. nr. ' + savCode + ')' : ''}`;
+  const subject   = `Darbų pabaiga — ${location}${finalPrasNr ? ' [Prašymo nr. ' + finalPrasNr + ']' : ''}`;
   const bodyText  = (emailBody && emailBody.trim()) ? emailBody.trim() + SIGNATURE : `Laba diena,\n\nPranešame, kad kasimo darbai ${location} yra baigti. Pridedam gerbūvio nuotraukas.${SIGNATURE}`;
 
   const attachments = [];
@@ -2137,7 +2137,8 @@ app.post('/api/admin/send-sav-completion', async (req, res) => {
     ...p,
     savCompletionSent: true,
     savCompletionSentAt: today,
-    history: [...(p.history || []), { status: p.status, date: today, note: `Savivaldybei (${SAV_EMAIL}) išsiųstas pranešimas apie darbų pabaigą` }],
+    ...(finalPrasNr && !p.savivaldybePrasNr ? { savivaldybePrasNr: finalPrasNr } : {}),
+    history: [...(p.history || []), { status: p.status, date: today, note: `Savivaldybei (${SAV_EMAIL}) išsiųstas pranešimas apie darbų pabaigą${finalPrasNr ? ' [Prašymo nr. ' + finalPrasNr + ']' : ''}` }],
   }));
 
   res.json({ ok: true });
@@ -2218,7 +2219,7 @@ app.get('/api/admin/match-sav-email', (req, res) => {
 // ── Atsakymas į Kauno sav. uždarymo pranešimą ────────────────
 // POST /api/admin/reply-sav-closure { requestId, permitId }
 app.post('/api/admin/reply-sav-closure', async (req, res) => {
-  const { requestId, permitId } = req.body || {};
+  const { requestId, permitId, prasNr } = req.body || {};
   if (!requestId) return res.status(400).json({ error: 'Trūksta requestId.' });
 
   const requests = dbGet('kl-sav-close-requests') || [];
@@ -2250,7 +2251,9 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
   }
 
   const { replyText: customText } = req.body || {};
-  const replySubject = request.subject.startsWith('Re:') ? request.subject : 'Re: ' + request.subject;
+  const prasNrSuffix = prasNr ? ` [Prašymo nr. ${prasNr}]` : '';
+  const baseSubject  = request.subject.startsWith('Re:') ? request.subject : 'Re: ' + request.subject;
+  const replySubject = baseSubject + prasNrSuffix;
   const replyText = (customText && customText.trim())
     ? customText.trim() + '\n\nPagarbiai,\nEnergoLT'
     : 'Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.\n\nPagarbiai,\nEnergoLT';

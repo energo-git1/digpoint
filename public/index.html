@@ -2583,6 +2583,7 @@ function PermitDetail(p){
   var _savReplyText=useState("Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.");var savReplyText=_savReplyText[0],sSavReplyText=_savReplyText[1];
   var _savCompPhotos=useState([]);var savCompPhotos=_savCompPhotos[0],sSavCompPhotos=_savCompPhotos[1];
   var _savCompText=useState("");var savCompText=_savCompText[0],sSavCompText=_savCompText[1];
+  var _savPrasNr=useState(o.savivaldybePrasNr||"");var savPrasNr=_savPrasNr[0],sSavPrasNr=_savPrasNr[1];
   var _savCompBusy=useState(false);var savCompBusy=_savCompBusy[0],sSavCompBusy=_savCompBusy[1];
   var _savCompMsg=useState("");var savCompMsg=_savCompMsg[0],sSavCompMsg=_savCompMsg[1];
   var _savCompSent=useState(o.savCompletionSent||false);var savCompSent=_savCompSent[0],sSavCompSent=_savCompSent[1];
@@ -4017,7 +4018,7 @@ function PermitDetail(p){
               sSavCompBusy(true);sSavCompMsg("");
               try{
                 var r=await fetch('/api/admin/send-sav-completion',{method:'POST',headers:{'Content-Type':'application/json'},
-                  body:JSON.stringify({permitId:o.id,emailBody:savCompText,
+                  body:JSON.stringify({permitId:o.id,emailBody:savCompText,prasNr:savPrasNr||"",
                     photoFilenames:savCompPhotos.map(function(f){return f.filename;}).filter(Boolean)})});
                 var d=await r.json();
                 if(!r.ok){sSavCompBusy(false);sSavCompMsg("❌ "+(d.error||"Klaida"));return;}
@@ -4042,6 +4043,14 @@ function PermitDetail(p){
             <div style={{fontWeight:700,color:C.tx,marginBottom:2}}>Re: {req.subject||"(be temos)"}</div>
             <div style={{color:C.t3}}>{req.from}{req.leidNr?" · Leid. nr: "+req.leidNr:""}</div>
           </div>
+          <div style={{marginBottom:8,display:"flex",gap:8,alignItems:"flex-end"}}>
+            <div style={{flex:1}}>
+              <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Prašymo numeris</label>
+              <input value={savPrasNr} onChange={function(e){sSavPrasNr(e.target.value);}}
+                placeholder="pvz. 43-27-802"
+                style={{width:"100%",padding:"6px 10px",borderRadius:7,border:"1.5px solid "+(savPrasNr?C.ac:C.b1),background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+            </div>
+          </div>
           <div style={{marginBottom:8}}>
             <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Atsakymo tekstas</label>
             <textarea value={savCompText||"Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas."} rows={3}
@@ -4063,6 +4072,7 @@ function PermitDetail(p){
             try{
               var r=await fetch('/api/admin/reply-sav-closure',{method:'POST',headers:{'Content-Type':'application/json'},
                 body:JSON.stringify({requestId:req.id,permitId:o.id,
+                  prasNr:savPrasNr||"",
                   photoFilenames:savCompPhotos.map(function(f){return f.filename;}).filter(Boolean),
                   replyText:savCompText||""})});
               var d=await r.json();
