@@ -6561,9 +6561,10 @@ function App(){
     else visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&notSeniunija(p)});
   }
   else if(view==="closed"){
-    // Uždaryti: pateikta uždarymo info, uždarytas statusas, arba gautas leidimas (laukia uždarymo)
-    if(user.role==="orderer") visible=permits.filter(function(p){return (p.closingSubmitted||p.status==="Uždarytas"||p.status==="Gautas leidimas")&&p.createdBy===user.id});
-    else visible=permits.filter(function(p){return p.closingSubmitted||p.status==="Uždarytas"||p.status==="Gautas leidimas"});
+    // Uždaryti: pateikta uždarymo info, uždarytas statusas, arba savivaldybės "Gautas leidimas" (laukia uždarymo)
+    function isSavGautas(p){return p.status==="Gautas leidimas"&&(p.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1;}
+    if(user.role==="orderer") visible=permits.filter(function(p){return (p.closingSubmitted||p.status==="Uždarytas"||isSavGautas(p))&&p.createdBy===user.id});
+    else visible=permits.filter(function(p){return p.closingSubmitted||p.status==="Uždarytas"||isSavGautas(p);});
   }
   else if(view==="all") visible=permits.slice();
   if(filter)visible=visible.filter(function(p){return p.status===filter});
