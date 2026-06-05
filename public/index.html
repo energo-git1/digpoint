@@ -5745,7 +5745,7 @@ function SavPriedaiBlock(p){
 
   useEffect(function(){
     if(!srcId)return;
-    fetch('/api/admin/list-sav-priedai?permitId='+srcId)
+    fetch('/api/admin/list-sav-priedai?permitId='+srcId+'&currentPermitId='+p.permitId)
       .then(function(r){return r.json();}).then(function(d){
         if(!d.ok)return;
         var docs=d.docs||[];

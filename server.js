@@ -1606,7 +1606,7 @@ app.get('/api/admin/detect-seniunija', (req, res) => {
 
 // ── Savivaldybės priedų dokumentų sąrašas ────────────────────
 app.get('/api/admin/list-sav-priedai', (req, res) => {
-  const { permitId } = req.query;
+  const { permitId, currentPermitId } = req.query;
   if (!permitId) return res.status(400).json({ error: 'Trūksta permitId.' });
   const permits = dbGet('kl-permits') || [];
   const permit  = permits.find((p) => p.id === permitId);
@@ -1658,6 +1658,25 @@ app.get('/api/admin/list-sav-priedai', (req, res) => {
 
   // Nuotraukos prieš darbus
   for (const f of (permit.beforeFiles || [])) addDoc(f, 'Prieš darbus');
+
+  // Papildomi projekto failai iš dabartinės paraiškos (ne leidimų šablonų failai)
+  if (currentPermitId && currentPermitId !== permitId) {
+    const currentPermit = permits.find((p) => p.id === currentPermitId);
+    if (currentPermit) {
+      for (const f of (currentPermit.files || [])) {
+        if (!f.filename || !f.name) continue;
+        // Praleisti jei jau įtrauktas
+        if (added.has(f.filename)) continue;
+        // Praleisti leidimų šabloninius failus (jie rodomi per permitPdfs)
+        const fn = f.name;
+        if (/^lzd[_\-]/i.test(fn) || /^sutikimas[_\-]/i.test(fn) ||
+            /^ke[_\-]|^kaun.*energ/i.test(fn) || /^litgrid/i.test(fn)) continue;
+        // Praleisti jei ne PDF
+        if (!fn.match(/\.pdf$/i)) continue;
+        addDoc(f, 'Projekto dokumentas');
+      }
+    }
+  }
 
   res.json({ ok: true, docs });
 });
