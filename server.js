@@ -1223,7 +1223,9 @@ async function _checkImapMailImpl() {
                     processed++;
                   }
                 } else {
-                  console.log(`[IMAP] Kauno sav.: laiškas be PDF, be "Išduotas leidimas" ir be "Darbų tvirtinimas" — praleidžiama.`);
+                  const busenaM = bodyText.match(/Pra[sš]ymo\s+b[uū]sena[:\s]+([^\n<]{3,80})/i);
+                  const busena = busenaM ? busenaM[1].trim() : '—';
+                  console.log(`[IMAP] Kauno sav.: informacinis laiškas (būsena: '${busena}') — statuso nekeičiame, praleidžiama.`);
                 }
               } else {
                 console.log(`[IMAP] ${org}: laiškas be PDF priedo, praleidžiama.`);
