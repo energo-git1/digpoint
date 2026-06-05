@@ -797,8 +797,9 @@ function findTextPart(struct, acc = []) {
     return acc;
   }
   const type = ((struct.type || '') + '/' + (struct.subtype || '')).toLowerCase().replace(/\/$/, '');
-  if ((type === 'text/plain' || type === 'text/html') && struct.part) {
-    acc.push({ part: struct.part, type, encoding: (struct.encoding || '').toLowerCase() });
+  if (type === 'text/plain' || type === 'text/html') {
+    // Paprastas (non-multipart) laiškas neturi struct.part — naudojame '1'
+    acc.push({ part: struct.part || '1', type, encoding: (struct.encoding || '').toLowerCase() });
   }
   return acc;
 }
@@ -814,8 +815,8 @@ function findPdfParts(struct, acc = []) {
   const dispP    = (struct.disposition && struct.disposition.parameters) || {};
   const params   = struct.parameters || {};
   const filename = dispP.filename || dispP['filename*'] || params.name || '';
-  if ((type.includes('pdf') || filename.toLowerCase().endsWith('.pdf')) && struct.part) {
-    acc.push({ part: struct.part, filename: filename || 'leidimas.pdf' });
+  if (type.includes('pdf') || filename.toLowerCase().endsWith('.pdf')) {
+    acc.push({ part: struct.part || '1', filename: filename || 'leidimas.pdf' });
   }
   return acc;
 }
