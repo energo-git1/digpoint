@@ -3278,4 +3278,19 @@ app.listen(PORT, () => {
   setTimeout(() => {
     const settings = dbGet('kl-settings') || {};
     syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
-      console.log('[SYNC] El. pašto sinchronizacija:
+      console.log('[SYNC] El. pašto sinchronizacija:', r.log.join('\n       '));
+    });
+  }, 3000);
+
+  // IMAP tikrinimas: iš karto po 10 sek., tada kas 15 min.
+  setTimeout(() => {
+    checkImapMail().then((r) => {
+      if (r.checked > 0) console.log(`[IMAP] Pradinis tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
+    });
+    setInterval(() => {
+      checkImapMail().then((r) => {
+        if (r.checked > 0) console.log(`[IMAP] Tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
+      });
+    }, 15 * 60 * 1000); // kas 15 minučių
+  }, 10000);
+});
