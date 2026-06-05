@@ -2581,6 +2581,11 @@ function PermitDetail(p){
   var _closeMsg=useState("");var closeMsg=_closeMsg[0],sCloseMsg=_closeMsg[1];
   var _savPhotos=useState([]);var savPhotos=_savPhotos[0],sSavPhotos=_savPhotos[1]; // nuotraukos atsakymui
   var _savReplyText=useState("Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.");var savReplyText=_savReplyText[0],sSavReplyText=_savReplyText[1];
+  var _savCompPhotos=useState([]);var savCompPhotos=_savCompPhotos[0],sSavCompPhotos=_savCompPhotos[1];
+  var _savCompText=useState("");var savCompText=_savCompText[0],sSavCompText=_savCompText[1];
+  var _savCompBusy=useState(false);var savCompBusy=_savCompBusy[0],sSavCompBusy=_savCompBusy[1];
+  var _savCompMsg=useState("");var savCompMsg=_savCompMsg[0],sSavCompMsg=_savCompMsg[1];
+  var _savCompSent=useState(o.savCompletionSent||false);var savCompSent=_savCompSent[0],sSavCompSent=_savCompSent[1];
   // Seniūnijos laiškas
   var _beforeFiles=useState(o.beforeFiles||[]);var beforeFiles=_beforeFiles[0],sBeforeFiles=_beforeFiles[1];
   var _workType=useState(o.workType||"planinius");var workType=_workType[0],sWorkType=_workType[1];
@@ -3986,6 +3991,46 @@ function PermitDetail(p){
         <div style={{marginTop:10}}><SavivaldybeSubmitBtn permit={o} user={p.user} onPateikta={function(){sSt("Pateikta");p.onUpdate(Object.assign({},o,{status:"Pateikta",history:(o.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Pateikta savivaldybei"}])}));p.onClose();}}/></div>
       </div>}
 
+      {/* Pranešimas savivaldybei apie darbų pabaigą — inicijuojamas rankiniu būdu */}
+      {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(o.status==="Gautas leidimas"||o.status==="Uždarytas")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Pranešimas savivaldybei apie darbų pabaigą</div>
+        {savCompSent
+          ?<div style={{background:"rgba(16,185,129,.1)",border:"1px solid #059669",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#059669",fontFamily:F,fontWeight:600}}>✅ Pranešimas savivaldybei (kasimo.darbai@kaunas.lt) išsiųstas {o.savCompletionSentAt||""}</div>
+          :<div>
+            <div style={{marginBottom:8}}>
+              <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Laiško tekstas <span style={{fontWeight:400,color:C.t3}}>(neprivaloma — auto-sugeneruojamas)</span></label>
+              <textarea value={savCompText} rows={3} onChange={function(e){sSavCompText(e.target.value);}}
+                placeholder={"Laba diena,\n\nPranešame, kad kasimo darbai "+(o.location||"—")+" yra baigti. Pridedam gerbūvio nuotraukas."}
+                style={{width:"100%",padding:"8px 10px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:FM,fontSize:12,outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{background:C.s2,borderRadius:8,padding:"10px 12px",marginBottom:8,border:"1px solid "+C.b1}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>
+                Gerbūvio nuotraukos
+                {savCompPhotos.length>0&&<span style={{color:C.gn,fontWeight:600,marginLeft:6}}>{savCompPhotos.length} failai</span>}
+              </div>
+              <FileDropZone files={savCompPhotos}
+                onAdd={function(f){sSavCompPhotos(function(prev){return prev.concat([f]);});}}
+                onRemove={function(i){sSavCompPhotos(function(prev){return prev.filter(function(_,idx){return idx!==i;});});}}/>
+            </div>
+            {savCompMsg&&<div style={{fontSize:11,color:savCompMsg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{savCompMsg}</div>}
+            <Btn onClick={function(){(async function(){
+              sSavCompBusy(true);sSavCompMsg("");
+              try{
+                var r=await fetch('/api/admin/send-sav-completion',{method:'POST',headers:{'Content-Type':'application/json'},
+                  body:JSON.stringify({permitId:o.id,emailBody:savCompText,
+                    photoFilenames:savCompPhotos.map(function(f){return f.filename;}).filter(Boolean)})});
+                var d=await r.json();
+                if(!r.ok){sSavCompBusy(false);sSavCompMsg("❌ "+(d.error||"Klaida"));return;}
+                sSavCompBusy(false);sSavCompMsg("✅ Išsiųsta savivaldybei!");
+                sSavCompSent(true);
+                p.onUpdate(Object.assign({},o,{savCompletionSent:true,savCompletionSentAt:new Date().toISOString().slice(0,10)}));
+              }catch(e){sSavCompBusy(false);sSavCompMsg("❌ Serverio klaida");}
+            })()}} sm disabled={savCompBusy} style={{background:"#2563EB",color:"#fff",border:"none",opacity:savCompBusy?0.6:1}}>
+              {savCompBusy?"Siunčiama...":"📤 Siųsti savivaldybei"}
+            </Btn>
+          </div>}
+      </div>}
+
       {/* Atsakymas Savivaldybei apie darbų pabaigą — kai gautas laiškas iš kasimo.darbai@kaunas.lt */}
       {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(function(){
         var req=closeReqs.find(function(r){return r.permitId===o.id;});
@@ -4029,8 +4074,8 @@ function PermitDetail(p){
         </div>;
       })()}
 
-      {/* Seniūnijos informacinis laiškas — Seniūnija org. arba avariniai (Uždarytas arba Gautas leidimas) */}
-      {((o.organizations||[]).indexOf("Seniūnija")!==-1||(( o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(o.workType==="avarinius"||o.workType==="avariniai")))&&(o.status==="Uždarytas"||((o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(o.workType==="avarinius"||o.workType==="avariniai")&&o.status==="Gautas leidimas")||(((o.organizations||[]).indexOf("Seniūnija")!==-1)&&(isA||isD||o.closingSubmitted)))&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+      {/* Seniūnijos informacinis laiškas — Seniūnija org. arba Savivaldybė (Uždarytas arba Gautas leidimas) */}
+      {((o.organizations||[]).indexOf("Seniūnija")!==-1||(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1)&&(o.status==="Uždarytas"||o.status==="Gautas leidimas"||(((o.organizations||[]).indexOf("Seniūnija")!==-1)&&(isA||isD||o.closingSubmitted)))&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Laiškas seniūnijai</div>
         {o.seniunijaSent
           ?<div style={{background:"rgba(16,185,129,.1)",border:"1px solid #059669",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#059669",fontFamily:F,fontWeight:600}}>✅ Laiškas seniūnijai ({o.seniunijaName||"—"}) išsiųstas {o.seniunijaSentAt||""}</div>

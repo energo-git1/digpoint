@@ -2101,6 +2101,48 @@ app.post('/api/admin/send-seniunija-closure', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Pranešimas savivaldybei apie darbų pabaigą ───────────────
+// POST /api/admin/send-sav-completion { permitId, emailBody, photoFilenames }
+app.post('/api/admin/send-sav-completion', async (req, res) => {
+  const { permitId, emailBody, photoFilenames } = req.body || {};
+  if (!permitId) return res.status(400).json({ error: 'Trūksta permitId.' });
+
+  const permits = dbGet('kl-permits') || [];
+  const permit  = permits.find((p) => p.id === permitId);
+  if (!permit) return res.status(404).json({ error: 'Paraiška nerasta.' });
+
+  const location  = permit.location || '—';
+  const savCode   = permit.savivaldybeCode || permit.savivaldybePrasNr || '';
+  const SAV_EMAIL = 'kasimo.darbai@kaunas.lt';
+  const SIGNATURE = `\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu`;
+  const subject   = `Darbų pabaiga — ${location}${savCode ? ' (leid. nr. ' + savCode + ')' : ''}`;
+  const bodyText  = (emailBody && emailBody.trim()) ? emailBody.trim() + SIGNATURE : `Laba diena,\n\nPranešame, kad kasimo darbai ${location} yra baigti. Pridedam gerbūvio nuotraukas.${SIGNATURE}`;
+
+  const attachments = [];
+  for (const fn of (photoFilenames || [])) {
+    const fp = path.join(UPLOAD_DIR, fn);
+    if (fs.existsSync(fp)) attachments.push({ filename: fn, content: fs.readFileSync(fp) });
+  }
+
+  try {
+    await sendAndSave({ from: MAIL_FROM_EXTERNAL, to: SAV_EMAIL, subject, text: bodyText, attachments });
+    console.log(`[SAV-COMPLETION] Išsiųsta → ${SAV_EMAIL} | ${location} | ${attachments.length} nuotr.`);
+  } catch (e) {
+    console.error(`[SAV-COMPLETION] Klaida: ${e.message}`);
+    return res.status(500).json({ error: e.message });
+  }
+
+  const today = fmtDateSrv(new Date());
+  dbSet('kl-permits', permits.map((p) => p.id !== permitId ? p : {
+    ...p,
+    savCompletionSent: true,
+    savCompletionSentAt: today,
+    history: [...(p.history || []), { status: p.status, date: today, note: `Savivaldybei (${SAV_EMAIL}) išsiųstas pranešimas apie darbų pabaigą` }],
+  }));
+
+  res.json({ ok: true });
+});
+
 // ── Kauno sav. uždarymo pranešimų sąrašas ────────────────────
 app.get('/api/admin/sav-close-requests', (req, res) => {
   res.json({ ok: true, requests: dbGet('kl-sav-close-requests') || [] });
