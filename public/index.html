@@ -1732,115 +1732,13 @@ function SavivaldybeSubmitBtn(p){
     sSt("ready");
   }
 
-  return <div style={{marginBottom:12}}>
-    <div style={{background:"#3B82F618",border:"1px solid #3B82F644",borderRadius:8,padding:"10px 12px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-        <span style={{fontSize:16}}>🏛</span>
-        <div style={{fontSize:12,fontWeight:700,color:"#1D4ED8",fontFamily:F}}>Kauno m. sav. Automatinis pateikimas</div>
-      </div>
-      <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:10,lineHeight:1.5}}>
-        Agentas atidarys kasimai.kaunas.lt, nukopijuos paskutinį prašymą ir užpildys kintamus laukus iš šios paraiškos.
-      </div>
-      <Btn onClick={function(){sOpen(true)}} sm style={{background:"#1D4ED8",color:"#fff",border:"none"}}>
-        🚀 Pateikti
+  return <div style={{marginBottom:4}}>
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+      <Btn onClick={prepareTask} disabled={st==="saving"} sm style={{background:"#1D4ED8",color:"#fff",border:"none",opacity:st==="saving"?0.6:1}}>
+        {st==="saving"?"⏳ Saugoma...":"🚀 Pateikti"}
       </Btn>
+      {st==="ready"&&<span style={{fontSize:10,color:C.gn,fontFamily:F,fontWeight:600}}>✅ Atidarytas kasimai.kaunas.lt — Tampermonkey užpildys automatiškai</span>}
     </div>
-
-    <Modal open={open} onClose={function(){sOpen(false)}} title="Kauno m. sav. automatinis pateikimas" w={500}>
-      <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <div style={{background:C.s2,borderRadius:8,padding:"10px 14px",border:"1px solid "+C.b1}}>
-          <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Duomenys kurie bus perkelti</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            {[
-              ["Darbų vadovas",o.manager||"-"],
-              ["Telefonas",o.managerPhone||"-"],
-              ["Laikotarpis",(o.startDate||"-")+" – "+(o.endDate||"-")],
-              ["Vieta",o.location||"-"]
-            ].map(function(row){return <div key={row[0]}>
-              <div style={{fontSize:9,color:C.t3,fontFamily:F}}>{row[0]}</div>
-              <div style={{fontSize:11,fontWeight:600,color:C.tx,fontFamily:F}}>{row[1]}</div>
-            </div>})}
-          </div>
-          {o.description&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid "+C.b1}}>
-            <div style={{fontSize:9,color:C.t3,fontFamily:F}}>Aprašas</div>
-            <div style={{fontSize:11,color:C.tx,fontFamily:F}}>{o.description}</div>
-          </div>}
-        </div>
-
-        <div style={{background:C.acD,border:"1px solid "+C.ac+"44",borderRadius:8,padding:"10px 14px",fontSize:10,color:C.ac,fontFamily:F,lineHeight:1.6}}>
-          <div style={{fontWeight:700,marginBottom:4}}>📋 Ką agentas atliks:</div>
-          <ol style={{margin:"0 0 0 16px",padding:0,lineHeight:1.8}}>
-            <li>Atidaro kasimai.kaunas.lt → Mano prašymai</li>
-            <li>Paspaudžia „Kopijuoti prašymą" iš paskutinio</li>
-            <li>Pakeičia darbų vadovą, laikotarpį, aprašą</li>
-            <li>Sustoja prieš išsaugant — jūs patikrinate</li>
-          </ol>
-        </div>
-
-        {st==="saving"&&<div style={{background:C.s2,borderRadius:8,padding:"10px 14px",fontSize:11,color:C.t2,fontFamily:F,textAlign:"center"}}>⏳ Saugoma...</div>}
-        {st==="ready"&&<div>
-          <div style={{background:C.gnD,border:"1px solid "+C.gn+"44",borderRadius:8,padding:"10px 14px",marginBottom:10}}>
-            <div style={{fontSize:11,fontWeight:700,color:C.gn,fontFamily:F,marginBottom:6}}>✅ Duomenys išsaugoti — kasimai.kaunas.lt atidarytas</div>
-            <div style={{fontSize:10,color:C.t2,fontFamily:F,lineHeight:1.6}}>
-              1. Paleiskite bookmarklet'ą e. valdžios vartų puslapyje → jis pasirenks <strong>Swedbank</strong><br/>
-              2. Prisijunkite Swedbank (rankinis veiksmas)<br/>
-              3. Grįžę į kasimai.kaunas.lt → „Mano prašymai" → „Kopijuoti prašymą"<br/>
-              4. Kai atsidarys forma — paleiskite bookmarklet'ą dar kartą → užpildys laukus
-            </div>
-          </div>
-          {/* Priedų paketas */}
-          <SavPriedaiBlock permitId={o.id}/>
-          {/* Bookmarklet */}
-          <div style={{background:C.s2,borderRadius:8,border:"1px solid "+C.b1,padding:"10px 14px",marginBottom:8}}>
-            <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>📎 Bookmarklet — paleiskite formoje</div>
-            <div style={{fontSize:9,color:C.t3,fontFamily:FM,marginBottom:6,lineHeight:1.5}}>
-              Nuvilkite į naršyklės žymelių juostą arba nukopijuokite ir paleiskite konsolėje:
-            </div>
-            <textarea readOnly rows={4} onClick={function(e){e.target.select();document.execCommand('copy');alert('Nukopijuota!');}}
-              value={"javascript:(function(){"+
-"var SWB_ID=localStorage.getItem('swb_login_id')||'2211078';"+
-"var url=location.href;"+
-// 1. E. valdžios vartai — pasirinkti Swedbank (ap.epaslaugos.lt)
-"if(url.includes('epaslaugos.lt')||url.includes('viisp')){"+
-"var swImg=Array.from(document.querySelectorAll('img')).find(function(i){return(i.alt||'').includes('Swedbank');});"+
-"if(swImg){var p=swImg.parentElement;p.click();setTimeout(function(){swImg.click();},200);alert('✅ Swedbank pasirinktas');}"+
-"else{alert('Nerasta Swedbank logotipo.');}return;}"+
-// 2. Swedbank prisijungimas — įvesti ID ir spausti Prisijungti
-"if(url.includes('log-in.swedbank.lt')){"+
-"var idF=document.querySelector('#login-widget-user-id-simple,input[id*=\"user-id\"],input[id*=\"userId\"]');"+
-"if(idF){idF.value=SWB_ID;idF.dispatchEvent(new Event('input',{bubbles:true}));idF.dispatchEvent(new Event('change',{bubbles:true}));"+
-"var loginBtn=Array.from(document.querySelectorAll('button')).find(function(b){return b.textContent.trim()==='Prisijungti';});"+
-"if(loginBtn)loginBtn.click();"+
-"alert('✅ ID įvestas. Patvirtinkite telefone.');}else{alert('ID laukas nerastas.');}return;}"+
-// 3. Swedbank duomenų perdavimo puslapis — Siųsti duomenis
-"if(url.includes('swedbank.lt/banklink')){"+
-"var sndBtn=document.querySelector('input[type=\"button\"][value=\"Siųsti duomenis\"]');"+
-"if(sndBtn){sndBtn.click();alert('✅ Siųsti duomenis paspaustas.');}else{alert('Mygtukas nerastas.');}return;}"+
-// 4. E. valdžios vartai — Asmens duomenų perdavimas (auth-redirect)
-"if(url.includes('epaslaugos.lt/auth-redirect')||url.includes('privv.kaunas.lt')||url.includes('auth-redirect')){"+
-"var prBtn=Array.from(document.querySelectorAll('button')).find(function(b){return b.textContent.trim()==='Prisijungti';});"+
-"if(prBtn){prBtn.click();alert('✅ Duomenys perduoti.');}else{alert('Prisijungti mygtukas nerastas.');}return;}"+
-// 5. kasimai.kaunas.lt — užpildyti formą
-"if(url.includes('kasimai.kaunas.lt')){"+
-"fetch('http://10.2.1.115:3001/api/store/kl-sav-task').then(function(r){return r.json();}).then(function(d){"+
-"var t=d.value;if(!t){alert('Nerasta užduotis Digpoint.');return;}"+
-"function setVal(n,v){var el=document.querySelector('input[name=\"'+n+'\"]');if(!el)return;el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}"+
-"var nm=(t.manager||'').split(' ');setVal('dv_vardas',nm[0]||'');setVal('dv_pavarde',nm.slice(1).join(' ')||'');setVal('dv_tel',t.managerPhone||'');"+
-"setVal('darbai_pradzia',t.startDate||'');setVal('darbai_pabaiga',t.endDate||'');"+
-"var sel=document.querySelector('select[name=\"planuojami_darbai\"]');if(sel){var opt=Array.from(sel.options).find(function(o){return o.text.toLowerCase().includes('elektros tinkl');});if(opt){sel.value=opt.value;sel.dispatchEvent(new Event('change',{bubbles:true}));}}"+
-"alert('✅ Užpildyta: '+t.manager+' | '+t.startDate+' – '+t.endDate);});return;}"+
-"alert('Paleiskite ant kasimai.kaunas.lt, epaslaugos.lt, swedbank.lt puslapio.');})();"}
-              style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid "+C.b1,background:C.bg,color:C.t2,fontFamily:FM,fontSize:9,resize:"none",cursor:"pointer",boxSizing:"border-box"}}/>
-            <div style={{fontSize:9,color:C.t3,fontFamily:F,marginTop:4}}>Spausti teksto lauką → nukopijuoja automatiškai</div>
-          </div>
-        </div>}
-
-        <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
-          <Btn v="secondary" onClick={function(){sOpen(false)}} sm>Uždaryti</Btn>
-          {st==="idle"&&<Btn onClick={prepareTask} sm style={{background:"#1D4ED8",color:"#fff",border:"none"}}>🚀 Paruošti ir atidaryti</Btn>}
-        </div>
-      </div>
-    </Modal>
   </div>
 }
 
@@ -5705,6 +5603,7 @@ function SavPriedaiBlock(p){
     if(autoSaveTimer)clearTimeout(autoSaveTimer);
     var t=setTimeout(function(){(async function(){
       var _sel=newSelected||selected;var selFiles=(docList||[]).filter(function(doc){return _sel[doc.filename];}).map(function(doc){return doc.filename;});
+
       // Išsaugome extraFiles metaduomenis (be data - tik filename/name/url)
       var extraFilesMeta=(newExtraFiles||extraFiles).map(function(f){return {filename:f.filename,name:f.name,url:f.url,size:f.size};}).filter(function(f){return f.filename;});
       var v=await sGet('kl-permits');
@@ -5716,7 +5615,7 @@ function SavPriedaiBlock(p){
         }});
       });
       await sSet('kl-permits',updated);
-    })();},800);
+    })();},300);
     sAutoSaveTimer(t);
   }
   var _allPermits=useState([]);var allPermits=_allPermits[0],sAllPermits=_allPermits[1];
@@ -5901,8 +5800,9 @@ function SavPriedaiBlock(p){
         var updated=permits.map(function(pm){
           // Išsaugome prie DABARTINĖS paraiškos (p.permitId), ne prie šaltinio
           if(pm.id!==p.permitId)return pm;
+          var extraFilesMeta=extraFiles.map(function(f){return {filename:f.filename,name:f.name,url:f.url,size:f.size};}).filter(function(f){return f.filename;});
           return Object.assign({},pm,{savivaldybePreparation:{
-            srcId:srcId, selectedFilenames:selFiles, extraPages:extraPages, docPages:docPages, savedAt:fmtDate(new Date())
+            srcId:srcId, selectedFilenames:selFiles, extraPages:extraPages, docPages:docPages, extraFiles:extraFilesMeta, savedAt:fmtDate(new Date())
           }});
         });
         await sSet('kl-permits',updated);
@@ -6711,3 +6611,4 @@ function App(){
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
 </body>
 </html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
