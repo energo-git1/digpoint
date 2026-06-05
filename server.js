@@ -2041,7 +2041,7 @@ app.post('/api/admin/send-seniunija-closure', async (req, res) => {
   const surfTxt   = buildSurfaceTextSrv(Array.isArray(surfaces) ? surfaces : []);
 
   const autoSubject = `Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — ${location}`;
-  const SIGNATURE = `\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu`;
+  const SIGNATURE = `\n\nPagarbiai,\n\nEimutis Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu`;
   const autoBody = `Laba diena,\n\nNuo ${startDate} iki ${endDate} vykdėme ${wt} kasimo darbus ${seniunijaName}, ${location}, elektros tinklų ${desc}.\nDarbai yra baigti, ${surfTxt}. Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.${SIGNATURE}`;
   const finalSubject = (emailSubject && emailSubject.trim()) ? emailSubject.trim() : autoSubject;
   const bodyText = (emailBody && emailBody.trim()) ? emailBody.trim() : autoBody;
@@ -2114,9 +2114,10 @@ app.post('/api/admin/send-sav-completion', async (req, res) => {
   const location  = permit.location || '—';
   const finalPrasNr = reqPrasNr || permit.savivaldybePrasNr || permit.savivaldybeCode || '';
   const SAV_EMAIL = 'kasimo.darbai@kaunas.lt';
-  const SIGNATURE = `\n\nPagarbiai,\n\nEgidijus Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu`;
-  const subject   = `Darbų pabaiga — ${location}${finalPrasNr ? ' [Prašymo nr. ' + finalPrasNr + ']' : ''}`;
-  const bodyText  = (emailBody && emailBody.trim()) ? emailBody.trim() + SIGNATURE : `Laba diena,\n\nPranešame, kad kasimo darbai ${location} yra baigti. Pridedam gerbūvio nuotraukas.${SIGNATURE}`;
+  const SIGNATURE = `\n\nPagarbiai,\n\nEimutis Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu`;
+  const subject   = `Darbų pabaiga — ${location}`;
+  const prasNrLine = finalPrasNr ? `\nPrašymo Nr.: ${finalPrasNr}` : '';
+  const bodyText  = (emailBody && emailBody.trim()) ? emailBody.trim() + SIGNATURE : `Laba diena,\n\nPranešame, kad kasimo darbai ${location} yra baigti.${prasNrLine} Pridedam gerbūvio nuotraukas.${SIGNATURE}`;
 
   const attachments = [];
   for (const fn of (photoFilenames || [])) {
@@ -2251,9 +2252,7 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
   }
 
   const { replyText: customText } = req.body || {};
-  const prasNrSuffix = prasNr ? ` [Prašymo nr. ${prasNr}]` : '';
-  const baseSubject  = request.subject.startsWith('Re:') ? request.subject : 'Re: ' + request.subject;
-  const replySubject = baseSubject + prasNrSuffix;
+  const replySubject = request.subject.startsWith('Re:') ? request.subject : 'Re: ' + request.subject;
   const replyText = (customText && customText.trim())
     ? customText.trim() + '\n\nPagarbiai,\nEnergoLT'
     : 'Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.\n\nPagarbiai,\nEnergoLT';
