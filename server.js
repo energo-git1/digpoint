@@ -1063,9 +1063,13 @@ async function _checkImapMailImpl() {
                     const dl = await client.download(seq, tp.part);
                     const chunks = [];
                     for await (const chunk of dl.content) chunks.push(chunk);
-                    let raw = Buffer.concat(chunks).toString('utf8');
-                    // Quoted-printable dekodavimas
-                    raw = raw.replace(/=\r?\n/g, '').replace(/=([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+                    let raw = Buffer.concat(chunks).toString('latin1');
+                    // Quoted-printable dekodavimas (UTF-8 multi-byte teisingas dekodavimas)
+                    raw = raw.replace(/=\r?\n/g, '');
+                    raw = raw.replace(/((?:=[0-9A-Fa-f]{2})+)/gi, (seq) => {
+                      const bytes = seq.match(/=[0-9A-Fa-f]{2}/gi).map(s => parseInt(s.slice(1), 16));
+                      try { return Buffer.from(bytes).toString('utf8'); } catch (_) { return seq; }
+                    });
                     // Jei HTML — ištraukti tekstą (pakeisti tagus tarpais)
                     if (tp.type === 'text/html') {
                       raw = raw.replace(/<br\s*\/?>/gi, '\n').replace(/<\/?(td|th|p|div|li)[^>]*>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
