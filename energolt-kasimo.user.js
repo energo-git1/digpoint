@@ -161,6 +161,16 @@
     return;
   }
 
+  // ── 5a. kasimai.kaunas.lt — šaknis arba bet kuris puslapis (po prisijungimo redirect) ──
+  if (url.match(/kasimai\.kaunas\.lt\/?$/) || url.match(/kasimai\.kaunas\.lt\/\?/)) {
+    digpointGet('/api/store/kl-sav-task', (err, data) => {
+      if (err || !data || !data.value) return;
+      log('Aktyvus kl-sav-task — nukreipiama į mano-prasymai');
+      setTimeout(() => { location.href = 'https://kasimai.kaunas.lt/mano-prasymai/'; }, 1000);
+    });
+    return;
+  }
+
   // ── 5. kasimai.kaunas.lt — mano prašymai: atidaryti pirmą ir kopijuoti ──
   if (url.includes('kasimai.kaunas.lt/mano-prasymai')) {
     log('kasimai — mano prašymai, laukiama sąrašo');
@@ -234,22 +244,37 @@
 
           log('Formos laukai užpildyti');
 
-          // Įkeliame priedų PDF jei yra permitId
+          // Įkeliame priedų PDF — naudojame merge-sav-priedai su išsaugotais pasirinkimais
           if (t.permitId) {
             const fileInput = document.querySelector('input[type="file"]');
             if (fileInput) {
-              GM_xmlhttpRequest({
-                method: 'GET',
-                url: `${DIGPOINT}/api/admin/compile-sav-priedai?permitId=${t.permitId}`,
-                onload: (r) => {
-                  try {
-                    const d = JSON.parse(r.responseText);
-                    if (d.ok && d.content) {
-                      uploadBase64(fileInput, d.content, d.filename || 'priedai_savivaldybei.pdf');
-                      log(`Priedų PDF įkeltas: ${d.pages} psl.`);
-                    }
-                  } catch (e) { log('Priedų PDF klaida: ' + e.message); }
-                },
+              // Gauname išsaugotus pasirinkimus iš kl-permits
+              digpointGet('/api/store/kl-permits', (err2, permitsData) => {
+                const permits = (permitsData && permitsData.value) || [];
+                const permit = permits.find(pm => pm.id === t.permitId);
+                const prep = (permit && permit.savivaldybePreparation) || {};
+                const srcId = prep.srcId || t.permitId;
+                const selectedFilenames = prep.selectedFilenames || [];
+                const extraFilenames = (prep.extraFiles || []).map(f => f.filename).filter(Boolean);
+                const location = (permit && permit.location) || '';
+
+                GM_xmlhttpRequest({
+                  method: 'POST',
+                  url: `${DIGPOINT}/api/admin/merge-sav-priedai`,
+                  headers: { 'Content-Type': 'application/json' },
+                  data: JSON.stringify({ permitId: srcId, selectedFilenames, extraFilenames, location }),
+                  onload: (r) => {
+                    try {
+                      const d = JSON.parse(r.responseText);
+                      if (d.ok && d.content) {
+                        uploadBase64(fileInput, d.content, d.filename || 'priedai_savivaldybei.pdf');
+                        log(`Priedų PDF įkeltas: ${d.pages} psl. — ${d.filename}`);
+                      } else {
+                        log('Priedų PDF klaida: ' + (d.error || 'nežinoma'));
+                      }
+                    } catch (e) { log('Priedų PDF klaida: ' + e.message); }
+                  },
+                });
               });
             }
           }
@@ -314,57 +339,4 @@
       // Pirma reikia paspausti "ESO rangovas" → "Toliau"
       // Laukiame kol atsiras sekcija
       const tryFill = (attempt = 0) => {
-        if (attempt > 40) { log('ESO: timeout, bandykite rankiniu būdu'); return; }
-
-        // Jei Angular forma dar nekraunama — laukiame
-        const addrInput = document.querySelector('input[name="obj_address"]');
-        if (!addrInput) {
-          // Gal reikia spausti "Toliau" ties "ESO rangovas"
-          const toliau = Array.from(document.querySelectorAll('button')).find(b =>
-            b.textContent.includes('Toliau') && b.closest('[class*="rangovas"],[class*="step"],[class*="section"]')
-          );
-          if (!toliau) {
-            // Bandome rasti bet kokį "Toliau" mygtuką
-            const anyToliau = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Toliau');
-            if (anyToliau && attempt < 3) {
-              log(`ESO: spaudžiamas "Toliau" (${attempt + 1})`);
-              anyToliau.click();
-            }
-          } else {
-            toliau.click();
-            log('ESO: "Toliau" paspaustas');
-          }
-          setTimeout(() => tryFill(attempt + 1), 500);
-          return;
-        }
-
-        // Forma paruošta — pildome
-        if (!fillAngular()) {
-          setTimeout(() => tryFill(attempt + 1), 500);
-        }
-      };
-
-      // Pradedame po 1s (puslapiui stabilizuotis)
-      setTimeout(() => tryFill(), 1000);
-    }
-
-    if (hashMatch) {
-      try {
-        const task = JSON.parse(decodeURIComponent(escape(atob(hashMatch[1]))));
-        log('ESO: duomenys iš URL hash');
-        fillEsoForm(task);
-      } catch (e) { log('Hash klaida: ' + e.message); }
-    } else {
-      // Bandome iš kl-eso-tasks
-      digpointGet('/api/store/kl-eso-tasks', (err, data) => {
-        if (err || !data || !data.value) { log('ESO: nėra užduočių'); return; }
-        const tasks = (data.value || []).filter(t => t.status === 'pending');
-        if (!tasks.length) { log('ESO: nėra pending užduočių'); return; }
-        log(`ESO: rasta ${tasks.length} užduotis`);
-        fillEsoForm(tasks[0]);
-      });
-    }
-    return;
-  }
-
-})();
+        if (attempt > 4

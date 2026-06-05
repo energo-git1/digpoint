@@ -1683,7 +1683,7 @@ app.get('/api/admin/list-sav-priedai', (req, res) => {
 
 // ── Savivaldybės priedų merge (su pasirenkamais failais) ──────
 app.post('/api/admin/merge-sav-priedai', async (req, res) => {
-  const { permitId, selectedFilenames, extraFilenames } = req.body || {};
+  const { permitId, selectedFilenames, extraFilenames, location } = req.body || {};
   if (!permitId) return res.status(400).json({ error: 'Trūksta permitId.' });
   const { PDFDocument } = require('pdf-lib');
   const fontkit = require('@pdf-lib/fontkit');
@@ -1714,7 +1714,9 @@ app.post('/api/admin/merge-sav-priedai', async (req, res) => {
     }
     if (merged.getPageCount() === 0) return res.status(400).json({ error: 'Nerasta dokumentų priedams.' });
     const pdfBytes = await merged.save();
-    res.json({ ok: true, content: Buffer.from(pdfBytes).toString('base64'), filename: 'priedai_savivaldybei.pdf', pages: merged.getPageCount() });
+    const safeLoc = (location || 'priedai_savivaldybei').replace(/[\\/:*?"<>|]/g, '_').trim().slice(0, 80);
+    const pdfFilename = safeLoc + '.pdf';
+    res.json({ ok: true, content: Buffer.from(pdfBytes).toString('base64'), filename: pdfFilename, pages: merged.getPageCount() });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -3278,8 +3280,4 @@ app.listen(PORT, () => {
     });
     setInterval(() => {
       checkImapMail().then((r) => {
-        if (r.checked > 0) console.log(`[IMAP] Tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
-      });
-    }, 15 * 60 * 1000); // kas 15 minučių
-  }, 10000);
-});
+        if (r.checked > 0) console.log(
