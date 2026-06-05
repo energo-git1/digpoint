@@ -798,7 +798,7 @@ function findTextPart(struct, acc = []) {
   }
   const type = ((struct.type || '') + '/' + (struct.subtype || '')).toLowerCase().replace(/\/$/, '');
   if ((type === 'text/plain' || type === 'text/html') && struct.part) {
-    acc.push({ part: struct.part, type });
+    acc.push({ part: struct.part, type, encoding: (struct.encoding || '').toLowerCase() });
   }
   return acc;
 }
@@ -1063,13 +1063,20 @@ async function _checkImapMailImpl() {
                     const dl = await client.download(seq, tp.part);
                     const chunks = [];
                     for await (const chunk of dl.content) chunks.push(chunk);
-                    let raw = Buffer.concat(chunks).toString('latin1');
-                    // Quoted-printable dekodavimas (UTF-8 multi-byte teisingas dekodavimas)
-                    raw = raw.replace(/=\r?\n/g, '');
-                    raw = raw.replace(/((?:=[0-9A-Fa-f]{2})+)/gi, (seq) => {
-                      const bytes = seq.match(/=[0-9A-Fa-f]{2}/gi).map(s => parseInt(s.slice(1), 16));
-                      try { return Buffer.from(bytes).toString('utf8'); } catch (_) { return seq; }
-                    });
+                    const rawBuf = Buffer.concat(chunks);
+                    let raw;
+                    if (tp.encoding === 'base64') {
+                      // Base64 koduotas kūnas
+                      raw = Buffer.from(rawBuf.toString('latin1').replace(/\s/g, ''), 'base64').toString('utf8');
+                    } else {
+                      // Quoted-printable (arba 7bit/8bit) — UTF-8 multi-byte teisingas dekodavimas
+                      raw = rawBuf.toString('latin1');
+                      raw = raw.replace(/=\r?\n/g, '');
+                      raw = raw.replace(/((?:=[0-9A-Fa-f]{2})+)/gi, (seq) => {
+                        const bytes = seq.match(/=[0-9A-Fa-f]{2}/gi).map(s => parseInt(s.slice(1), 16));
+                        try { return Buffer.from(bytes).toString('utf8'); } catch (_) { return seq; }
+                      });
+                    }
                     // Jei HTML — ištraukti tekstą (pakeisti tagus tarpais)
                     if (tp.type === 'text/html') {
                       raw = raw.replace(/<br\s*\/?>/gi, '\n').replace(/<\/?(td|th|p|div|li)[^>]*>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
