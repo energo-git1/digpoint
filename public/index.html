@@ -3820,7 +3820,7 @@ function PermitDetail(p){
 
       {/* Leidimo PDF įkėlimas — rodomas kai Pateikta/Gautas dalinai/Gautas leidimas */}
       {(isA||isD)&&(st==="Gautas leidimas"||o.status==="Pateikta"||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Laukia patvirtinimo leidimo")&&(function(){
-        var ORG_PDF_MAP={"Telia, Kaunas":{key:"telia",color:"#1D4ED8"},"Telia, investiciniai":{key:"telia_inv",color:"#1D4ED8"},"Kauno energija":{key:"ke",color:"#C2410C"},"Kauno vandenys":{key:"vandenys",color:"#0369A1"},"AB ESO":{key:"eso",color:"#FF6B2B"},"LitGrid":{key:"litgrid",color:"#047857"}};
+        var ORG_PDF_MAP={"Kauno miesto savivaldybe":{key:"sav",color:"#1D4ED8"},"Telia, Kaunas":{key:"telia",color:"#1D4ED8"},"Telia, investiciniai":{key:"telia_inv",color:"#1D4ED8"},"Kauno energija":{key:"ke",color:"#C2410C"},"Kauno vandenys":{key:"vandenys",color:"#0369A1"},"AB ESO":{key:"eso",color:"#FF6B2B"},"LitGrid":{key:"litgrid",color:"#047857"}};
         var orgsList=o.organizations&&o.organizations.length>0?o.organizations:(o.organization?[o.organization]:[]);
         var orgsWithPermit=orgsList.filter(function(org){return !!ORG_PDF_MAP[org];});
         if(orgsWithPermit.length===0)return null;
