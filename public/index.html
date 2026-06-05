@@ -3981,7 +3981,7 @@ function PermitDetail(p){
       {/* Savivaldybės pateikimo blokas — priedai + scriptas */}
       {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&o.status!=="Pateikta"&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Uždarytas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės pateikimas</div>
-        <SavPriedaiBlock permitId={o.id} location={o.location}/>
+        <SavPriedaiBlock permitId={o.id} location={o.location} workType={o.workType}/>
         <div style={{marginTop:10}}><SavivaldybeSubmitBtn permit={o} user={p.user} onPateikta={function(){sSt("Pateikta");p.onUpdate(Object.assign({},o,{status:"Pateikta",history:(o.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Pateikta savivaldybei"}])}));p.onClose();}}/></div>
       </div>}
 
@@ -5658,11 +5658,17 @@ function SavPriedaiBlock(p){
       // Atkurti išsaugotą srcId — pirmenybė: savivaldybePreparation.srcId arba sourcePermitId
       var currentPermit=(v||[]).find(function(pm){return pm.id===p.permitId;});
       var prep=(currentPermit&&currentPermit.savivaldybePreparation)||{};
-      var savedSrcId=prep.srcId||(currentPermit&&currentPermit.sourcePermitId)||null;
-      if(savedSrcId&&sources.find(function(pm){return pm.id===savedSrcId;})){
-        sSrcId(savedSrcId);
-      } else if(!sources.find(function(pm){return pm.id===p.permitId;})&&sources.length>0){
-        sSrcId(sources[0].id);
+      var isAvarin=p.workType==="avarinius"||p.workType==="avariniai";
+      if(isAvarin){
+        // Avariniai darbai — visada naudojame pačios paraiškos failus
+        sSrcId(p.permitId);
+      } else {
+        var savedSrcId=prep.srcId||(currentPermit&&currentPermit.sourcePermitId)||null;
+        if(savedSrcId&&sources.find(function(pm){return pm.id===savedSrcId;})){
+          sSrcId(savedSrcId);
+        } else if(!sources.find(function(pm){return pm.id===p.permitId;})&&sources.length>0){
+          sSrcId(sources[0].id);
+        }
       }
     }).catch(function(){});
   },[]);
@@ -5717,8 +5723,8 @@ function SavPriedaiBlock(p){
   return <div style={{background:C.s2,borderRadius:8,border:"1px solid "+C.b1,padding:"12px 14px",marginBottom:10}}>
     <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:8}}>📂 Priedų paketas savivaldybei</div>
 
-    {/* Paraiška iš kurios imami dokumentai */}
-    {permitSources.length>0&&<div style={{marginBottom:10}}>
+    {/* Paraiška iš kurios imami dokumentai — tik planiniai */}
+    {!(p.workType==="avarinius"||p.workType==="avariniai")&&permitSources.length>0&&<div style={{marginBottom:10}}>
       <label style={{fontSize:10,color:C.t3,fontFamily:F,display:"block",marginBottom:4}}>Dokumentų šaltinis (paraiška)</label>
       <select value={srcId} onChange={function(e){var v=e.target.value;sSrcId(v);autoSave(v,selected,extraPages);}}
         style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:11,outline:"none"}}>
