@@ -3831,7 +3831,6 @@ function PermitDetail(p){
       {isA&&o.status!=="Uždarytas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Administravimas</div>
         {(o.organization==="AB ESO"||(o.organizations||[]).indexOf("AB ESO")!==-1)&&o.status!=="Pateikta"&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&o.status!=="Uždarytas"&&o.status!=="Nebegalioja"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
-        {(o.organization==="Kauno miesto savivaldybe"||(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1)&&o.status!=="Uždarytas"&&<SavivaldybeSubmitBtn permit={o} user={p.user}/>}
         <div style={{marginBottom:12}}>
           <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:6,fontFamily:F}}>Priskirti dokumentacijos darbuotojui:</div>
           {docsWorkers.length===0
@@ -4086,6 +4085,7 @@ function PermitDetail(p){
       {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės pateikimas</div>
         <SavPriedaiBlock permitId={o.id}/>
+        {o.status!=="Uždarytas"&&<div style={{marginTop:10}}><SavivaldybeSubmitBtn permit={o} user={p.user}/></div>}
       </div>}
 
       {/* Savivaldybės uždarymas perkeltas į Uždaryti skirtuko SavClosePanel */}
@@ -5927,6 +5927,18 @@ function SavPriedaiBlock(p){
       }} style={{background:C.s2,color:C.t2,border:"1px solid "+C.b1,fontSize:10}}>
         👁 Peržiūrėti ({priedai.pages} psl.)
       </Btn>}
+      {priedai&&<Btn sm onClick={function(){
+        var bin=atob(priedai.content);
+        var u8=new Uint8Array(bin.length);
+        for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+        var blob=new Blob([u8],{type:'application/pdf'});
+        var a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);
+        a.download=priedai.filename||'priedai_savivaldybei.pdf';
+        a.click();
+      }} style={{background:C.s2,color:C.t2,border:"1px solid "+C.b1,fontSize:10}}>
+        ⬇ Atsisiųsti
+      </Btn>}
     </div>
   </div>;
 }
@@ -6669,15 +6681,4 @@ function App(){
 
   return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
     <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
-    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
-      onUpdate={function(u){updatePermit(u);setDetail(u)}}
-      onSend={function(u){updatePermit(u);setDetail(null)}}
-      onDelete={function(id){deletePermit(id);setDetail(null)}}
-      onClose={function(){setDetail(null)}}/>}
-  </div>
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+    <main style={{flex:1,overflowY:"auto",padd
