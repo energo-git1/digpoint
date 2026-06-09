@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EnergoLT — Kasimo leidimai
 // @namespace    http://energolt.eu/
-// @version      1.0.2
+// @version      1.0.3
 // @description  Automatizuotas Kauno m. sav. ir ESO kasimo leidimų paraiškų pildymas
 // @author       EnergoLT
 // @match        https://kasimai.kaunas.lt/*
@@ -25,6 +25,18 @@
   const DIGPOINT = 'http://10.2.1.115:3001';
   const SWB_ID   = GM_getValue('swb_login_id', '2211078');
   const log      = (msg) => console.log('[EnergoLT]', msg);
+  const TASK_TTL = 60 * 60 * 1000; // 60 minučių
+
+  // Tikrina ar užduotis aktyvi (status=pending ir ne senesnė nei TTL)
+  function isActiveTask(t) {
+    if (!t || t.status !== 'pending') return false;
+    const age = Date.now() - new Date(t.createdAt).getTime();
+    if (age > TASK_TTL) {
+      log(`Užduotis per sena (${Math.round(age / 60000)} min.) — ignoruojama`);
+      return false;
+    }
+    return true;
+  }
 
   // ─── Pagalbinės funkcijos ──────────────────────────────────────
 
@@ -167,6 +179,7 @@
   if (url.match(/kasimai\.kaunas\.lt\/?$/) || url.match(/kasimai\.kaunas\.lt\/\?/)) {
     digpointGet('/api/store/kl-sav-task', (err, data) => {
       if (err || !data || !data.value) return;
+      if (!isActiveTask(data.value)) return;
       log('Aktyvus kl-sav-task — nukreipiama į mano-prasymai');
       setTimeout(() => { location.href = 'https://kasimai.kaunas.lt/mano-prasymai/'; }, 1000);
     });
@@ -195,6 +208,10 @@
           log('Nėra aktyvios užduoties — nieko nedarome');
           return;
         }
+        if (!isActiveTask(data.value)) {
+          log('Užduotis neaktyvi arba per sena — nieko nedarome');
+          return;
+        }
         log('Yra aktyvus kl-sav-task — kopijuojame pirmą prašymą');
         waitFor('a[href*="collapsePrasymas"]', (firstLink) => {
           setTimeout(() => {
@@ -218,6 +235,10 @@
     digpointGet('/api/store/kl-sav-task', (err, data) => {
       if (err || !data || !data.value) {
         log('Nerasta kl-sav-task — formą pildykite rankiniu būdu');
+        return;
+      }
+      if (!isActiveTask(data.value)) {
+        log('Užduotis neaktyvi — formą pildykite rankiniu būdu');
         return;
       }
       const t = data.value;
@@ -245,6 +266,15 @@
           }
 
           log('Formos laukai užpildyti');
+
+          // Pažymime užduotį kaip atliktą
+          GM_xmlhttpRequest({
+            method: 'PUT',
+            url: `${DIGPOINT}/api/store/kl-sav-task`,
+            headers: { 'Content-Type': 'application/json' },
+            data: JSON.stringify({ ...t, status: 'done', doneAt: new Date().toISOString() }),
+            onload: () => log('kl-sav-task pažymėta "done"'),
+          });
 
           // Įkeliame priedų PDF — naudojame merge-sav-priedai su išsaugotais pasirinkimais
           if (t.permitId) {
@@ -395,3 +425,48 @@
   }
 
 })();
+ {
+            toliau.click();
+            log('ESO: "Toliau" paspaustas');
+          }
+          setTimeout(() => tryFill(attempt + 1), 500);
+          return;
+        }
+
+        // Forma paruošta — pildome
+        if (!fillAngular()) {
+          setTimeout(() => tryFill(attempt + 1), 500);
+        }
+      };
+
+      // Pradedame po 1s (puslapiui stabilizuotis)
+      setTimeout(() => tryFill(), 1000);
+    }
+
+    if (hashMatch) {
+      try {
+        const task = JSON.parse(decodeURIComponent(escape(atob(hashMatch[1]))));
+        log('ESO: duomenys iš URL hash');
+        fillEsoForm(task);
+      } catch (e) { log('Hash klaida: ' + e.message); }
+    } else {
+      // Bandome iš kl-eso-tasks
+      digpointGet('/api/store/kl-eso-tasks', (err, data) => {
+        if (err || !data || !data.value) { log('ESO: nėra užduočių'); return; }
+        const tasks = (data.value || []).filter(t => t.status === 'pending');
+        if (!tasks.length) { log('ESO: nėra pending užduočių'); return; }
+        log(`ESO: rasta ${tasks.length} užduotis`);
+        fillEsoForm(tasks[0]);
+      });
+    }
+    return;
+  }
+
+})();
+;
+    }
+    return;
+  }
+
+})();
+)();
