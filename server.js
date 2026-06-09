@@ -2414,22 +2414,63 @@ app.post('/api/admin/find-sav-email-by-prasnr', async (req, res) => {
         const matchesPrasNr = prasNr && (raw.includes(prasNr) || subj.includes(prasNr));
         const matchesAddr   = locWords.length >= 2 && locWords.filter((w) => rawLower.includes(w)).length >= 2;
         if (!matchesPrasNr && !matchesAddr) continue;
-        // Rastas — išsaugome kl-sav-close-requests
+        // Rastas — dekoduoti laiško tekstą (ne raw RFC822)
         const msgId = msg.envelope?.messageId || String(uid);
         const subject = msg.envelope?.subject || '';
         const fromAddr = msg.envelope?.from?.[0]?.address || 'kasimo.darbai@kaunas.lt';
+        // Dekodavimas kaip pagrindiniame IMAP cikle
+        let bodyText = '';
+        try {
+          const textParts = findTextPart(msg.bodyStructure);
+          for (const tp of textParts.slice(0, 3)) {
+            try {
+              const dl = await client.download(uid, tp.part, { uid: false });
+              const chunks = [];
+              for await (const chunk of dl.content) chunks.push(chunk);
+              const rawBuf = Buffer.concat(chunks);
+              const enc = (tp.encoding || '').toLowerCase();
+              let decoded;
+              if (enc === 'base64') {
+                decoded = Buffer.from(rawBuf.toString('latin1').replace(/\s/g, ''), 'base64').toString('utf8');
+              } else if (enc === 'quoted-printable' || enc === 'qp') {
+                decoded = rawBuf.toString('latin1').replace(/=\r?\n/g, '');
+                decoded = decoded.replace(/((?:=[0-9A-Fa-f]{2})+)/gi, (s) => {
+                  const bytes = s.match(/=[0-9A-Fa-f]{2}/gi).map(h => parseInt(h.slice(1), 16));
+                  try { return Buffer.from(bytes).toString('utf8'); } catch (_) { return s; }
+                });
+              } else {
+                decoded = rawBuf.toString('utf8');
+              }
+              if (tp.type === 'text/html') {
+                decoded = decoded.replace(/<br\s*\/?>/gi, '\n')
+                  .replace(/<\/?(td|th|p|div|li|h[1-6]|tr)[^>]*>/gi, ' ')
+                  .replace(/<[^>]+>/g, '')
+                  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+              }
+              bodyText += decoded + '\n';
+            } catch (_) {}
+          }
+        } catch (_) {}
+        const bodyPreview = (bodyText.trim() || raw.slice(0, 3000)).slice(0, 3000);
         const alreadyStored2 = stored.some((r) => r.messageId === msgId);
         if (!alreadyStored2) {
           const newReq = {
             id: srvUid(), messageId: msgId, subject, from: fromAddr,
-            date: new Date().toISOString(), address: permitLocation || '', leidNr: prasNr || null,
-            permitId: permitId || null, bodyPreview: raw.slice(0, 3000),
+            date: msg.envelope?.date ? new Date(msg.envelope.date).toISOString() : new Date().toISOString(),
+            address: permitLocation || '', leidNr: prasNr || null,
+            permitId: permitId || null, bodyPreview,
           };
           stored.push(newReq);
           dbSet('kl-sav-close-requests', stored);
           result = newReq;
         } else {
-          result = stored.find((r) => r.messageId === msgId) || null;
+          // Atnaujinti bodyPreview jei tuščias
+          const existing = stored.find((r) => r.messageId === msgId);
+          if (existing && !existing.bodyPreview && bodyText.trim()) {
+            existing.bodyPreview = bodyPreview;
+            dbSet('kl-sav-close-requests', stored);
+          }
+          result = existing || null;
         }
         break;
       }
