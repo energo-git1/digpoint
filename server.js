@@ -2326,6 +2326,8 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
     status: 'Uždarytas',
     closingDone: true,
     closingDoneAt: today,
+    savCompletionSent: true,
+    savCompletionSentAt: today,
     history: [...(p.history || []), {
       status: 'Uždarytas',
       date: today,
@@ -2377,13 +2379,22 @@ app.post('/api/admin/find-sav-email-by-prasnr', async (req, res) => {
     const lock = await client.getMailboxLock('INBOX');
     let result = null;
     try {
-      // Ieškome pagal temą arba kūną
-      const uids = await client.search({ from: 'kasimo.darbai@kaunas.lt' });
+      // 1) IMAP server-side text search
+      let uids = [];
+      try {
+        uids = await client.search({ from: 'kasimo.darbai@kaunas.lt', text: prasNr });
+      } catch (_) {}
+      // 2) Fallback — visi laiškai iš šio siuntėjo, filtruosime rankiniu būdu
+      if (!uids.length) {
+        try { uids = await client.search({ from: 'kasimo.darbai@kaunas.lt' }); } catch (_) {}
+      }
       for (const uid of uids.slice(-50).reverse()) { // Paskutiniai 50, naujausi pirmi
         const msg = await client.fetchOne(uid, { envelope: true, bodyStructure: true, source: true });
         if (!msg) continue;
         const raw = msg.source ? msg.source.toString('utf8') : '';
-        if (!raw.includes(prasNr)) continue;
+        // Tikrinti ir raw source, ir temą
+        const subj = msg.envelope?.subject || '';
+        if (!raw.includes(prasNr) && !subj.includes(prasNr)) continue;
         // Rastas — išsaugome kl-sav-close-requests
         const msgId = msg.envelope?.messageId || String(uid);
         const subject = msg.envelope?.subject || '';
