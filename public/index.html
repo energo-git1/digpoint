@@ -2591,7 +2591,7 @@ function PermitDetail(p){
   var _beforeFiles=useState(o.beforeFiles||[]);var beforeFiles=_beforeFiles[0],sBeforeFiles=_beforeFiles[1];
   var _workType=useState(o.workType||"planinius");var workType=_workType[0],sWorkType=_workType[1];
   var _surfaces=useState(o.surfaces||[]);var surfaces=_surfaces[0],sSurfaces=_surfaces[1];
-  var _seniunija=useState(null);var seniunija=_seniunija[0],sSeniunija=_seniunija[1];
+  var _seniunija=useState(o.seniunijaName?{name:o.seniunijaName,email:o.seniunijaEmail||''}:null);var seniunija=_seniunija[0],sSeniunija=_seniunija[1];
   var _seniunijaAll=useState([]);var seniunijaAll=_seniunijaAll[0],sSeniunijaAll=_seniunijaAll[1];
   var _seniunijaOverride=useState("");var seniunijaOverride=_seniunijaOverride[0],sSeniunijaOverride=_seniunijaOverride[1];
   var _senSubjEdit=useState(null);var senSubjEdit=_senSubjEdit[0],sSenSubjEdit=_senSubjEdit[1];
@@ -2614,13 +2614,9 @@ function PermitDetail(p){
       var n=(f.name||'').toLowerCase();
       if(n.match(/\.(jpg|jpeg|png|gif|webp)$/))add(f,"Nuotrauka");
     });
-    // Savivaldybės leidimo PDF
+    // Savivaldybės leidimo PDF — tik explicit įkeltas
     var pdfs=o.permitPdfs||{};
     if(pdfs.sav&&pdfs.sav.filename)add(pdfs.sav,"Sav. leidimas");
-    else{
-      var pf=(o.files||[]).find(function(f){return f.name&&f.name.toLowerCase().endsWith('.pdf')&&!/(RBDTD|projekt)/i.test(f.name)});
-      if(pf&&pf.filename)add(pf,"Sav. leidimas");
-    }
     return result;
   }
   var _senDocs=useState(null);var senDocs=_senDocs[0],sSenDocs=_senDocs[1]; // null = neįkeltas dar
@@ -2639,8 +2635,9 @@ function PermitDetail(p){
     // Detect seniūnija pagal adresą
     fetch('/api/admin/detect-seniunija?address='+encodeURIComponent(o.location||""))
       .then(function(r){return r.json()}).then(function(d){
-        if(d.seniunija)sSeniunija(d.seniunija);
         if(d.all)sSeniunijaAll(d.all);
+        if(d.seniunija){sSeniunija(d.seniunija);}
+        else if(o.seniunijaName&&d.all){var sv=(d.all).find(function(s){return s.name===o.seniunijaName;});if(sv)sSeniunija(sv);}
       }).catch(function(){});
     // Jei Seniūnija paraiška ir yra PDF files[] — auto-parsavimas
     if(hasSen&&!o.location){
@@ -4214,10 +4211,14 @@ function PermitDetail(p){
             {/* Laiško peržiūra — redaguojama tema + turinys */}
             {(function(){
               var surfTxt=buildSurfaceText(surfaces);
-              var autoSubj="Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — "+(o.location||"—");
               var _isAvarin=workType==="avarinius"||workType==="avariniai";
+              var _wt=_isAvarin?"avarinius":"planinius";
+              var _loc=o.location||"—";
+              var _locM=_loc.match(/^(.+?)\s*[–—]\s*(.+)$/);
+              var _locShort=_locM&&_locM[2].trim().startsWith(_locM[1].trim().replace(/,?\s*Kaunas\s*$/i,'').trim())?_locM[2].trim():_loc;
+              var autoSubj="Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — "+_locShort;
               var _darbDesc=_isAvarin?"elektros tinklo remontas":"elektros tinklų "+(o.description||"įrengimas");
-              var autoBody="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", "+_darbDesc+".\nDarbai yra baigti, "+surfTxt+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEimutis Šimkus\nProjektuotojas\nUAB EnergoLT\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +37068313705\nEl. p. uzklausos@energolt.eu";
+              var autoBody="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+_wt+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+_locShort+", "+_darbDesc+".\nDarbai yra baigti, "+surfTxt+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEimutis Šimkus\nProjektuotojas\nUAB EnergoLT\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +37068313705\nEl. p. uzklausos@energolt.eu";
               var curSubj=senSubjEdit!==null?senSubjEdit:autoSubj;
               var curBody=senBodyEdit!==null?senBodyEdit:autoBody;
               return <div style={{marginBottom:10}}>
@@ -4316,10 +4317,14 @@ function PermitDetail(p){
               sSeniunijaBusy(true);sSeniunijaMsg("");
               try{
                 var surfTxt2=buildSurfaceText(surfaces);
-                var autoSubj2="Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — "+(o.location||"—");
                 var _isAvarin2=workType==="avarinius"||workType==="avariniai";
+                var _wt2=_isAvarin2?"avarinius":"planinius";
+                var _loc2=o.location||"—";
+                var _locM2=_loc2.match(/^(.+?)\s*[–—]\s*(.+)$/);
+                var _locShort2=_locM2&&_locM2[2].trim().startsWith(_locM2[1].trim().replace(/,?\s*Kaunas\s*$/i,'').trim())?_locM2[2].trim():_loc2;
+                var autoSubj2="Informacija apie atliktus kasimo darbus ir gerbūvio atstatymą — "+_locShort2;
                 var _darbDesc2=_isAvarin2?"elektros tinklo remontas":"elektros tinklų "+(o.description||"įrengimas");
-                var autoBody2="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+workType+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+(o.location||"—")+", "+_darbDesc2+".\nDarbai yra baigti, "+surfTxt2+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEimutis Šimkus\nProjektuotojas\nUAB EnergoLT\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +37068313705\nEl. p. uzklausos@energolt.eu";
+                var autoBody2="Laba diena,\n\nNuo "+(o.startDate||"—")+" iki "+(o.endDate||"—")+" vykdėme "+_wt2+" kasimo darbus "+((seniunija&&seniunija.name)||"[seniūnija]")+", "+_locShort2+", "+_darbDesc2+".\nDarbai yra baigti, "+surfTxt2+". Pridedam gerbūvio nuotraukas, nuotraukas prieš darbus ir Kauno m. sav. išduotą leidimą.\n\nPagarbiai,\n\nEimutis Šimkus\nProjektuotojas\nUAB EnergoLT\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +37068313705\nEl. p. uzklausos@energolt.eu";
                 var r=await fetch('/api/admin/send-seniunija-closure',{method:'POST',headers:{'Content-Type':'application/json'},
                   body:JSON.stringify({permitId:o.id,workType,surfaces,seniunijaEmail:email,seniunijaName:name,
                     emailSubject:senSubjEdit!==null?senSubjEdit:autoSubj2,
@@ -4330,7 +4335,7 @@ function PermitDetail(p){
                 sSeniunijaMsg("✅ Laiškas seniūnijai išsiųstas!");
                 var isSen=(o.organizations||[]).indexOf("Seniūnija")!==-1;
                 var newSt=isSen?"Uždarytas":o.status;
-                p.onUpdate(Object.assign({},o,{seniunijaSent:true,seniunijaSentAt:fmtDate(new Date()),seniunijaName:name,
+                p.onUpdate(Object.assign({},o,{seniunijaSent:true,seniunijaSentAt:fmtDate(new Date()),seniunijaName:name,seniunijaEmail:email,
                   status:newSt,
                   history:(o.history||[]).concat([{status:newSt,date:fmtDate(new Date()),note:"Seniūnijai ("+name+") išsiųstas informacinis laiškas"}])}));
               }catch(e){sSeniunijaMsg("❌ Serverio klaida");}
