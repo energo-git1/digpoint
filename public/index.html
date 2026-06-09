@@ -2576,11 +2576,8 @@ function PermitDetail(p){
   var _aprvBusy=useState(false);var aprvBusy=_aprvBusy[0],sAprvBusy=_aprvBusy[1];
   // Savivaldybės uždarymas
   var _savCode=useState(o.savivaldybeCode||"");var savCode=_savCode[0],sSavCode=_savCode[1];
-  var _closeReqs=useState([]);var closeReqs=_closeReqs[0],sCloseReqs=_closeReqs[1];
   var _closeBusy=useState(false);var closeBusy=_closeBusy[0],sCloseBusy=_closeBusy[1];
   var _closeMsg=useState("");var closeMsg=_closeMsg[0],sCloseMsg=_closeMsg[1];
-  var _savPhotos=useState([]);var savPhotos=_savPhotos[0],sSavPhotos=_savPhotos[1]; // nuotraukos atsakymui
-  var _savReplyText=useState("Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.");var savReplyText=_savReplyText[0],sSavReplyText=_savReplyText[1];
   var _savCompPhotos=useState([]);var savCompPhotos=_savCompPhotos[0],sSavCompPhotos=_savCompPhotos[1];
   var _savCompText=useState("");var savCompText=_savCompText[0],sSavCompText=_savCompText[1];
   var _savPrasNr=useState(o.savivaldybePrasNr||"");var savPrasNr=_savPrasNr[0],sSavPrasNr=_savPrasNr[1];
@@ -2666,11 +2663,6 @@ function PermitDetail(p){
             if(Object.keys(patch).length>0)p.onUpdate(Object.assign({},o,patch));
           }).catch(function(){});
       }
-    }
-  },[o.id]);
-  useEffect(function(){
-    if(o.closingSubmitted||o.status==="Uždarytas"){
-      fetch('/api/admin/sav-close-requests').then(function(r){return r.json()}).then(function(d){if(d.ok)sCloseReqs(d.requests||[])}).catch(function(){});
     }
   },[o.id]);
   // Telia — pasirinkti puslapiai (vienas bendras PDF priedas)
@@ -3990,38 +3982,17 @@ function PermitDetail(p){
         <div style={{marginTop:10}}><SavivaldybeSubmitBtn permit={o} user={p.user} onPateikta={function(){sSt("Pateikta");p.onUpdate(Object.assign({},o,{status:"Pateikta",history:(o.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Pateikta savivaldybei"}])}));p.onClose();}}/></div>
       </div>}
 
-      {/* Pranešimas savivaldybei apie darbų pabaigą — tik kai nėra gauto laiško (closeReq) */}
-      {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(o.status==="Gautas leidimas"||o.status==="Uždarytas")&&!closeReqs.find(function(r){return r.permitId===o.id;})&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+      {/* Pranešimas savivaldybei apie darbų pabaigą */}
+      {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(o.status==="Gautas leidimas"||o.status==="Uždarytas")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Pranešimas savivaldybei apie darbų pabaigą</div>
         {savCompSent
           ?<div style={{background:"rgba(16,185,129,.1)",border:"1px solid #059669",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#059669",fontFamily:F,fontWeight:600}}>✅ Pranešimas savivaldybei (kasimo.darbai@kaunas.lt) išsiųstas {o.savCompletionSentAt||""}</div>
           :<div>
             <div style={{marginBottom:8}}>
-              <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>
-                Prašymo numeris <span style={{fontWeight:400,color:C.t3}}>(įveskite ir spauskite 🔍 — sistema ieškos gauto laiško)</span>
-              </label>
-              <div style={{display:"flex",gap:6}}>
-                <input value={savPrasNr} onChange={function(e){sSavPrasNr(e.target.value);sSavCompMsg("");}}
-                  placeholder="pvz. 43-27-802"
-                  style={{flex:1,padding:"6px 10px",borderRadius:7,border:"1.5px solid "+(savPrasNr?C.ac:C.b1),background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
-                <Btn sm onClick={function(){
-                  if(!savPrasNr.trim()){sSavCompMsg("⚠️ Įveskite prašymo numerį");return;}
-                  sSavCompMsg("🔍 Ieškoma...");
-                  fetch('/api/admin/find-sav-email-by-prasnr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prasNr:savPrasNr,permitId:o.id})})
-                    .then(function(r){return r.json();}).then(function(d){
-                      if(d.ok&&d.request){
-                        var linked=Object.assign({},d.request,{permitId:o.id});
-                        sCloseReqs(function(prev){
-                          var exists=prev.some(function(r){return r.id===linked.id;});
-                          return exists?prev.map(function(r){return r.id===linked.id?linked:r;}):[linked].concat(prev);
-                        });
-                        sSavCompMsg("✅ Rastas laiškas ("+(d.source==='imap'?'iš pašto':'išsaugotas')+") — bus atsakyta į temą");
-                      } else {
-                        sSavCompMsg("⚠️ Laiškas nerastas — bus siųstas naujas laiškas");
-                      }
-                    }).catch(function(){sSavCompMsg("❌ Serverio klaida");});
-                }}>🔍</Btn>
-              </div>
+              <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Prašymo numeris</label>
+              <input value={savPrasNr} onChange={function(e){sSavPrasNr(e.target.value);sSavCompMsg("");}}
+                placeholder="pvz. 43-27-802"
+                style={{width:"100%",padding:"6px 10px",borderRadius:7,border:"1.5px solid "+(savPrasNr?C.ac:C.b1),background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
             </div>
             <div style={{marginBottom:8}}>
               <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Laiško tekstas <span style={{fontWeight:400,color:C.t3}}>(neprivaloma — auto-sugeneruojamas)</span></label>
@@ -4072,80 +4043,6 @@ function PermitDetail(p){
             </div>
           </div>}
       </div>}
-
-      {/* Atsakymas Savivaldybei apie darbų pabaigą — atsakymas į gautą "Išduotas leidimas" laišką */}
-      {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(function(){
-        var req=closeReqs.find(function(r){return r.permitId===o.id;});
-        if(!req)return null;
-        return <div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
-          <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Atsakymas savivaldybei apie darbų pabaigą</div>
-          <div style={{background:C.s2,borderRadius:8,padding:"8px 12px",marginBottom:8,border:"1px solid "+C.b1,fontSize:11,color:C.t2,fontFamily:F}}>
-            <div style={{fontSize:10,color:C.t3,fontFamily:F,marginBottom:2}}>Atsakymas į laišką:</div>
-            <div style={{fontWeight:700,color:C.tx,marginBottom:2}}>Re: {req.subject||"(be temos)"}</div>
-            <div style={{color:C.t3}}>{req.from}{req.leidNr?" · Leid. nr: "+req.leidNr:""}</div>
-          </div>
-          <div style={{marginBottom:8,display:"flex",gap:8,alignItems:"flex-end"}}>
-            <div style={{flex:1}}>
-              <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Prašymo numeris</label>
-              <input value={savPrasNr} onChange={function(e){sSavPrasNr(e.target.value);}}
-                placeholder="pvz. 43-27-802"
-                style={{width:"100%",padding:"6px 10px",borderRadius:7,border:"1.5px solid "+(savPrasNr?C.ac:C.b1),background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
-            </div>
-          </div>
-          <div style={{marginBottom:8}}>
-            <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Atsakymo tekstas</label>
-            <textarea value={savCompText||"Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas."} rows={3}
-              onChange={function(e){sSavCompText(e.target.value);}}
-              style={{width:"100%",padding:"8px 10px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:FM,fontSize:12,outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
-          </div>
-          <div style={{background:C.s2,borderRadius:8,padding:"10px 12px",marginBottom:8,border:"1px solid "+C.b1}}>
-            <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>
-              Gerbūvio nuotraukos
-              {savCompPhotos.length>0&&<span style={{color:C.gn,fontWeight:600,marginLeft:6}}>{savCompPhotos.length} failai</span>}
-            </div>
-            <FileDropZone files={savCompPhotos}
-              onAdd={function(f){sSavCompPhotos(function(prev){return prev.concat([f]);});}}
-              onRemove={function(i){sSavCompPhotos(function(prev){return prev.filter(function(_,idx){return idx!==i;});});}}/>
-          </div>
-          {savCompMsg&&<div style={{fontSize:11,color:savCompMsg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{savCompMsg}</div>}
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <Btn onClick={function(){(async function(){
-            sSavCompBusy(true);sSavCompMsg("");
-            try{
-              var r=await fetch('/api/admin/reply-sav-closure',{method:'POST',headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({requestId:req.id,permitId:o.id,
-                  prasNr:savPrasNr||"",
-                  photoFilenames:savCompPhotos.map(function(f){return f.filename;}).filter(Boolean),
-                  replyText:savCompText||""})});
-              var d=await r.json();
-              if(!r.ok){sSavCompBusy(false);sSavCompMsg("❌ "+(d.error||"Klaida"));return;}
-              sSavCompBusy(false);sSavCompMsg("✅ Atsakymas išsiųstas!");
-              sSavCompSent(true);
-              sCloseReqs(function(prev){return prev.filter(function(x){return x.id!==req.id;});});
-              p.onUpdate(Object.assign({},o,{status:'Uždarytas',savCompletionSent:true,savCompletionSentAt:new Date().toISOString().slice(0,10)}));
-            }catch(e){sSavCompBusy(false);sSavCompMsg("❌ Serverio klaida");}
-          })()}} sm disabled={savCompBusy} style={{background:"#059669",color:"#fff",border:"none",opacity:savCompBusy?0.6:1}}>
-            {savCompBusy?"Siunčiama...":"📤 Atsakyti savivaldybei"}
-          </Btn>
-          <Btn onClick={function(){(async function(){
-            sSavCompBusy(true);sSavCompMsg("");
-            try{
-              var r=await fetch('/api/admin/reply-sav-closure',{method:'POST',headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({requestId:req.id,permitId:o.id,
-                  prasNr:savPrasNr||"",
-                  photoFilenames:savCompPhotos.map(function(f){return f.filename;}).filter(Boolean),
-                  replyText:savCompText||"",
-                  testEmail:"eimutis.simkus@energolt.eu",testOnly:true})});
-              var d=await r.json();
-              if(!r.ok){sSavCompBusy(false);sSavCompMsg("❌ "+(d.error||"Klaida"));return;}
-              sSavCompBusy(false);sSavCompMsg("✅ Testo laiškas → eimutis.simkus@energolt.eu");
-            }catch(e){sSavCompBusy(false);sSavCompMsg("❌ Serverio klaida");}
-          })()}} sm disabled={savCompBusy} style={{background:"#6B7280",color:"#fff",border:"none",opacity:savCompBusy?0.6:1}}>
-            🧪 Testas
-          </Btn>
-          </div>
-        </div>;
-      })()}
 
       {/* Seniūnijos informacinis laiškas — Seniūnija org. arba Savivaldybė (Uždarytas arba Gautas leidimas) */}
       {((o.organizations||[]).indexOf("Seniūnija")!==-1||(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1)&&(o.status==="Uždarytas"||o.status==="Gautas leidimas"||(((o.organizations||[]).indexOf("Seniūnija")!==-1)&&(isA||isD||o.closingSubmitted)))&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
@@ -6115,199 +6012,6 @@ function SavPriedaiBlock(p){
 }
 
 // ═════════════════════════════════════════════════════════════
-// SAV CLOSE PANEL — uždarymo eilė dokumentacijai/adminui
-// ═════════════════════════════════════════════════════════════
-function SavClosePanel(){
-  var _items=useState([]);var items=_items[0],sItems=_items[1];
-  var _emails=useState([]);var emails=_emails[0],sEmails=_emails[1];
-  var _state=useState({});var state=_state[0],sState=_state[1]; // {id: {matchedEmail, replyText, busy, msg, manualCode}}
-
-  var _directEmails=useState([]);var directEmails=_directEmails[0],sDirectEmails=_directEmails[1];
-  var _dState=useState({});var dState=_dState[0],sDState=_dState[1];
-
-  useEffect(function(){
-    Promise.all([
-      fetch('/api/admin/sav-closure-pending').then(function(r){return r.json();}),
-      fetch('/api/admin/sav-close-requests').then(function(r){return r.json();})
-    ]).then(function(res){
-      sItems(res[0].items||[]);
-      sEmails(res[1].requests||[]);
-      // Rodyti tik nesusietus laiškus (be permitId) — susieti jau matomi paraiškos modaly
-      sDirectEmails((res[1].requests||[]).filter(function(r){return !r.permitId;}));
-    }).catch(function(){});
-  },[]);
-
-  function fmtDt(iso){try{return new Date(iso).toLocaleDateString('lt-LT',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});}catch(_){return iso||'';}}
-
-  function getState(id){return state[id]||{};}
-  function setState(id,patch){sState(function(prev){var n=Object.assign({},prev);n[id]=Object.assign({},n[id]||{},patch);return n;});}
-
-  function autoMatch(item){
-    var code=(getState(item.id).manualCode||item.internalCode||'').trim();
-    var addr=(item.address||'').trim();
-    fetch('/api/admin/match-sav-email?address='+encodeURIComponent(addr)+'&code='+encodeURIComponent(code))
-      .then(function(r){return r.json();}).then(function(d){
-        if(d.match){
-          setState(item.id,{matchedEmail:d.match,replyText:"Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.",method:d.method});
-        } else {
-          setState(item.id,{matchedEmail:null,allEmails:d.all||[]});
-        }
-      }).catch(function(){});
-  }
-
-  useEffect(function(){
-    items.forEach(function(item){if(!getState(item.id).matchedEmail&&!getState(item.id).searched){setState(item.id,{searched:true});autoMatch(item);}});
-  },[items.length]);
-
-  function getDState(id){return dState[id]||{};}
-  function setDState(id,patch){sDState(function(prev){var n=Object.assign({},prev);n[id]=Object.assign({},n[id]||{},patch);return n;});}
-
-  if(!items.length && !directEmails.length) return null;
-
-  return <div style={{marginBottom:24}}>
-    {/* Tiesioginiai laiškai iš kasimo.darbai@kaunas.lt — be paraiškos */}
-    {directEmails.length>0&&<div style={{marginBottom:16}}>
-      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>
-        Laiškai iš Savivaldybės — reikia atsakyti ({directEmails.length})
-      </div>
-      {directEmails.map(function(email){
-        var ds=getDState(email.id);
-        var dPhotos=ds.photos||[];
-        return <div key={email.id} style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,padding:16,marginBottom:10}}>
-          <div style={{marginBottom:8}}>
-            <div style={{fontSize:12,fontWeight:700,color:C.tx,fontFamily:F}}>{email.subject||"(be temos)"}</div>
-            <div style={{fontSize:11,color:C.t3,fontFamily:F}}>{email.from} · {fmtDt(email.date)}</div>
-            {email.address&&<div style={{fontSize:11,color:C.t2,fontFamily:F,marginTop:2}}>📍 {email.address}</div>}
-          </div>
-          {/* Atsakymo tekstas */}
-          <div style={{marginBottom:8}}>
-            <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Atsakymo tekstas</label>
-            <textarea value={ds.replyText||"Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas."} rows={3}
-              onChange={function(e){setDState(email.id,{replyText:e.target.value});}}
-              style={{width:"100%",padding:"8px 10px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:FM,fontSize:12,outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
-          </div>
-          {/* Nuotraukų įkėlimas */}
-          <div style={{background:C.s2,borderRadius:8,padding:"10px 12px",marginBottom:8,border:"1px solid "+(dPhotos.length===0?C.yl:C.b1)}}>
-            <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>
-              Gerbūvio nuotraukos <span style={{color:C.rd}}>*</span>
-              {dPhotos.length>0&&<span style={{color:C.gn,fontWeight:600,marginLeft:6}}>{dPhotos.length} failai</span>}
-            </div>
-            <FileDropZone files={dPhotos}
-              onAdd={function(f){setDState(email.id,{photos:(getDState(email.id).photos||[]).concat([f])});}}
-              onRemove={function(i){setDState(email.id,{photos:(getDState(email.id).photos||[]).filter(function(_,idx){return idx!==i;})});}}/>
-          </div>
-          {ds.msg&&<div style={{fontSize:11,color:ds.msg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{ds.msg}</div>}
-          <Btn onClick={function(){(async function(){
-            var curPhotos=getDState(email.id).photos||[];
-            if(!curPhotos.length){setDState(email.id,{msg:"❌ Pridėkite bent vieną nuotrauką."});return;}
-            setDState(email.id,{busy:true,msg:""});
-            try{
-              var r=await fetch('/api/admin/reply-sav-closure',{method:'POST',headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({requestId:email.id,
-                  photoFilenames:curPhotos.map(function(f){return f.filename;}).filter(Boolean),
-                  replyText:getDState(email.id).replyText||""})});
-              var d=await r.json();
-              if(!r.ok){setDState(email.id,{busy:false,msg:"❌ "+(d.error||"Klaida")});return;}
-              setDState(email.id,{busy:false,msg:"✅ Išsiųsta!"});
-              sDirectEmails(function(prev){return prev.filter(function(x){return x.id!==email.id;});});
-            }catch(e){setDState(email.id,{busy:false,msg:"❌ Serverio klaida"});}
-          })()}} sm disabled={ds.busy} style={{background:"#059669",color:"#fff",border:"none",opacity:ds.busy?0.6:1}}>
-            {ds.busy?"Siunčiama...":"📤 Atsakyti Savivaldybei"}
-          </Btn>
-        </div>;
-      })}
-    </div>}
-
-    {/* Ordererių pateiktos uždarymo užduotys */}
-    {items.length>0&&<div>
-    <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>
-      Laukia uždarymo — per sistemą ({items.length})
-    </div>
-    {items.map(function(item){
-      var st=getState(item.id);
-      return <div key={item.id} style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:12,padding:16,marginBottom:12}}>
-        {/* Užduoties info */}
-        <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"flex-start"}}>
-          <div style={{flex:1}}>
-            {item.internalCode&&<div style={{fontSize:12,fontWeight:700,color:C.tx,fontFamily:F}}>Obj. kodas: {item.internalCode}</div>}
-            {item.address&&<div style={{fontSize:11,color:C.t2,fontFamily:F,marginTop:2}}>📍 {item.address}</div>}
-            <div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:2}}>{item.submittedBy} · {fmtDt(item.submittedAt)} · {(item.photoFilenames||[]).length} nuotr.</div>
-          </div>
-        </div>
-
-        {/* Leidimo numeris (rankinis jei auto nepavyko) */}
-        <div style={{marginBottom:10}}>
-          <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Leidimo Nr. iš savivaldybės laiško</label>
-          <div style={{display:"flex",gap:6}}>
-            <input value={st.manualCode||''} onChange={function(e){setState(item.id,{manualCode:e.target.value,matchedEmail:null});}}
-              placeholder="pvz. 43-28-553 arba adresas"
-              style={{flex:1,padding:"6px 10px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:12,outline:"none"}}/>
-            <Btn sm onClick={function(){autoMatch(item);}}>🔍 Ieškoti</Btn>
-          </div>
-        </div>
-
-        {/* Surastas laiškas */}
-        {st.matchedEmail
-          ?<div style={{background:"rgba(16,185,129,.08)",border:"1px solid #059669",borderRadius:8,padding:"8px 12px",marginBottom:10}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#059669",fontFamily:F,marginBottom:2}}>
-              ✅ Rastas laiškas {st.method==='code'?'(pagal numerį)':'(pagal adresą)'}
-            </div>
-            <div style={{fontSize:11,color:C.t2,fontFamily:F}}>{st.matchedEmail.subject}</div>
-            <div style={{fontSize:10,color:C.t3,fontFamily:F}}>{st.matchedEmail.from} · {fmtDt(st.matchedEmail.date)}</div>
-          </div>
-          :<div>
-            {(st.allEmails||[]).length>0&&<div style={{marginBottom:10}}>
-              <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Pasirinkite laišką rankiniu būdu</label>
-              <select value={st.selectedEmailId||''} onChange={function(e){
-                var found=(st.allEmails||[]).find(function(r){return r.id===e.target.value;});
-                setState(item.id,{selectedEmailId:e.target.value,matchedEmail:found||null,replyText:"Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.",method:'manual'});
-              }} style={{width:"100%",padding:"6px 8px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:11,outline:"none"}}>
-                <option value="">— pasirinkite laišką —</option>
-                {(st.allEmails||[]).map(function(r){return <option key={r.id} value={r.id}>{r.subject||r.address||r.from} ({fmtDt(r.date)})</option>;})}
-              </select>
-            </div>}
-            {!(st.allEmails||[]).length&&<div style={{fontSize:11,color:C.t3,fontFamily:F,marginBottom:10}}>⏳ Nėra laiškų iš kasimo.darbai@kaunas.lt — laiškas dar negautas.</div>}
-          </div>}
-
-        {/* Atsakymo tekstas — redaguojamas */}
-        {st.matchedEmail&&<div style={{marginBottom:10}}>
-          <label style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,display:"block",marginBottom:4}}>Atsakymo tekstas</label>
-          <textarea value={st.replyText||"Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas."} rows={4}
-            onChange={function(e){setState(item.id,{replyText:e.target.value});}}
-            style={{width:"100%",padding:"8px 10px",borderRadius:7,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:FM,fontSize:12,outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
-        </div>}
-
-        {st.msg&&<div style={{fontSize:11,color:st.msg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{st.msg}</div>}
-
-        <div style={{display:"flex",gap:6}}>
-          <Btn v="secondary" sm onClick={function(){(async function(){
-            await fetch('/api/admin/sav-closure-pending/'+item.id,{method:'DELETE'});
-            sItems(function(prev){return prev.filter(function(x){return x.id!==item.id;});});
-          })()}}>Atmesti</Btn>
-          {st.matchedEmail&&<Btn onClick={function(){(async function(){
-            setState(item.id,{busy:true,msg:""});
-            try{
-              var r=await fetch('/api/admin/reply-sav-closure',{method:'POST',headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({requestId:st.matchedEmail.id,permitId:item.permitId||null,
-                  photoFilenames:item.photoFilenames||[],replyText:st.replyText||""})});
-              var d=await r.json();
-              if(!r.ok){setState(item.id,{busy:false,msg:"❌ "+(d.error||"Klaida")});return;}
-              // Pašaliname iš eilės
-              await fetch('/api/admin/sav-closure-pending/'+item.id,{method:'DELETE'});
-              setState(item.id,{busy:false,msg:"✅ Išsiųsta!"});
-              sItems(function(prev){return prev.filter(function(x){return x.id!==item.id;});});
-            }catch(e){setState(item.id,{busy:false,msg:"❌ Serverio klaida"});}
-          })()} } sm disabled={st.busy} style={{background:"#059669",color:"#fff",border:"none",opacity:st.busy?0.6:1}}>
-            {st.busy?"Siunčiama...":"✅ Tvirtinti ir siųsti"}
-          </Btn>}
-        </div>
-      </div>;
-    })}
-    </div>}
-  </div>;
-}
-
-// ═════════════════════════════════════════════════════════════
 function checkExpired(arr){
   var today=fmtDate(new Date());
   var changed=false;
@@ -6795,7 +6499,7 @@ function App(){
           </div>
         </div>;
       })()}
-      {view==="closed"&&<SavClosePanel/>}
+
       {visible.length===0?<Empty icon="&#128077;" title="Paraiškų nėra."/>:(function(){
         // Grupuojame pagal manualGroupId, tada pagal investNo
         var grouped=[];

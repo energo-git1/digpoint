@@ -1189,19 +1189,6 @@ async function _checkImapMailImpl() {
                     } catch (_) {}
                   }
 
-                  // Visada išsaugome laiško įrašą kl-sav-close-requests (vėlesniam uždarymo workflow)
-                  const closeRequests = dbGet('kl-sav-close-requests') || [];
-                  const alreadyStored = closeRequests.some((r) => r.messageId === msgId);
-                  if (!alreadyStored) {
-                    closeRequests.push({
-                      id: srvUid(), messageId: msgId, subject,
-                      from: fromAddr, date: new Date().toISOString(),
-                      address: rawAddrI, leidNr, leidFrom, leidUntil,
-                      permitId: bestPermitI ? bestPermitI.id : null,
-                      bodyPreview: bodyText.slice(0, 3000),
-                    });
-                    dbSet('kl-sav-close-requests', closeRequests);
-                  }
                 } else if (/darb[uų]\s+tvirtinimas/i.test(bodyText + ' ' + subject)) {
                   // Ištraukiame adresą iš "Darbų vieta (pradžia):" eilutės
                   const addrMatch = bodyText.match(/Darb[uų]\s+vieta\s*\(prad[žz][iī]a\)[:\s]+([^\n(]{5,100})/i);
@@ -2111,42 +2098,30 @@ app.post('/api/admin/send-sav-completion', async (req, res) => {
   const permit  = permits.find((p) => p.id === permitId);
   if (!permit) return res.status(404).json({ error: 'Paraiška nerasta.' });
 
-  const location  = permit.location || '—';
+  const location    = permit.location || '—';
   const finalPrasNr = reqPrasNr || permit.savivaldybePrasNr || permit.savivaldybeCode || '';
-  const SAV_EMAIL = 'kasimo.darbai@kaunas.lt';
-  const SIGNATURE = `\n\nPagarbiai,\n\nEimutis Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu`;
-  const subject   = `Darbų pabaiga — ${location}`;
-  const prasNrLine = finalPrasNr ? `\nPrašymo Nr.: ${finalPrasNr}` : '';
-  const bodyText  = (emailBody && emailBody.trim()) ? emailBody.trim() + SIGNATURE : `Laba diena,\n\nPranešame, kad kasimo darbai ${location} yra baigti.${prasNrLine} Pridedam gerbūvio nuotraukas.${SIGNATURE}`;
+  const SAV_EMAIL   = testEmail || 'kasimo.darbai@kaunas.lt';
+  const SIGNATURE   = `\n\nPagarbiai,\n\nEimutis Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu`;
+  const subject     = `Pranešimas apie kasimo darbų pabaigą — ${location}`;
+  const prasNrLine  = finalPrasNr ? `\nPrašymo Nr.: ${finalPrasNr}` : '';
+  const bodyText    = (emailBody && emailBody.trim())
+    ? emailBody.trim() + SIGNATURE
+    : `Laba diena,\n\nPranešame, kad kasimo darbai ${location} yra baigti.${prasNrLine}\nPridedam gerbūvio nuotraukas.${SIGNATURE}`;
 
   const attachments = [];
   for (const fn of (photoFilenames || [])) {
     const fp = path.join(UPLOAD_DIR, fn);
-    if (fs.existsSync(fp)) attachments.push({ filename: fn, content: fs.readFileSync(fp) });
+    if (fs.existsSync(fp)) attachments.push({ filename: path.basename(fn).replace(/^[a-z0-9]{6,}_/i, ''), content: fs.readFileSync(fp) });
   }
 
-  // Jei yra prašymo numeris — ieškoti gauto laiško kl-sav-close-requests ir atsakyti į temą
-  const closeRequests = dbGet('kl-sav-close-requests') || [];
-  const matchedReq = finalPrasNr
-    ? closeRequests.find((r) => r.leidNr === finalPrasNr || (r.subject && r.subject.includes(finalPrasNr)) || (r.bodyPreview && r.bodyPreview.includes(finalPrasNr)))
-    : null;
-  const toAddr = testEmail || (matchedReq ? matchedReq.from || SAV_EMAIL : SAV_EMAIL);
-  const mailOpts = matchedReq
-    ? { from: MAIL_FROM_EXTERNAL, to: toAddr,
-        subject: matchedReq.subject ? (matchedReq.subject.startsWith('Re:') ? matchedReq.subject : 'Re: ' + matchedReq.subject) : subject,
-        text: bodyText, attachments, inReplyTo: matchedReq.messageId, references: matchedReq.messageId }
-    : { from: MAIL_FROM_EXTERNAL, to: toAddr, subject, text: bodyText, attachments };
-
   try {
-    await sendAndSave(mailOpts);
-    const mode = matchedReq ? `atsakymas į temą (${matchedReq.subject})` : 'naujas laiškas';
-    console.log(`[SAV-COMPLETION] Išsiųsta (${mode}) → ${mailOpts.to} | ${location} | ${attachments.length} nuotr.`);
+    await sendAndSave({ from: MAIL_FROM_EXTERNAL, to: SAV_EMAIL, subject, text: bodyText, attachments });
+    console.log(`[SAV-COMPLETION] Išsiųsta → ${SAV_EMAIL} | ${location} | ${attachments.length} nuotr.`);
   } catch (e) {
     console.error(`[SAV-COMPLETION] Klaida: ${e.message}`);
     return res.status(500).json({ error: e.message });
   }
 
-  // Testas — tik laiškas, DB nelieičame
   if (testOnly) return res.json({ ok: true, testOnly: true });
 
   const today = fmtDateSrv(new Date());
@@ -2155,15 +2130,10 @@ app.post('/api/admin/send-sav-completion', async (req, res) => {
     savCompletionSent: true,
     savCompletionSentAt: today,
     ...(finalPrasNr && !p.savivaldybePrasNr ? { savivaldybePrasNr: finalPrasNr } : {}),
-    history: [...(p.history || []), { status: p.status, date: today, note: `Savivaldybei (${SAV_EMAIL}) išsiųstas pranešimas apie darbų pabaigą${finalPrasNr ? ' [Prašymo nr. ' + finalPrasNr + ']' : ''}` }],
+    history: [...(p.history || []), { status: p.status, date: today, note: `Savivaldybei išsiųstas pranešimas apie darbų pabaigą${finalPrasNr ? ' [Prašymo nr. ' + finalPrasNr + ']' : ''}` }],
   }));
 
   res.json({ ok: true });
-});
-
-// ── Kauno sav. uždarymo pranešimų sąrašas ────────────────────
-app.get('/api/admin/sav-close-requests', (req, res) => {
-  res.json({ ok: true, requests: dbGet('kl-sav-close-requests') || [] });
 });
 
 // ── Uždarymo eilė (užsakovų užduotys dokumentacijai) ─────────
@@ -2199,291 +2169,6 @@ app.delete('/api/admin/sav-closure-pending/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Suderinti uždarymo užduotį su savivaldybės laišku ────────
-// Ieškoma pagal adresą ir objekto kodą
-app.get('/api/admin/match-sav-email', (req, res) => {
-  const { address, code } = req.query;
-  const closeReqs = dbGet('kl-sav-close-requests') || [];
-  if (!closeReqs.length) return res.json({ ok: true, match: null });
-
-  // Pirma: pagal objekto kodą (leidimo numerį laiške)
-  if (code && code.trim()) {
-    const cLower = code.trim().toLowerCase();
-    const byCode = closeReqs.find((r) =>
-      (r.address || '').toLowerCase().includes(cLower) ||
-      (r.subject || '').toLowerCase().includes(cLower) ||
-      (r.bodyPreview || '').toLowerCase().includes(cLower)
-    );
-    if (byCode) return res.json({ ok: true, match: byCode, method: 'code' });
-  }
-
-  // Tada: pagal adresą (žodžių sutapimas)
-  if (address && address.trim()) {
-    const aWords = normalizeForMatch(address).split(' ').filter((w) => w.length >= 4);
-    let best = null, bestScore = 0;
-    for (const r of closeReqs) {
-      const hay = normalizeForMatch((r.address || '') + ' ' + (r.subject || '') + ' ' + (r.bodyPreview || ''));
-      const score = aWords.length ? aWords.filter((w) => hay.includes(w)).length / aWords.length : 0;
-      if (score > bestScore) { bestScore = score; best = r; }
-    }
-    if (best && bestScore >= 0.4) return res.json({ ok: true, match: best, method: 'address', score: bestScore });
-  }
-
-  // Jei nieko nerasta — grąžiname visus variantus vartotojui pasirinkti
-  res.json({ ok: true, match: null, all: closeReqs });
-});
-
-// ── Atsakymas į Kauno sav. uždarymo pranešimą ────────────────
-// POST /api/admin/reply-sav-closure { requestId, permitId, testEmail?, testOnly? }
-app.post('/api/admin/reply-sav-closure', async (req, res) => {
-  const { requestId, permitId, prasNr, testEmail, testOnly } = req.body || {};
-  if (!requestId) return res.status(400).json({ error: 'Trūksta requestId.' });
-
-  const requests = dbGet('kl-sav-close-requests') || [];
-  const request  = requests.find((r) => r.id === requestId);
-  if (!request) return res.status(404).json({ error: 'Uždarymo pranešimas nerastas.' });
-
-  const permits = dbGet('kl-permits') || [];
-  const permit  = permitId ? permits.find((p) => p.id === permitId) : null;
-  // permitId neprivalomas — galima atsakyti be susijusios paraiškos
-
-  // Priedai: pirma UI įkeltos nuotraukos, po to closeFiles jei yra
-  const { photoFilenames } = req.body || {};
-  const attachments = [];
-  // 1) Nuotraukos iš UI (savPhotos)
-  // Originalus failo vardas: ieškome permit.files arba permit.closeFiles, fallback — nupjauname UUID prefiksą
-  const allPermitFiles = [...(permit ? (permit.files||[]) : []), ...(permit ? (permit.closeFiles||[]) : []), ...(permit ? (permit.beforeFiles||[]) : [])];
-  function originalName(fn) {
-    const base = path.basename(fn);
-    const found = allPermitFiles.find((f) => f.filename === base);
-    if (found && found.name) return found.name;
-    return base.replace(/^[a-z0-9]{6,}_/i, '');
-  }
-  if (Array.isArray(photoFilenames) && photoFilenames.length > 0) {
-    for (const fn of photoFilenames) {
-      const fp = path.join(UPLOAD_DIR, path.basename(fn));
-      if (fs.existsSync(fp)) {
-        attachments.push({ filename: originalName(fn), content: fs.readFileSync(fp) });
-      }
-    }
-  }
-  // 2) Fallback: closeFiles iš paraiškos (jei nebuvo įkelta UI nuotraukų)
-  if (attachments.length === 0) {
-    for (const f of (permit.closeFiles || [])) {
-      const fp = path.join(UPLOAD_DIR, f.filename || '');
-      if (fs.existsSync(fp)) attachments.push({ filename: f.name, content: fs.readFileSync(fp) });
-    }
-  }
-
-  const { replyText: customText } = req.body || {};
-  const REPLY_SIGNATURE = `\n\nPagarbiai,\n\nEimutis Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu`;
-  const replySubject = request.subject.startsWith('Re:') ? request.subject : 'Re: ' + request.subject;
-  const bodyMain = (customText && customText.trim())
-    ? customText.trim()
-    : `Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.`;
-  // Cituojamas originalas apačioje (be raw email headerių)
-  function cleanBodyPreview(text) {
-    if (!text) return '';
-    const headerPat = /^(Return-Path|Received|X-Spam|X-Virus|MIME-Version|Content-Type|Content-Transfer|Message-ID|Date:|From:|To:|Subject:|Reply-To|Delivered-To|ARC-|DKIM-|Authentication-Results|References:|In-Reply-To)\s*:/i;
-    const lines = text.split('\n');
-    // Rasti pirmą eilutę, kuri atrodo kaip raw header bloko pradžia
-    let cutAt = lines.length;
-    for (let i = 0; i < lines.length; i++) {
-      if (headerPat.test(lines[i].trim())) {
-        // Jei ≥3 header eilutės iš eilės — turbūt raw header blokas, pjauti čia
-        const next = lines.slice(i, i + 3).filter(l => headerPat.test(l.trim()) || l.trim() === '');
-        if (next.length >= 2) { cutAt = i; break; }
-      }
-    }
-    return lines.slice(0, cutAt).join('\n').trim();
-  }
-  const sentDate = request.date ? new Date(request.date).toLocaleString('lt-LT') : '';
-  const cleanPreview = cleanBodyPreview(request.bodyPreview);
-  const quotedOriginal = cleanPreview
-    ? `\n\n--- Originalus laiškas ---\nNuo: ${request.from}\nData: ${sentDate}\nTema: ${request.subject}\n\n${cleanPreview.split('\n').map(l => '> ' + l).join('\n')}`
-    : '';
-  const replyText = bodyMain + REPLY_SIGNATURE + quotedOriginal;
-
-  const replyTo = testEmail || request.from;
-  try {
-    await sendAndSave({
-      from: MAIL_FROM_EXTERNAL,
-      to: replyTo,
-      subject: replySubject,
-      text: replyText,
-      inReplyTo: request.messageId,
-      references: request.messageId,
-      attachments,
-    });
-    console.log(`[SAV-CLOSE] Atsakymas išsiųstas → ${replyTo}${testEmail ? ' [TEST]' : ''} | ${replySubject} | ${attachments.length} priedai`);
-  } catch (e) {
-    console.error(`[SAV-CLOSE] Laiško klaida: ${e.message}`);
-    return res.status(500).json({ error: e.message });
-  }
-
-  // Testas — tik laiškas, DB nelieičame
-  if (testOnly) return res.json({ ok: true, testOnly: true });
-
-  // Atnaujinti paraiškos statusą (jei yra susijusi paraiška)
-  const today = fmtDateSrv(new Date());
-  if (permit) {
-  const updatedPermits = permits.map((p) => p.id !== permitId ? p : {
-    ...p,
-    status: 'Uždarytas',
-    closingDone: true,
-    closingDoneAt: today,
-    savCompletionSent: true,
-    savCompletionSentAt: today,
-    history: [...(p.history || []), {
-      status: 'Uždarytas',
-      date: today,
-      note: 'Savivaldybei išsiųstas atsakymas apie darbų pabaigimą',
-    }],
-  });
-  dbSet('kl-permits', updatedPermits);
-  } // end if (permit)
-
-  // Pašalinti iš sąrašo
-  dbSet('kl-sav-close-requests', requests.filter((r) => r.id !== requestId));
-
-  res.json({ ok: true });
-});
-
-// Išvalyti apdorotų laiškų sąrašą — leidžia iš naujo patikrinti visus laiškus
-app.post('/api/admin/clear-imap-done', (req, res) => {
-  dbSet('kl-imap-done', []);
-  console.log('[IMAP] kl-imap-done išvalytas — kitas tikrinimas apdoros visus laiškus iš naujo.');
-  res.json({ ok: true, message: 'IMAP done sąrašas išvalytas.' });
-});
-
-// Senoji Telia/KE-only reprocess versija pašalinta — naudojama pilna versija žemiau
-
-// ── Ieškoti savivaldybės laiško pagal prašymo numerį (arba adresą) ─────────
-// POST /api/admin/find-sav-email-by-prasnr { prasNr?, permitId? }
-app.post('/api/admin/find-sav-email-by-prasnr', async (req, res) => {
-  const { prasNr, permitId } = req.body || {};
-  if (!prasNr && !permitId) return res.status(400).json({ error: 'Trūksta prasNr arba permitId.' });
-  if (!SMTP_PASS) return res.status(500).json({ error: 'SMTP_PASS nenustatytas.' });
-
-  // Permit adresas (jei perduotas permitId)
-  const allPerms = dbGet('kl-permits') || [];
-  const linkedPermit = permitId ? allPerms.find((p) => p.id === permitId) : null;
-  const permitLocation = linkedPermit ? (linkedPermit.location || '') : '';
-
-  // 1. Pirma tikrinti kl-sav-close-requests
-  const stored = dbGet('kl-sav-close-requests') || [];
-  const found = stored.find((r) => {
-    if (prasNr && (r.leidNr === prasNr || (r.subject && r.subject.includes(prasNr)) || (r.bodyPreview && r.bodyPreview.includes(prasNr)))) return true;
-    if (permitId && r.permitId === permitId) return true;
-    return false;
-  });
-  if (found) return res.json({ ok: true, source: 'stored', request: found });
-
-  // 2. Ieškoti IMAP pašte
-  const client = new ImapFlow({
-    host: IMAP_HOST, port: IMAP_PORT, secure: true,
-    auth: { user: IMAP_USER, pass: SMTP_PASS },
-    logger: false, tls: { rejectUnauthorized: false }, connectionTimeout: 10000,
-  });
-  try {
-    await client.connect();
-    const lock = await client.getMailboxLock('INBOX');
-    let result = null;
-    try {
-      // 1) IMAP server-side text search
-      let uids = [];
-      // IMAP server-side paieška pagal prasNr (jei nurodytas)
-      if (prasNr) {
-        try { uids = await client.search({ from: 'kasimo.darbai@kaunas.lt', text: prasNr }); } catch (_) {}
-      }
-      // Fallback — visi laiškai iš šio siuntėjo
-      if (!uids.length) {
-        try { uids = await client.search({ from: 'kasimo.darbai@kaunas.lt' }); } catch (_) {}
-      }
-      // Adreso žodžiai paraiškos paieškai
-      const locWords = permitLocation
-        ? permitLocation.toLowerCase().split(/[\s,.\-\/]+/).filter((w) => w.length > 3)
-        : [];
-      for (const uid of uids.slice(-100).reverse()) { // Paskutiniai 100, naujausi pirmi
-        const msg = await client.fetchOne(uid, { envelope: true, bodyStructure: true, source: true });
-        if (!msg) continue;
-        const raw = msg.source ? msg.source.toString('utf8') : '';
-        const subj = msg.envelope?.subject || '';
-        const rawLower = raw.toLowerCase();
-        // Sutampa pagal prasNr arba adresą
-        const matchesPrasNr = prasNr && (raw.includes(prasNr) || subj.includes(prasNr));
-        const matchesAddr   = locWords.length >= 2 && locWords.filter((w) => rawLower.includes(w)).length >= 2;
-        if (!matchesPrasNr && !matchesAddr) continue;
-        // Rastas — dekoduoti laiško tekstą (ne raw RFC822)
-        const msgId = msg.envelope?.messageId || String(uid);
-        const subject = msg.envelope?.subject || '';
-        const fromAddr = msg.envelope?.from?.[0]?.address || 'kasimo.darbai@kaunas.lt';
-        // Dekodavimas kaip pagrindiniame IMAP cikle
-        let bodyText = '';
-        try {
-          const textParts = findTextPart(msg.bodyStructure);
-          for (const tp of textParts.slice(0, 3)) {
-            try {
-              const dl = await client.download(uid, tp.part, { uid: false });
-              const chunks = [];
-              for await (const chunk of dl.content) chunks.push(chunk);
-              const rawBuf = Buffer.concat(chunks);
-              const enc = (tp.encoding || '').toLowerCase();
-              let decoded;
-              if (enc === 'base64') {
-                decoded = Buffer.from(rawBuf.toString('latin1').replace(/\s/g, ''), 'base64').toString('utf8');
-              } else if (enc === 'quoted-printable' || enc === 'qp') {
-                decoded = rawBuf.toString('latin1').replace(/=\r?\n/g, '');
-                decoded = decoded.replace(/((?:=[0-9A-Fa-f]{2})+)/gi, (s) => {
-                  const bytes = s.match(/=[0-9A-Fa-f]{2}/gi).map(h => parseInt(h.slice(1), 16));
-                  try { return Buffer.from(bytes).toString('utf8'); } catch (_) { return s; }
-                });
-              } else {
-                decoded = rawBuf.toString('utf8');
-              }
-              if (tp.type === 'text/html') {
-                decoded = decoded.replace(/<br\s*\/?>/gi, '\n')
-                  .replace(/<\/?(td|th|p|div|li|h[1-6]|tr)[^>]*>/gi, ' ')
-                  .replace(/<[^>]+>/g, '')
-                  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-              }
-              bodyText += decoded + '\n';
-            } catch (_) {}
-          }
-        } catch (_) {}
-        const bodyPreview = (bodyText.trim() || raw.slice(0, 3000)).slice(0, 3000);
-        const alreadyStored2 = stored.some((r) => r.messageId === msgId);
-        if (!alreadyStored2) {
-          const newReq = {
-            id: srvUid(), messageId: msgId, subject, from: fromAddr,
-            date: msg.envelope?.date ? new Date(msg.envelope.date).toISOString() : new Date().toISOString(),
-            address: permitLocation || '', leidNr: prasNr || null,
-            permitId: permitId || null, bodyPreview,
-          };
-          stored.push(newReq);
-          dbSet('kl-sav-close-requests', stored);
-          result = newReq;
-        } else {
-          // Atnaujinti bodyPreview jei tuščias
-          const existing = stored.find((r) => r.messageId === msgId);
-          if (existing && !existing.bodyPreview && bodyText.trim()) {
-            existing.bodyPreview = bodyPreview;
-            dbSet('kl-sav-close-requests', stored);
-          }
-          result = existing || null;
-        }
-        break;
-      }
-    } finally { lock.release(); }
-    await client.logout();
-    if (result) return res.json({ ok: true, source: 'imap', request: result });
-    return res.json({ ok: false, message: 'Laiškas su šiuo numeriu nerastas.' });
-  } catch (e) {
-    try { await client.logout(); } catch (_) {}
-    console.error(`[FIND-SAV-EMAIL] Klaida: ${e.message}`);
-    return res.status(500).json({ error: e.message });
-  }
-});
 
 // Rankinis IMAP tikrinimo paleidimas per API
 app.post('/api/admin/check-mail', async (req, res) => {
@@ -3585,70 +3270,4 @@ app.post('/api/extract-municipality', async (req, res) => {
     if (filename) {
       fpath = path.join(__dirname, 'uploads', path.basename(filename));
     } else if (url) {
-      // url gali būti "/uploads/xxx.pdf" arba "/public/xxx.pdf"
-      const rel = url.replace(/^\/+/, '');
-      fpath = path.join(__dirname, rel);
-      if (!fs.existsSync(fpath)) fpath = path.join(__dirname, 'public', rel);
-    }
-    if (!fpath || !fs.existsSync(fpath)) {
-      return res.json({ municipality: null, error: 'Failas nerastas: ' + (fpath || '?') });
-    }
-    const buf = fs.readFileSync(fpath);
-    const parsed = await pdfParse(buf);
-    const text = parsed.text || '';
-
-    // Ieškome savivaldybės pavadinimo PDF tekste
-    const municipality = extractMunicipalityFromText(text);
-    console.log('[MUN] Iš PDF:', path.basename(fpath), '→', municipality || 'nerasta');
-    res.json({ municipality, text: text.slice(0, 800) });
-  } catch (e) {
-    console.warn('[MUN] Klaida:', e.message);
-    res.json({ municipality: null, error: e.message });
-  }
-});
-
-function extractMunicipalityFromText(text) {
-  if (!text) return null;
-  // 1. Ieškome "X r. sav." arba "X m. sav." (pilnas pavadinimas)
-  const m1 = text.match(/([A-ZŠŽČĘĖĮŪĄ][a-ząšžčęėįūąA-ZŠŽČĘĖĮŪĄ\-]+(?: [a-ząšžčęėįūą]+)?)\s+(?:r|m)\.\s*sav\./);
-  if (m1) return m1[0].replace(/\s+/g, ' ').trim();
-  // 2. Ieškome "X sav." (pvz. Marijampolės sav., Elektrėnų sav.)
-  const m2 = text.match(/([A-ZŠŽČĘĖĮŪĄ][a-ząšžčęėįūąA-ZŠŽČĘĖĮŪĄ\-]+(?: [a-ząšžčęėįūą]+)?)\s+sav\./);
-  if (m2) return m2[0].replace(/\s+/g, ' ').trim();
-  return null;
-}
-
-// ── Versija iš package.json ───────────────────────────────────
-app.get('/api/version', (req, res) => {
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
-    res.json({ version: pkg.version });
-  } catch (e) {
-    res.json({ version: '?' });
-  }
-});
-
-// ── Start server ──────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n  🚧 Kasimo leidimai veikia: http://localhost:${PORT}\n`);
-  console.log(`  🗄️  Duomenų bazė: ${DB_FILE}`);
-
-  setTimeout(() => {
-    const settings = dbGet('kl-settings') || {};
-    syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
-      console.log('[SYNC] El. pašto sinchronizacija:', r.log.join('\n       '));
-    });
-  }, 3000);
-
-  // IMAP tikrinimas: iš karto po 10 sek., tada kas 15 min.
-  setTimeout(() => {
-    checkImapMail().then((r) => {
-      if (r.checked > 0) console.log(`[IMAP] Pradinis tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
-    });
-    setInterval(() => {
-      checkImapMail().then((r) => {
-        if (r.checked > 0) console.log(`[IMAP] Tikrinimas: ${r.checked} laiškų, ${r.processed} apdorota.`);
-      });
-    }, 15 * 60 * 1000); // kas 15 minučių
-  }, 10000);
-});
+      // url ga
