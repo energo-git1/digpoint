@@ -2625,6 +2625,7 @@ function PermitDetail(p){
   }
   var _senDocs=useState(null);var senDocs=_senDocs[0],sSenDocs=_senDocs[1]; // null = neįkeltas dar
   var _senSelected=useState({});var senSelected=_senSelected[0],sSenSelected=_senSelected[1];
+  var _senExtraPhotos=useState([]);var senExtraPhotos=_senExtraPhotos[0],sSenExtraPhotos=_senExtraPhotos[1];
   useEffect(function(){
     var docs=getSeniunijaFilenames();
     sSenDocs(docs);
@@ -4235,6 +4236,34 @@ function PermitDetail(p){
                 </div>
               </div>;
             })()}
+            {/* Papildomos nuotraukos įkėlimas tiesiai čia */}
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>
+                Pridėti nuotraukas seniūnijai
+                {senExtraPhotos.length>0&&<span style={{color:C.gn,fontWeight:600,marginLeft:6}}>{senExtraPhotos.length} failai</span>}
+              </div>
+              <FileDropZone files={senExtraPhotos}
+                onAdd={function(f){
+                  sSenExtraPhotos(function(prev){return prev.concat([f]);});
+                  sSenDocs(function(prev){
+                    var exists=prev&&prev.find(function(d){return d.filename===f.filename;});
+                    if(exists)return prev;
+                    var updated=(prev||[]).concat([{filename:f.filename,name:f.name,label:"Gerbūvio nuotr."}]);
+                    return updated;
+                  });
+                  sSenSelected(function(prev){var n=Object.assign({},prev);n[f.filename]=true;return n;});
+                  sMergedPdf(null);
+                }}
+                onRemove={function(i){
+                  var removed=senExtraPhotos[i];
+                  sSenExtraPhotos(function(prev){return prev.filter(function(_,idx){return idx!==i;});});
+                  if(removed){
+                    sSenDocs(function(prev){return (prev||[]).filter(function(d){return d.filename!==removed.filename;});});
+                    sSenSelected(function(prev){var n=Object.assign({},prev);delete n[removed.filename];return n;});
+                    sMergedPdf(null);
+                  }
+                }}/>
+            </div>
             {/* Dokumentų sąrašas */}
             {senDocs&&senDocs.length>0&&<div style={{marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>Dokumentai siunčiami seniūnijai</div>
@@ -4247,7 +4276,6 @@ function PermitDetail(p){
                 <span style={{fontSize:10,color:C.t3,fontFamily:F}}>({doc.label})</span>
               </label>})}
             </div>}
-            {senDocs&&senDocs.length===0&&<div style={{fontSize:11,color:C.rd,fontFamily:F,marginBottom:8}}>⚠️ Nėra dokumentų siunčiamų seniūnijai. Pridėkite nuotraukas uždarymo sekcijoje.</div>}
 
             {/* Sujungimo ir peržiūros mygtukas */}
             <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
