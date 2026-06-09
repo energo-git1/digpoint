@@ -1581,6 +1581,7 @@ function EsoSubmitBtn(p){
     var hasTelia=orgs.indexOf("Telia, Kaunas")!==-1;
     var hasKE=orgs.indexOf("Kauno energija")!==-1;
     var sent=[];
+    var updated=Object.assign({},o);
 
     if(hasTelia&&o.pendingEmail&&!o.pendingEmail.cancelled){
       var teliaWarnings=(o.pendingEmail.warnings||[]);
@@ -1591,6 +1592,7 @@ function EsoSubmitBtn(p){
         var permitWithTelia=existingSrcs.length>0?o:(await preparePendingTeliaEmail(o,null));
         await approveAndSendTelia(permitWithTelia);
         sent.push("Telia");
+        updated=Object.assign({},updated,{pendingEmail:null,history:(updated.history||[]).concat([{status:updated.status,date:fmtDate(new Date()),note:"Telia laiskas issiustas"}])});
       }catch(e){alert("Telia klaida: "+e.message);}
     }
     if(hasKE&&o.pendingKauoenergijaEmail){
@@ -1599,10 +1601,15 @@ function EsoSubmitBtn(p){
         var kePermit=existingKESrcs.length>0?o:(Object.assign({},o,{pendingKauoenergijaEmail:await preparePendingKauoenergijaEmail(o,null)}));
         await approveAndSendKauoenergija(kePermit);
         sent.push("KE");
+        updated=Object.assign({},updated,{pendingKauoenergijaEmail:null,history:(updated.history||[]).concat([{status:updated.status,date:fmtDate(new Date()),note:"Kauno energija laiskas issiustas"}])});
       }catch(e){alert("KE klaida: "+e.message);}
     }
     if(sent.length>0){
-      alert("✅ Išsiųsta: "+sent.join(", "));
+      var anyPending=updated.pendingEmail||updated.pendingKauoenergijaEmail||updated.pendingTeliaInvEmail||updated.pendingLitgridEmail;
+      if(!anyPending){
+        updated=Object.assign({},updated,{status:"Pateikta",history:(updated.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Visi laiškai institucijoms išsiusti"}])});
+      }
+      if(p.onSend)p.onSend(updated);
     } else {
       alert("ℹ️ Telia/KE jau išsiųsti arba nereikalingi.");
     }
@@ -3732,7 +3739,7 @@ function PermitDetail(p){
       {/* Admin veiksmai — slepiame uždarytoms paraiškoms */}
       {isA&&o.status!=="Uždarytas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Administravimas</div>
-        {(o.organization==="AB ESO"||(o.organizations||[]).indexOf("AB ESO")!==-1)&&o.status!=="Pateikta"&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&o.status!=="Uždarytas"&&o.status!=="Nebegalioja"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
+        {(o.organization==="AB ESO"||(o.organizations||[]).indexOf("AB ESO")!==-1)&&o.status!=="Pateikta"&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&o.status!=="Uždarytas"&&o.status!=="Nebegalioja"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}} onSend={p.onSend}/>}
         <div style={{marginBottom:12}}>
           <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:6,fontFamily:F}}>Priskirti dokumentacijos darbuotojui:</div>
           {docsWorkers.length===0
@@ -3907,7 +3914,7 @@ function PermitDetail(p){
       {/* Dokumentacija veiksmai */}
       {isD&&o.assignedTo===p.user.id&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Veiksmai</div>
-        {(o.organization==="AB ESO"||(o.organizations||[]).indexOf("AB ESO")!==-1)&&o.status!=="Pateikta"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}}/>}
+        {(o.organization==="AB ESO"||(o.organizations||[]).indexOf("AB ESO")!==-1)&&o.status!=="Pateikta"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}} onSend={p.onSend}/>}
         {(o.organization==="Kauno miesto savivaldybe"||(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1)&&<SavivaldybeSubmitBtn permit={o} user={p.user}/>}
         <Sel label="Busena" value={st} onChange={sSt} options={[{value:"Pateikta",label:"Pateikta"},{value:"Gautas leidimas",label:"Gautas leidimas"},{value:"Atmestas",label:"Atmestas"}]}/>
         <Inp label="Pastaba" value={note} onChange={sNote} ml rows={2} ph="Papildoma informacija..."/>
