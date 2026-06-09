@@ -2254,7 +2254,7 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
     const base = path.basename(fn);
     const found = allPermitFiles.find((f) => f.filename === base);
     if (found && found.name) return found.name;
-    return base.replace(/^[a-f0-9]{8,}_/i, '');
+    return base.replace(/^[a-z0-9]{6,}_/i, '');
   }
   if (Array.isArray(photoFilenames) && photoFilenames.length > 0) {
     for (const fn of photoFilenames) {
@@ -2278,10 +2278,26 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
   const bodyMain = (customText && customText.trim())
     ? customText.trim()
     : `Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.`;
-  // Cituojamas originalas apačioje
+  // Cituojamas originalas apačioje (be raw email headerių)
+  function cleanBodyPreview(text) {
+    if (!text) return '';
+    const headerPat = /^(Return-Path|Received|X-Spam|X-Virus|MIME-Version|Content-Type|Content-Transfer|Message-ID|Date:|From:|To:|Subject:|Reply-To|Delivered-To|ARC-|DKIM-|Authentication-Results|References:|In-Reply-To)\s*:/i;
+    const lines = text.split('\n');
+    // Rasti pirmą eilutę, kuri atrodo kaip raw header bloko pradžia
+    let cutAt = lines.length;
+    for (let i = 0; i < lines.length; i++) {
+      if (headerPat.test(lines[i].trim())) {
+        // Jei ≥3 header eilutės iš eilės — turbūt raw header blokas, pjauti čia
+        const next = lines.slice(i, i + 3).filter(l => headerPat.test(l.trim()) || l.trim() === '');
+        if (next.length >= 2) { cutAt = i; break; }
+      }
+    }
+    return lines.slice(0, cutAt).join('\n').trim();
+  }
   const sentDate = request.date ? new Date(request.date).toLocaleString('lt-LT') : '';
-  const quotedOriginal = request.bodyPreview
-    ? `\n\n--- Originalus laiškas ---\nNuo: ${request.from}\nData: ${sentDate}\nTema: ${request.subject}\n\n${request.bodyPreview.split('\n').map(l => '> ' + l).join('\n')}`
+  const cleanPreview = cleanBodyPreview(request.bodyPreview);
+  const quotedOriginal = cleanPreview
+    ? `\n\n--- Originalus laiškas ---\nNuo: ${request.from}\nData: ${sentDate}\nTema: ${request.subject}\n\n${cleanPreview.split('\n').map(l => '> ' + l).join('\n')}`
     : '';
   const replyText = bodyMain + REPLY_SIGNATURE + quotedOriginal;
 
