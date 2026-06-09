@@ -2103,10 +2103,10 @@ app.post('/api/admin/send-sav-completion', async (req, res) => {
   const SAV_EMAIL   = testEmail || 'kasimo.darbai@kaunas.lt';
   const SIGNATURE   = `\n\nPagarbiai,\n\nEimutis Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu`;
   const subject     = `Pranešimas apie kasimo darbų pabaigą — ${location}`;
-  const prasNrLine  = finalPrasNr ? `\nPrašymo Nr.: ${finalPrasNr}` : '';
+  const prasNrLine  = finalPrasNr ? `\n\nPrašymo Nr.: ${finalPrasNr}` : '';
   const bodyText    = (emailBody && emailBody.trim())
     ? emailBody.trim() + SIGNATURE
-    : `Laba diena,\n\nPranešame, kad kasimo darbai ${location} yra baigti.${prasNrLine}\nPridedam gerbūvio nuotraukas.${SIGNATURE}`;
+    : `Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.${prasNrLine}${SIGNATURE}`;
 
   const attachments = [];
   for (const fn of (photoFilenames || [])) {
