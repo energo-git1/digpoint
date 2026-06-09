@@ -1198,7 +1198,7 @@ async function _checkImapMailImpl() {
                       from: fromAddr, date: new Date().toISOString(),
                       address: rawAddrI, leidNr, leidFrom, leidUntil,
                       permitId: bestPermitI ? bestPermitI.id : null,
-                      bodyPreview: bodyText.slice(0, 600),
+                      bodyPreview: bodyText.slice(0, 3000),
                     });
                     dbSet('kl-sav-close-requests', closeRequests);
                   }
@@ -2247,11 +2247,19 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
   const { photoFilenames } = req.body || {};
   const attachments = [];
   // 1) Nuotraukos iš UI (savPhotos)
+  // Originalus failo vardas: ieškome permit.files arba permit.closeFiles, fallback — nupjauname UUID prefiksą
+  const allPermitFiles = [...(permit ? (permit.files||[]) : []), ...(permit ? (permit.closeFiles||[]) : []), ...(permit ? (permit.beforeFiles||[]) : [])];
+  function originalName(fn) {
+    const base = path.basename(fn);
+    const found = allPermitFiles.find((f) => f.filename === base);
+    if (found && found.name) return found.name;
+    return base.replace(/^[a-f0-9]{8,}_/i, '');
+  }
   if (Array.isArray(photoFilenames) && photoFilenames.length > 0) {
     for (const fn of photoFilenames) {
       const fp = path.join(UPLOAD_DIR, path.basename(fn));
       if (fs.existsSync(fp)) {
-        attachments.push({ filename: path.basename(fn).replace(/^[a-z0-9]+_/, ''), content: fs.readFileSync(fp) });
+        attachments.push({ filename: originalName(fn), content: fs.readFileSync(fp) });
       }
     }
   }
@@ -2264,10 +2272,17 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
   }
 
   const { replyText: customText } = req.body || {};
+  const REPLY_SIGNATURE = `\n\nPagarbiai,\n\nEimutis Šimkus\nProjektuotojas\nUAB „EnergoLT"\nV. Krėvės pr. 120, LT-51119 Kaunas\nMob. +370 686 31 370 5\nEl. p. uzklausos@energolt.eu`;
   const replySubject = request.subject.startsWith('Re:') ? request.subject : 'Re: ' + request.subject;
-  const replyText = (customText && customText.trim())
-    ? customText.trim() + '\n\nPagarbiai,\nEnergoLT'
-    : 'Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.\n\nPagarbiai,\nEnergoLT';
+  const bodyMain = (customText && customText.trim())
+    ? customText.trim()
+    : `Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.`;
+  // Cituojamas originalas apačioje
+  const sentDate = request.date ? new Date(request.date).toLocaleString('lt-LT') : '';
+  const quotedOriginal = request.bodyPreview
+    ? `\n\n--- Originalus laiškas ---\nNuo: ${request.from}\nData: ${sentDate}\nTema: ${request.subject}\n\n${request.bodyPreview.split('\n').map(l => '> ' + l).join('\n')}`
+    : '';
+  const replyText = bodyMain + REPLY_SIGNATURE + quotedOriginal;
 
   try {
     await sendAndSave({
@@ -2360,7 +2375,7 @@ app.post('/api/admin/find-sav-email-by-prasnr', async (req, res) => {
           const newReq = {
             id: srvUid(), messageId: msgId, subject, from: fromAddr,
             date: new Date().toISOString(), address: '', leidNr: prasNr,
-            permitId: null, bodyPreview: raw.slice(0, 600),
+            permitId: null, bodyPreview: raw.slice(0, 3000),
           };
           stored.push(newReq);
           dbSet('kl-sav-close-requests', stored);
