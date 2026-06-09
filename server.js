@@ -2102,9 +2102,9 @@ app.post('/api/admin/send-seniunija-closure', async (req, res) => {
 });
 
 // ── Pranešimas savivaldybei apie darbų pabaigą ───────────────
-// POST /api/admin/send-sav-completion { permitId, emailBody, photoFilenames, testEmail? }
+// POST /api/admin/send-sav-completion { permitId, emailBody, photoFilenames, testEmail?, testOnly? }
 app.post('/api/admin/send-sav-completion', async (req, res) => {
-  const { permitId, emailBody, photoFilenames, prasNr: reqPrasNr, testEmail } = req.body || {};
+  const { permitId, emailBody, photoFilenames, prasNr: reqPrasNr, testEmail, testOnly } = req.body || {};
   if (!permitId) return res.status(400).json({ error: 'Trūksta permitId.' });
 
   const permits = dbGet('kl-permits') || [];
@@ -2145,6 +2145,9 @@ app.post('/api/admin/send-sav-completion', async (req, res) => {
     console.error(`[SAV-COMPLETION] Klaida: ${e.message}`);
     return res.status(500).json({ error: e.message });
   }
+
+  // Testas — tik laiškas, DB nelieičame
+  if (testOnly) return res.json({ ok: true, testOnly: true });
 
   const today = fmtDateSrv(new Date());
   dbSet('kl-permits', permits.map((p) => p.id !== permitId ? p : {
@@ -2231,9 +2234,9 @@ app.get('/api/admin/match-sav-email', (req, res) => {
 });
 
 // ── Atsakymas į Kauno sav. uždarymo pranešimą ────────────────
-// POST /api/admin/reply-sav-closure { requestId, permitId, testEmail? }
+// POST /api/admin/reply-sav-closure { requestId, permitId, testEmail?, testOnly? }
 app.post('/api/admin/reply-sav-closure', async (req, res) => {
-  const { requestId, permitId, prasNr, testEmail } = req.body || {};
+  const { requestId, permitId, prasNr, testEmail, testOnly } = req.body || {};
   if (!requestId) return res.status(400).json({ error: 'Trūksta requestId.' });
 
   const requests = dbGet('kl-sav-close-requests') || [];
@@ -2317,6 +2320,9 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
     console.error(`[SAV-CLOSE] Laiško klaida: ${e.message}`);
     return res.status(500).json({ error: e.message });
   }
+
+  // Testas — tik laiškas, DB nelieičame
+  if (testOnly) return res.json({ ok: true, testOnly: true });
 
   // Atnaujinti paraiškos statusą (jei yra susijusi paraiška)
   const today = fmtDateSrv(new Date());

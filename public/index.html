@@ -4064,7 +4064,7 @@ function PermitDetail(p){
                 var r=await fetch('/api/admin/send-sav-completion',{method:'POST',headers:{'Content-Type':'application/json'},
                   body:JSON.stringify({permitId:o.id,emailBody:savCompText,prasNr:savPrasNr||"",
                     photoFilenames:savCompPhotos.map(function(f){return f.filename;}).filter(Boolean),
-                    testEmail:"eimutis.simkus@energolt.eu"})});
+                    testEmail:"eimutis.simkus@energolt.eu",testOnly:true})});
                 var d=await r.json();
                 if(!r.ok){sSavCompBusy(false);sSavCompMsg("❌ "+(d.error||"Klaida"));return;}
                 sSavCompBusy(false);sSavCompMsg("✅ Testo laiškas išsiųstas → eimutis.simkus@energolt.eu");
@@ -4138,7 +4138,7 @@ function PermitDetail(p){
                   prasNr:savPrasNr||"",
                   photoFilenames:savCompPhotos.map(function(f){return f.filename;}).filter(Boolean),
                   replyText:savCompText||"",
-                  testEmail:"eimutis.simkus@energolt.eu"})});
+                  testEmail:"eimutis.simkus@energolt.eu",testOnly:true})});
               var d=await r.json();
               if(!r.ok){sSavCompBusy(false);sSavCompMsg("❌ "+(d.error||"Klaida"));return;}
               sSavCompBusy(false);sSavCompMsg("✅ Testo laiškas → eimutis.simkus@energolt.eu");
