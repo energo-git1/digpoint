@@ -368,41 +368,28 @@
         }
       };
 
-      // Pirma reikia paspausti "ESO rangovas" → "Toliau"
-      // Laukiame kol atsiras sekcija
+      // Laukiame kol vartotojas pasirenka rangovo tipą ir pereina į formos puslapį
+      // NESPAUČIAME "Toliau" — vartotojas pats turi pasirinkti rangovo tipą
       const tryFill = (attempt = 0) => {
-        if (attempt > 40) { log('ESO: timeout, bandykite rankiniu būdu'); return; }
+        if (attempt > 120) { log('ESO: timeout (60s), bandykite rankiniu būdu'); return; }
 
-        // Jei Angular forma dar nekraunama — laukiame
         const addrInput = document.querySelector('input[name="obj_address"]');
         if (!addrInput) {
-          // Gal reikia spausti "Toliau" ties "ESO rangovas"
-          const toliau = Array.from(document.querySelectorAll('button')).find(b =>
-            b.textContent.includes('Toliau') && b.closest('[class*="rangovas"],[class*="step"],[class*="section"]')
-          );
-          if (!toliau) {
-            // Bandome rasti bet kokį "Toliau" mygtuką
-            const anyToliau = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Toliau');
-            if (anyToliau && attempt < 3) {
-              log(`ESO: spaudžiamas "Toliau" (${attempt + 1})`);
-              anyToliau.click();
-            }
-          } else {
-            toliau.click();
-            log('ESO: "Toliau" paspaustas');
-          }
+          // Forma dar nepasirodė — laukiame toliau (kas 500ms, iki 60s)
+          if (attempt === 0) log('ESO: laukiama kol pasirodys forma (pasirinkite rangovo tipą ir spauskite Toliau)...');
           setTimeout(() => tryFill(attempt + 1), 500);
           return;
         }
 
         // Forma paruošta — pildome
+        log('ESO: forma pasirodė — pildome laukus');
         if (!fillAngular()) {
           setTimeout(() => tryFill(attempt + 1), 500);
         }
       };
 
-      // Pradedame po 1s (puslapiui stabilizuotis)
-      setTimeout(() => tryFill(), 1000);
+      // Pradedame tikrinti po 2s (puslapiui stabilizuotis)
+      setTimeout(() => tryFill(), 2000);
     }
 
     if (hashMatch) {
@@ -425,48 +412,3 @@
   }
 
 })();
- {
-            toliau.click();
-            log('ESO: "Toliau" paspaustas');
-          }
-          setTimeout(() => tryFill(attempt + 1), 500);
-          return;
-        }
-
-        // Forma paruošta — pildome
-        if (!fillAngular()) {
-          setTimeout(() => tryFill(attempt + 1), 500);
-        }
-      };
-
-      // Pradedame po 1s (puslapiui stabilizuotis)
-      setTimeout(() => tryFill(), 1000);
-    }
-
-    if (hashMatch) {
-      try {
-        const task = JSON.parse(decodeURIComponent(escape(atob(hashMatch[1]))));
-        log('ESO: duomenys iš URL hash');
-        fillEsoForm(task);
-      } catch (e) { log('Hash klaida: ' + e.message); }
-    } else {
-      // Bandome iš kl-eso-tasks
-      digpointGet('/api/store/kl-eso-tasks', (err, data) => {
-        if (err || !data || !data.value) { log('ESO: nėra užduočių'); return; }
-        const tasks = (data.value || []).filter(t => t.status === 'pending');
-        if (!tasks.length) { log('ESO: nėra pending užduočių'); return; }
-        log(`ESO: rasta ${tasks.length} užduotis`);
-        fillEsoForm(tasks[0]);
-      });
-    }
-    return;
-  }
-
-})();
-;
-    }
-    return;
-  }
-
-})();
-)();
