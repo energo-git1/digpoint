@@ -4041,6 +4041,7 @@ function PermitDetail(p){
                 onRemove={function(i){sSavCompPhotos(function(prev){return prev.filter(function(_,idx){return idx!==i;});});}}/>
             </div>
             {savCompMsg&&<div style={{fontSize:11,color:savCompMsg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{savCompMsg}</div>}
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
             <Btn onClick={function(){(async function(){
               sSavCompBusy(true);sSavCompMsg("");
               try{
@@ -4056,6 +4057,21 @@ function PermitDetail(p){
             })()}} sm disabled={savCompBusy} style={{background:"#2563EB",color:"#fff",border:"none",opacity:savCompBusy?0.6:1}}>
               {savCompBusy?"Siunčiama...":"📤 Siųsti savivaldybei"}
             </Btn>
+            <Btn onClick={function(){(async function(){
+              sSavCompBusy(true);sSavCompMsg("");
+              try{
+                var r=await fetch('/api/admin/send-sav-completion',{method:'POST',headers:{'Content-Type':'application/json'},
+                  body:JSON.stringify({permitId:o.id,emailBody:savCompText,prasNr:savPrasNr||"",
+                    photoFilenames:savCompPhotos.map(function(f){return f.filename;}).filter(Boolean),
+                    testEmail:"eimutis.simkus@energolt.eu"})});
+                var d=await r.json();
+                if(!r.ok){sSavCompBusy(false);sSavCompMsg("❌ "+(d.error||"Klaida"));return;}
+                sSavCompBusy(false);sSavCompMsg("✅ Testo laiškas išsiųstas → eimutis.simkus@energolt.eu");
+              }catch(e){sSavCompBusy(false);sSavCompMsg("❌ Serverio klaida");}
+            })()}} sm disabled={savCompBusy} style={{background:"#6B7280",color:"#fff",border:"none",opacity:savCompBusy?0.6:1}}>
+              🧪 Testas
+            </Btn>
+            </div>
           </div>}
       </div>}
 
@@ -4094,6 +4110,7 @@ function PermitDetail(p){
               onRemove={function(i){sSavCompPhotos(function(prev){return prev.filter(function(_,idx){return idx!==i;});});}}/>
           </div>
           {savCompMsg&&<div style={{fontSize:11,color:savCompMsg.startsWith("✅")?C.gn:C.rd,fontFamily:F,marginBottom:8,fontWeight:600}}>{savCompMsg}</div>}
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <Btn onClick={function(){(async function(){
             sSavCompBusy(true);sSavCompMsg("");
             try{
@@ -4112,6 +4129,23 @@ function PermitDetail(p){
           })()}} sm disabled={savCompBusy} style={{background:"#059669",color:"#fff",border:"none",opacity:savCompBusy?0.6:1}}>
             {savCompBusy?"Siunčiama...":"📤 Atsakyti savivaldybei"}
           </Btn>
+          <Btn onClick={function(){(async function(){
+            sSavCompBusy(true);sSavCompMsg("");
+            try{
+              var r=await fetch('/api/admin/reply-sav-closure',{method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({requestId:req.id,permitId:o.id,
+                  prasNr:savPrasNr||"",
+                  photoFilenames:savCompPhotos.map(function(f){return f.filename;}).filter(Boolean),
+                  replyText:savCompText||"",
+                  testEmail:"eimutis.simkus@energolt.eu"})});
+              var d=await r.json();
+              if(!r.ok){sSavCompBusy(false);sSavCompMsg("❌ "+(d.error||"Klaida"));return;}
+              sSavCompBusy(false);sSavCompMsg("✅ Testo laiškas → eimutis.simkus@energolt.eu");
+            }catch(e){sSavCompBusy(false);sSavCompMsg("❌ Serverio klaida");}
+          })()}} sm disabled={savCompBusy} style={{background:"#6B7280",color:"#fff",border:"none",opacity:savCompBusy?0.6:1}}>
+            🧪 Testas
+          </Btn>
+          </div>
         </div>;
       })()}
 

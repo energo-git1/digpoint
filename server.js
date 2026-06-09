@@ -2102,9 +2102,9 @@ app.post('/api/admin/send-seniunija-closure', async (req, res) => {
 });
 
 // ── Pranešimas savivaldybei apie darbų pabaigą ───────────────
-// POST /api/admin/send-sav-completion { permitId, emailBody, photoFilenames }
+// POST /api/admin/send-sav-completion { permitId, emailBody, photoFilenames, testEmail? }
 app.post('/api/admin/send-sav-completion', async (req, res) => {
-  const { permitId, emailBody, photoFilenames, prasNr: reqPrasNr } = req.body || {};
+  const { permitId, emailBody, photoFilenames, prasNr: reqPrasNr, testEmail } = req.body || {};
   if (!permitId) return res.status(400).json({ error: 'Trūksta permitId.' });
 
   const permits = dbGet('kl-permits') || [];
@@ -2130,11 +2130,12 @@ app.post('/api/admin/send-sav-completion', async (req, res) => {
   const matchedReq = finalPrasNr
     ? closeRequests.find((r) => r.leidNr === finalPrasNr || (r.subject && r.subject.includes(finalPrasNr)) || (r.bodyPreview && r.bodyPreview.includes(finalPrasNr)))
     : null;
+  const toAddr = testEmail || (matchedReq ? matchedReq.from || SAV_EMAIL : SAV_EMAIL);
   const mailOpts = matchedReq
-    ? { from: MAIL_FROM_EXTERNAL, to: matchedReq.from || SAV_EMAIL,
+    ? { from: MAIL_FROM_EXTERNAL, to: toAddr,
         subject: matchedReq.subject ? (matchedReq.subject.startsWith('Re:') ? matchedReq.subject : 'Re: ' + matchedReq.subject) : subject,
         text: bodyText, attachments, inReplyTo: matchedReq.messageId, references: matchedReq.messageId }
-    : { from: MAIL_FROM_EXTERNAL, to: SAV_EMAIL, subject, text: bodyText, attachments };
+    : { from: MAIL_FROM_EXTERNAL, to: toAddr, subject, text: bodyText, attachments };
 
   try {
     await sendAndSave(mailOpts);
@@ -2230,9 +2231,9 @@ app.get('/api/admin/match-sav-email', (req, res) => {
 });
 
 // ── Atsakymas į Kauno sav. uždarymo pranešimą ────────────────
-// POST /api/admin/reply-sav-closure { requestId, permitId }
+// POST /api/admin/reply-sav-closure { requestId, permitId, testEmail? }
 app.post('/api/admin/reply-sav-closure', async (req, res) => {
-  const { requestId, permitId, prasNr } = req.body || {};
+  const { requestId, permitId, prasNr, testEmail } = req.body || {};
   if (!requestId) return res.status(400).json({ error: 'Trūksta requestId.' });
 
   const requests = dbGet('kl-sav-close-requests') || [];
@@ -2284,17 +2285,18 @@ app.post('/api/admin/reply-sav-closure', async (req, res) => {
     : '';
   const replyText = bodyMain + REPLY_SIGNATURE + quotedOriginal;
 
+  const replyTo = testEmail || request.from;
   try {
     await sendAndSave({
       from: MAIL_FROM_EXTERNAL,
-      to: request.from,
+      to: replyTo,
       subject: replySubject,
       text: replyText,
       inReplyTo: request.messageId,
       references: request.messageId,
       attachments,
     });
-    console.log(`[SAV-CLOSE] Atsakymas išsiųstas → ${request.from} | ${replySubject} | ${attachments.length} priedai`);
+    console.log(`[SAV-CLOSE] Atsakymas išsiųstas → ${replyTo}${testEmail ? ' [TEST]' : ''} | ${replySubject} | ${attachments.length} priedai`);
   } catch (e) {
     console.error(`[SAV-CLOSE] Laiško klaida: ${e.message}`);
     return res.status(500).json({ error: e.message });
