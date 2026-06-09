@@ -2358,20 +2358,25 @@ app.post('/api/admin/clear-imap-done', (req, res) => {
 
 // Senoji Telia/KE-only reprocess versija pašalinta — naudojama pilna versija žemiau
 
-// ── Ieškoti savivaldybės laiško pagal prašymo numerį ─────────
-// POST /api/admin/find-sav-email-by-prasnr { prasNr }
+// ── Ieškoti savivaldybės laiško pagal prašymo numerį (arba adresą) ─────────
+// POST /api/admin/find-sav-email-by-prasnr { prasNr?, permitId? }
 app.post('/api/admin/find-sav-email-by-prasnr', async (req, res) => {
-  const { prasNr } = req.body || {};
-  if (!prasNr) return res.status(400).json({ error: 'Trūksta prasNr.' });
+  const { prasNr, permitId } = req.body || {};
+  if (!prasNr && !permitId) return res.status(400).json({ error: 'Trūksta prasNr arba permitId.' });
   if (!SMTP_PASS) return res.status(500).json({ error: 'SMTP_PASS nenustatytas.' });
+
+  // Permit adresas (jei perduotas permitId)
+  const allPerms = dbGet('kl-permits') || [];
+  const linkedPermit = permitId ? allPerms.find((p) => p.id === permitId) : null;
+  const permitLocation = linkedPermit ? (linkedPermit.location || '') : '';
 
   // 1. Pirma tikrinti kl-sav-close-requests
   const stored = dbGet('kl-sav-close-requests') || [];
-  const found = stored.find((r) =>
-    r.leidNr === prasNr ||
-    (r.subject && r.subject.includes(prasNr)) ||
-    (r.bodyPreview && r.bodyPreview.includes(prasNr))
-  );
+  const found = stored.find((r) => {
+    if (prasNr && (r.leidNr === prasNr || (r.subject && r.subject.includes(prasNr)) || (r.bodyPreview && r.bodyPreview.includes(prasNr)))) return true;
+    if (permitId && r.permitId === permitId) return true;
+    return false;
+  });
   if (found) return res.json({ ok: true, source: 'stored', request: found });
 
   // 2. Ieškoti IMAP pašte
@@ -2387,20 +2392,28 @@ app.post('/api/admin/find-sav-email-by-prasnr', async (req, res) => {
     try {
       // 1) IMAP server-side text search
       let uids = [];
-      try {
-        uids = await client.search({ from: 'kasimo.darbai@kaunas.lt', text: prasNr });
-      } catch (_) {}
-      // 2) Fallback — visi laiškai iš šio siuntėjo, filtruosime rankiniu būdu
+      // IMAP server-side paieška pagal prasNr (jei nurodytas)
+      if (prasNr) {
+        try { uids = await client.search({ from: 'kasimo.darbai@kaunas.lt', text: prasNr }); } catch (_) {}
+      }
+      // Fallback — visi laiškai iš šio siuntėjo
       if (!uids.length) {
         try { uids = await client.search({ from: 'kasimo.darbai@kaunas.lt' }); } catch (_) {}
       }
-      for (const uid of uids.slice(-50).reverse()) { // Paskutiniai 50, naujausi pirmi
+      // Adreso žodžiai paraiškos paieškai
+      const locWords = permitLocation
+        ? permitLocation.toLowerCase().split(/[\s,.\-\/]+/).filter((w) => w.length > 3)
+        : [];
+      for (const uid of uids.slice(-100).reverse()) { // Paskutiniai 100, naujausi pirmi
         const msg = await client.fetchOne(uid, { envelope: true, bodyStructure: true, source: true });
         if (!msg) continue;
         const raw = msg.source ? msg.source.toString('utf8') : '';
-        // Tikrinti ir raw source, ir temą
         const subj = msg.envelope?.subject || '';
-        if (!raw.includes(prasNr) && !subj.includes(prasNr)) continue;
+        const rawLower = raw.toLowerCase();
+        // Sutampa pagal prasNr arba adresą
+        const matchesPrasNr = prasNr && (raw.includes(prasNr) || subj.includes(prasNr));
+        const matchesAddr   = locWords.length >= 2 && locWords.filter((w) => rawLower.includes(w)).length >= 2;
+        if (!matchesPrasNr && !matchesAddr) continue;
         // Rastas — išsaugome kl-sav-close-requests
         const msgId = msg.envelope?.messageId || String(uid);
         const subject = msg.envelope?.subject || '';
@@ -2409,8 +2422,8 @@ app.post('/api/admin/find-sav-email-by-prasnr', async (req, res) => {
         if (!alreadyStored2) {
           const newReq = {
             id: srvUid(), messageId: msgId, subject, from: fromAddr,
-            date: new Date().toISOString(), address: '', leidNr: prasNr,
-            permitId: null, bodyPreview: raw.slice(0, 3000),
+            date: new Date().toISOString(), address: permitLocation || '', leidNr: prasNr || null,
+            permitId: permitId || null, bodyPreview: raw.slice(0, 3000),
           };
           stored.push(newReq);
           dbSet('kl-sav-close-requests', stored);
