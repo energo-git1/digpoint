@@ -190,28 +190,26 @@
   if (url.includes('kasimai.kaunas.lt/mano-prasymai')) {
     log('kasimai — mano prašymai, laukiama sąrašo');
 
-    // Tikrinti ar vartotojas prisijungęs — jei ne, spausti "Prisijungti"
+    // Pirma tikriname ar yra aktyvi užduotis — tik tada vykdome bet ką
     setTimeout(() => {
-      const loginBtn = Array.from(document.querySelectorAll('a, button')).find(el => {
-        const txt = (el.textContent || '').trim();
-        return txt.startsWith('Prisijungti') && !el.closest('nav, header, .navbar');
-      });
-      if (loginBtn) {
-        log('Vartotojas neprisijungęs — spaudžiamas "Prisijungti"');
-        click(loginBtn);
-        return; // po redirect script'as paleis iš naujo
-      }
-
-      // Prisijungęs — tikrinti ar yra aktyvus kl-sav-task
       digpointGet('/api/store/kl-sav-task', (err, data) => {
-        if (err || !data || !data.value) {
+        if (err || !data || !data.value || !isActiveTask(data.value)) {
           log('Nėra aktyvios užduoties — nieko nedarome');
           return;
         }
-        if (!isActiveTask(data.value)) {
-          log('Užduotis neaktyvi arba per sena — nieko nedarome');
+
+        // Aktyvi užduotis — tikrinti ar prisijungęs
+        const loginBtn = Array.from(document.querySelectorAll('a, button')).find(el => {
+          const txt = (el.textContent || '').trim();
+          return txt.startsWith('Prisijungti') && !el.closest('nav, header, .navbar');
+        });
+        if (loginBtn) {
+          log('Aktyvus task + neprisijungęs — spaudžiamas "Prisijungti"');
+          click(loginBtn);
           return;
         }
+
+        // Prisijungęs ir aktyvi užduotis — kopijuojame prašymą
         log('Yra aktyvus kl-sav-task — kopijuojame pirmą prašymą');
         waitFor('a[href*="collapsePrasymas"]', (firstLink) => {
           setTimeout(() => {
