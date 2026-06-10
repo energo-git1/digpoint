@@ -6059,6 +6059,7 @@ function App(){
   var _detail=useState(null);var detail=_detail[0],setDetail=_detail[1];
   var _theme=useState(_t0);var theme=_theme[0],setTheme=_theme[1];
   var _filter=useState("");var filter=_filter[0],setFilter=_filter[1];
+  var _projFilter=useState("all");var projFilter=_projFilter[0],setProjFilter=_projFilter[1];
   var _prefill=useState(null);var prefill=_prefill[0],setPrefill=_prefill[1];
   var _loaded=useState(false);var loaded=_loaded[0],sL=_loaded[1];
   // Rankinis objektų sujungimas
@@ -6440,6 +6441,15 @@ function App(){
   if(filter)visible=visible.filter(function(p){return p.status===filter});
   visible=visible.slice().sort(function(a,b){return (b.createdAt||"")>(a.createdAt||"")?1:-1});
 
+  // Projekto tipo filtravimas (NV / EK / INV)
+  function getProjectType(pm){var inv=(pm.investNo||"").toUpperCase();if(/NV/.test(inv))return"NV";if(/EK/.test(inv))return"EK";return"INV";}
+  var PROJ_FILTER_VIEWS=["all","closed"];
+  var projCounts={all:visible.length,NV:0,EK:0,INV:0};
+  if(PROJ_FILTER_VIEWS.indexOf(view)!==-1){
+    visible.forEach(function(pm){projCounts[getProjectType(pm)]++;});
+    if(projFilter!=="all")visible=visible.filter(function(pm){return getProjectType(pm)===projFilter;});
+  }
+
   var main=null;
   if(view==="new"&&(user.role==="orderer"||user.role==="admin"||user.role==="dokumentacija")){
     var cancelView=user.role==="orderer"?"mine":user.role==="dokumentacija"?"inbox":"inbox";
@@ -6452,7 +6462,15 @@ function App(){
     var schedPermits=user.role==="orderer"
       ?permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id&&!(p.organizations||[]).includes('Seniūnija')})
       :permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&!(p.organizations||[]).includes('Seniūnija')});
-    main=<ScheduleView permits={schedPermits} users={users} onSelect={function(permit){setDetail(permit)}}/>;
+    var schedProjCounts={all:schedPermits.length,NV:0,EK:0,INV:0};
+    schedPermits.forEach(function(pm){schedProjCounts[getProjectType(pm)]++;});
+    if(projFilter!=="all")schedPermits=schedPermits.filter(function(pm){return getProjectType(pm)===projFilter;});
+    main=<div>
+      <div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap",padding:"0 0 10px",borderBottom:"1px solid "+C.b1}}>
+        {["all","NV","EK","INV"].map(function(t){var cnt=t==="all"?schedProjCounts.all:schedProjCounts[t];if(t!=="all"&&cnt===0)return null;var active=projFilter===t;return <button key={t} onClick={function(){setProjFilter(t);}} style={{padding:"4px 12px",borderRadius:20,border:"1.5px solid "+(active?C.prim:C.b1),background:active?C.prim:"transparent",color:active?"#fff":C.t2,fontSize:11,fontFamily:FM,fontWeight:active?700:400,cursor:"pointer"}}>{t==="all"?"Visi":t} <span style={{opacity:0.7}}>({cnt})</span></button>;})}
+      </div>
+      <ScheduleView permits={schedPermits} users={users} onSelect={function(permit){setDetail(permit)}}/>
+    </div>;
   }else if(view==="profile"){
     var defView=user.role==="orderer"?"mine":"inbox";
     main=<ProfilePage user={user} onUpdated={function(u){var upd=Object.assign({},user,u);setUser(upd);try{localStorage.setItem('kl-session',JSON.stringify(upd))}catch(e){}}} onCancel={function(){setView(defView)}}/>;
@@ -6478,6 +6496,9 @@ function App(){
           }}>Išvalyti visas</Btn>}
         </div>
       </div>
+      {(view==="all"||view==="closed")&&<div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
+        {["all","NV","EK","INV"].map(function(t){var cnt=t==="all"?projCounts.all:projCounts[t];if(t!=="all"&&cnt===0)return null;var active=projFilter===t;return <button key={t} onClick={function(){setProjFilter(t);}} style={{padding:"4px 14px",borderRadius:20,border:"1.5px solid "+(active?C.prim:C.b1),background:active?C.prim:"transparent",color:active?"#fff":C.t2,fontSize:11,fontFamily:FM,fontWeight:active?700:400,cursor:"pointer"}}>{t==="all"?"Visi":t} <span style={{opacity:0.7}}>({cnt})</span></button>;})}
+      </div>}
       {view==="all"&&<div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap"}}>
         {Object.keys(STATUS_MAP).map(function(s){var n=permits.filter(function(p){return p.status===s}).length;if(!n)return null;
           return <div key={s} style={{padding:"8px 10px",borderRadius:8,background:C.s2,border:"1px solid "+C.b1,flex:"1 1 80px",minWidth:80}}>
@@ -6570,7 +6591,7 @@ function App(){
   }
 
   return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
+    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
     <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
     {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
       onUpdate={function(u){updatePermit(u);setDetail(u)}}
