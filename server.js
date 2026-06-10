@@ -2170,6 +2170,13 @@ app.delete('/api/admin/sav-closure-pending/:id', (req, res) => {
 });
 
 
+// Išvalyti apdorotų laiškų sąrašą
+app.post('/api/admin/clear-imap-done', (req, res) => {
+  dbSet('kl-imap-done', []);
+  console.log('[ADMIN] kl-imap-done išvalytas');
+  res.json({ ok: true, cleared: true });
+});
+
 // Rankinis IMAP tikrinimo paleidimas per API
 app.post('/api/admin/check-mail', async (req, res) => {
   const meta = {
@@ -3323,10 +3330,4 @@ app.listen(PORT, () => {
     checkImapMail().then((r) => {
       if (r.checked > 0) console.log('[IMAP] Pradinis tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
     });
-    setInterval(() => {
-      checkImapMail().then((r) => {
-        if (r.checked > 0) console.log('[IMAP] Tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-      });
-    }, 15 * 60 * 1000);
-  }, 10000);
-});
+    set
