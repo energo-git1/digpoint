@@ -1206,14 +1206,13 @@ function PermitForm(p){
     if(src.location)sEsoLoc(src.location);
     if(src.teliaRouteFrom)sTrFrom(src.teliaRouteFrom);
     if(src.teliaRouteTo)sTrTo(src.teliaRouteTo);
-    // Kopijuojame tik gautų leidimų PDF (permitPdfs), ne visus files[]
+    // Kopijuojame tik gautų leidimų PDF iš permitPdfs (tiesiogiai, ne per files[])
     var pdfs=src.permitPdfs||{};
-    var permitFnames=Object.values(pdfs).filter(function(v){return v&&v.filename;}).map(function(v){return v.filename;});
-    if(permitFnames.length>0){
-      var srcPdfs=(src.files||[]).filter(function(f){return f.filename&&permitFnames.indexOf(f.filename)!==-1;});
+    var pdfEntries=Object.values(pdfs).filter(function(v){return v&&v.filename&&v.name;});
+    if(pdfEntries.length>0){
       sFiles(function(prev){
         var existing=prev.map(function(f){return f.filename||f.name;});
-        var toAdd=srcPdfs.filter(function(f){return !existing.includes(f.filename||f.name);});
+        var toAdd=pdfEntries.filter(function(f){return !existing.includes(f.filename||f.name);});
         return prev.concat(toAdd);
       });
     }
@@ -6598,16 +6597,4 @@ function App(){
   }
 
   return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
-    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
-      onUpdate={function(u){updatePermit(u);setDetail(u)}}
-      onSend={function(u){updatePermit(u);setDetail(null)}}
-      onDelete={function(id){deletePermit(id);setDetail(null)}}
-      onClose={function(){setDetail(null)}}/>}
-  </div>
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} on
