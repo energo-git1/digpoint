@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EnergoLT — Kasimo leidimai
 // @namespace    http://energolt.eu/
-// @version      1.0.3
+// @version      1.0.4
 // @description  Automatizuotas Kauno m. sav. ir ESO kasimo leidimų paraiškų pildymas
 // @author       EnergoLT
 // @match        https://kasimai.kaunas.lt/*
@@ -209,16 +209,10 @@
           return;
         }
 
-        // Prisijungęs ir aktyvi užduotis — kopijuojame prašymą
+        // Prisijungęs ir aktyvi užduotis — kopijuojame pirmą prašymą
         log('Yra aktyvus kl-sav-task — kopijuojame pirmą prašymą');
-        waitFor('a[href*="collapsePrasymas"]', (firstLink) => {
-          setTimeout(() => {
-            click(firstLink);
-            log('Pirmasis prašymas atidarytas');
-            waitForText('button', 'Kopijuoti prašymą', (btn) => {
-              setTimeout(() => { click(btn); log('"Kopijuoti prašymą" paspaustas'); }, 600);
-            }, 8000);
-          }, 1000);
+        waitForText('a', 'Kopijuoti prašymą', (btn) => {
+          setTimeout(() => { click(btn); log('"Kopijuoti prašymą" paspaustas'); }, 800);
         }, 10000);
       });
     }, 1500);
