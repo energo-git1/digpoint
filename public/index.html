@@ -6442,7 +6442,7 @@ function App(){
   visible=visible.slice().sort(function(a,b){return (b.createdAt||"")>(a.createdAt||"")?1:-1});
 
   // Projekto tipo filtravimas (NV / EK / INV)
-  function getProjectType(pm){var inv=(pm.investNo||"").toUpperCase();if(/NV/.test(inv))return"NV";if(/EK/.test(inv))return"EK";return"INV";}
+  function getProjectType(pm){var code=((pm.internalCode||pm.investNo||"")).toUpperCase();if(/NV/.test(code))return"NV";if(/EK/.test(code))return"EK";return"INV";}
   var PROJ_FILTER_VIEWS=["all","closed"];
   var projCounts={all:visible.length,NV:0,EK:0,INV:0};
   if(PROJ_FILTER_VIEWS.indexOf(view)!==-1){
