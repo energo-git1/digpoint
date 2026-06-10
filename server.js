@@ -1763,14 +1763,17 @@ app.get('/api/admin/list-sav-priedai', (req, res) => {
   if (pdfs.vandenys && pdfs.vandenys.filename) addDoc(pdfs.vandenys, 'Vandenys leidimas');
   if (pdfs.litgrid && pdfs.litgrid.filename)  addDoc(pdfs.litgrid,  'LitGrid leidimas');
 
-  // Taip pat tikrinti files[] — jei yra leidimų failų (LZD, Sutikimas ir kt.) bet jų nėra permitPdfs
+  // Taip pat tikrinti files[] — tik jei permitPdfs dar NETURI šios institucijos dokumento
+  const hasEsoPdf    = pdfs.eso      && pdfs.eso.filename;
+  const hasTeliaPdf  = (pdfs.telia   && pdfs.telia.filename) || (pdfs.telia_inv && pdfs.telia_inv.filename);
+  const hasKePdf     = pdfs.ke       && pdfs.ke.filename;
+  const hasLgPdf     = pdfs.litgrid  && pdfs.litgrid.filename;
   for (const f of (permit.files || [])) {
     if (!f.filename || !f.name) continue;
-    const fn = f.name.toLowerCase();
-    if (/^lzd[_\-]/i.test(f.name))       addDoc(f, 'Telia leidimas (files)');
-    else if (/^sutikimas[_\-]/i.test(f.name)) addDoc(f, 'ESO sutikimas (files)');
-    else if (/^ke[_\-]|^kaun.*energ/i.test(f.name)) addDoc(f, 'KE leidimas (files)');
-    else if (/^litgrid/i.test(f.name))    addDoc(f, 'LitGrid leidimas (files)');
+    if (/^lzd[_\-]/i.test(f.name)            && !hasTeliaPdf) addDoc(f, 'Telia leidimas (files)');
+    else if (/^sutikimas[_\-]/i.test(f.name)  && !hasEsoPdf)  addDoc(f, 'ESO sutikimas (files)');
+    else if (/^ke[_\-]|^kaun.*energ/i.test(f.name) && !hasKePdf) addDoc(f, 'KE leidimas (files)');
+    else if (/^litgrid/i.test(f.name)         && !hasLgPdf)   addDoc(f, 'LitGrid leidimas (files)');
   }
 
   // Nuotraukos prieš darbus
@@ -3321,19 +3324,4 @@ app.listen(PORT, () => {
 
   setTimeout(() => {
     const settings = dbGet('kl-settings') || {};
-    syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
-      console.log('[SYNC] El. pasto sinchronizacija:', r.log.join(', '));
-    });
-  }, 3000);
-
-  setTimeout(() => {
-    checkImapMail().then((r) => {
-      if (r.checked > 0) console.log('[IMAP] Pradinis tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-    });
-    setInterval(() => {
-      checkImapMail().then((r) => {
-        if (r.checked > 0) console.log('[IMAP] Tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-      });
-    }, 15 * 60 * 1000);
-  }, 10000);
-});
+    syncAdEmailsPromise(settings.emailDomain || 
