@@ -6433,7 +6433,7 @@ function App(){
   }
   else if(view==="closed"){
     // Uždaryti: pateikta uždarymo info, uždarytas statusas, arba gautas leidimas
-    function isGautas(p){return p.status==="Gautas leidimas"||p.status==="Gautas"||p.status==="Gautas dalinai";}
+    function isGautas(p){return p.status==="Gautas leidimas"||p.status==="Gautas";}
     if(user.role==="orderer") visible=permits.filter(function(p){return (p.closingSubmitted||p.status==="Uždarytas"||isGautas(p))&&p.createdBy===user.id});
     else visible=permits.filter(function(p){return p.closingSubmitted||p.status==="Uždarytas"||isGautas(p);});
   }
@@ -6601,6 +6601,4 @@ function App(){
   </div>
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+ReactDOM.createRoot(document.getElementById('root')).r
