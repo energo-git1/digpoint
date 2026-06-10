@@ -3330,4 +3330,10 @@ app.listen(PORT, () => {
     checkImapMail().then((r) => {
       if (r.checked > 0) console.log('[IMAP] Pradinis tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
     });
-    set
+    setInterval(() => {
+      checkImapMail().then((r) => {
+        if (r.checked > 0) console.log('[IMAP] Tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
+      });
+    }, 15 * 60 * 1000);
+  }, 10000);
+});
