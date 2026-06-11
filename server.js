@@ -1498,7 +1498,12 @@ async function _checkImapMailImpl() {
               }
             }
 
-            const THRESHOLD = (candidates.length === 1 && !hasAddr) ? 0 : 0.4;
+            // ESO: turi reg.nr. sistemą — žemesnis slenkstis kai nėra investNo
+            // KE/Telia: tik adreso matching — aukštesnis slenkstis, nes nėra papildomo tikrinimo
+            const THRESHOLD = (candidates.length === 1 && !hasAddr) ? 0
+              : (bestPermitByInvNo ? 1.0  // investNo match — visada priimame
+              : (org === 'Kauno energija' || org === 'Telia, Kaunas') ? 0.65
+              : 0.5);
 
             if (!bestPermit || bestScore < THRESHOLD) {
               console.log(`[IMAP] ${org}: nepavyko sugretinti paraiškos (score: ${bestScore.toFixed(2)}, threshold: ${THRESHOLD})`);
@@ -2329,7 +2334,9 @@ app.post('/api/admin/reprocess-unattached', async (req, res) => {
       }
 
       const hasAddr = candidates.some((p) => p.teliaRouteTo || p.teliaRouteFrom || p.location);
-      const THRESHOLD = (candidates.length === 1 && !hasAddr) ? 0 : 0.4;
+      const THRESHOLD = (candidates.length === 1 && !hasAddr) ? 0
+        : (org === 'Kauno energija' || org === 'Telia, Kaunas') ? 0.65
+        : 0.5;
 
       if (!bestPermit || bestScore < THRESHOLD) {
         results.push({ file: fname, org, score: bestScore, result: 'paraiška nerasta (per žemas score)' });
@@ -3310,33 +3317,4 @@ function extractMunicipalityFromText(text) {
 }
 
 app.get('/api/version', (req, res) => {
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
-    res.json({ version: pkg.version });
-  } catch (e) {
-    res.json({ version: '?' });
-  }
-});
-
-app.listen(PORT, () => {
-  console.log('Kasimo leidimai veikia: http://localhost:' + PORT);
-  console.log('DB: ' + DB_FILE);
-
-  setTimeout(() => {
-    const settings = dbGet('kl-settings') || {};
-    syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
-      console.log('[SYNC] El. pasto sinchronizacija:', r.log.join(', '));
-    });
-  }, 3000);
-
-  setTimeout(() => {
-    checkImapMail().then((r) => {
-      if (r.checked > 0) console.log('[IMAP] Pradinis tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-    });
-    setInterval(() => {
-      checkImapMail().then((r) => {
-        if (r.checked > 0) console.log('[IMAP] Tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-      });
-    }, 15 * 60 * 1000);
-  }, 10000);
-});
+  
