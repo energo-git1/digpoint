@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EnergoLT — Kasimo leidimai
 // @namespace    http://energolt.eu/
-// @version      1.0.6
+// @version      1.0.7
 // @description  Automatizuotas Kauno m. sav. ir ESO kasimo leidimų paraiškų pildymas
 // @author       EnergoLT
 // @match        https://kasimai.kaunas.lt/*
@@ -237,17 +237,18 @@
         setVal('darbai_pradzia', t.startDate || '');
         setVal('darbai_pabaiga', t.endDate   || '');
 
-        // Darbų tipas (select pagal value)
+        // Darbų tipas iš workType: avariniai→3, planiniai→2
+        const isAvar = t.workType === 'avariniai' || t.workType === 'avarinius';
         const selDT = document.querySelector('select[name="darbu_tipas"]');
-        if (selDT) { selDT.value = '2'; selDT.dispatchEvent(new Event('change', { bubbles: true })); }
+        if (selDT) { selDT.value = isAvar ? '3' : '2'; selDT.dispatchEvent(new Event('change', { bubbles: true })); }
 
         // Statybą leidžiantis dokumentas → Nenurodyta
         const selSD = document.querySelector('select[name="statyba_leidziantis_dok"]');
         if (selSD) { selSD.value = '66'; selSD.dispatchEvent(new Event('change', { bubbles: true })); }
 
-        // Planuojami darbai → Elektros tinklų įrengimas
+        // Planuojami darbai iš savDarbaiTipas (default: 38 = Elektros tinklų įrengimas)
         const selPD = document.querySelector('select[name="planuojami_darbai"]');
-        if (selPD) { selPD.value = '38'; selPD.dispatchEvent(new Event('change', { bubbles: true })); }
+        if (selPD) { selPD.value = t.savDarbaiTipas || '38'; selPD.dispatchEvent(new Event('change', { bubbles: true })); }
 
         log('✅ Visi formos laukai užpildyti');
 
@@ -398,75 +399,4 @@
             s.postData.legal_company_name         = 'EnergoLT';
             s.postData.legal_manager_name         = task.manager    || '';
             s.postData.legal_manager_phone        = ph;
-            s.postData.acceptance_email           = task.email      || 'uzklausos@energolt.eu';
-            s.postData.obj_address                = task.location   || '';
-            s.postData.excavation_purpose         = 'Elektros tinklų įrengimas';
-            s.postData.excavation_start           = task.startDate  || '';
-            s.postData.excavation_end             = task.endDate    || '';
-            s.postData.technical_eso_investment_nr = task.investNo  || '';
-            s.postData.agree_to_terms             = true;
-          });
-
-          // Savivaldybė
-          const munSel = document.querySelector('select#obj_municipality');
-          if (munSel) {
-            const opt = Array.from(munSel.options).find(o => o.text.includes('Kauno m'));
-            if (opt) s.$apply(() => { s.postData.obj_municipality = opt.value; });
-          }
-
-          // Checkbox
-          const cb = document.querySelector('input#terms');
-          if (cb && !cb.checked) cb.click();
-
-          log('ESO forma užpildyta ✅');
-          return true;
-        } catch (e) {
-          log('Angular klaida: ' + e.message);
-          return false;
-        }
-      };
-
-      // Laukiame kol vartotojas pasirenka rangovo tipą ir pereina į formos puslapį
-      // NESPAUČIAME "Toliau" — vartotojas pats turi pasirinkti rangovo tipą
-      const tryFill = (attempt = 0) => {
-        if (attempt > 120) { log('ESO: timeout (60s), bandykite rankiniu būdu'); return; }
-
-        const addrInput = document.querySelector('input[name="obj_address"]');
-        if (!addrInput) {
-          // Forma dar nepasirodė — laukiame toliau (kas 500ms, iki 60s)
-          if (attempt === 0) log('ESO: laukiama kol pasirodys forma (pasirinkite rangovo tipą ir spauskite Toliau)...');
-          setTimeout(() => tryFill(attempt + 1), 500);
-          return;
-        }
-
-        // Forma paruošta — pildome
-        log('ESO: forma pasirodė — pildome laukus');
-        if (!fillAngular()) {
-          setTimeout(() => tryFill(attempt + 1), 500);
-        }
-      };
-
-      // Pradedame tikrinti po 2s (puslapiui stabilizuotis)
-      setTimeout(() => tryFill(), 2000);
-    }
-
-    if (hashMatch) {
-      try {
-        const task = JSON.parse(decodeURIComponent(escape(atob(hashMatch[1]))));
-        log('ESO: duomenys iš URL hash');
-        fillEsoForm(task);
-      } catch (e) { log('Hash klaida: ' + e.message); }
-    } else {
-      // Bandome iš kl-eso-tasks
-      digpointGet('/api/store/kl-eso-tasks', (err, data) => {
-        if (err || !data || !data.value) { log('ESO: nėra užduočių'); return; }
-        const tasks = (data.value || []).filter(t => t.status === 'pending');
-        if (!tasks.length) { log('ESO: nėra pending užduočių'); return; }
-        log(`ESO: rasta ${tasks.length} užduotis`);
-        fillEsoForm(tasks[0]);
-      });
-    }
-    return;
-  }
-
-})();
+            s.postData

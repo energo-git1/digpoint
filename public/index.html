@@ -1185,6 +1185,7 @@ function PermitForm(p){
   var _esoLoc=useState(pf?pf.location||"":"");var esoLoc=_esoLoc[0],sEsoLoc=_esoLoc[1];
   // Savivaldybė specifiniai laukai
   var _workType=useState("");var workType=_workType[0],sWorkType=_workType[1]; // "planiniai"|"avariniai"
+  var _savDarbaiTipas=useState("38");var savDarbaiTipas=_savDarbaiTipas[0],sSavDarbaiTipas=_savDarbaiTipas[1];
   var _srcPermitId=useState("");var srcPermitId=_srcPermitId[0],sSrcPermitId=_srcPermitId[1];
   // Esamos paraiškos su gautais leidimais (šaltinis Savivaldybės PDF kompiliatoriui)
   var permitSources=(p.permits||[]).filter(function(x){
@@ -1302,7 +1303,7 @@ function PermitForm(p){
       description:desc,files:files,projectNo:projNo,
       investNo:invNo,internalCode:internalCode||null,
       teliaRouteFrom:trFrom,teliaRouteTo:trTo,
-      workType:hasSav?workType:null,
+      workType:hasSav?workType:null,savDarbaiTipas:hasSav?savDarbaiTipas:null,
       sourcePermitId:hasSav&&srcPermitId?srcPermitId:null,
       // Išsaugome savivaldybės dokumentų šaltinį kad SavPriedaiBlock žinotų kurį naudoti
       savivaldybePreparation:hasSav&&srcPermitId?{srcId:srcPermitId,savedAt:fmtDate(new Date())}:null,
@@ -1359,7 +1360,7 @@ function PermitForm(p){
           litgridStartDate:isLG?lgStart:null,litgridEndDate:isLG?lgEnd:null,
           description:desc,files:[pf],projectNo:pProjNo,
           investNo:pInvNo,teliaRouteFrom:pTrFrom,teliaRouteTo:pTrTo,
-          workType:hasSav?workType:null,
+          workType:hasSav?workType:null,savDarbaiTipas:hasSav?savDarbaiTipas:null,
           sourcePermitId:hasSav&&srcPermitId?srcPermitId:null,
           createdBy:p.user.id,status:"Laukiama tvirtinimo",assignedTo:null,
           createdAt:fmtDate(new Date()),history:[{status:"Laukiama tvirtinimo",date:fmtDate(new Date())}]});
@@ -1440,6 +1441,21 @@ function PermitForm(p){
         </div>
         {!workType&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:6}}>Pasirinkite darbų tipą.</div>}
       </div>
+      {/* Planuojami darbai — kategorija savivaldybės formai */}
+      {hasSav&&<div style={{marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:600,color:C.t2,marginBottom:6,fontFamily:F}}>Planuojami darbai <span style={{fontSize:10,color:C.t3,fontWeight:400}}>(savivaldybės forma)</span></div>
+        <select value={savDarbaiTipas} onChange={function(e){sSavDarbaiTipas(e.target.value);}}
+          style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:13,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+          {[["38","Elektros tinklų įrengimas"],["36","Elektros kabelio remontas"],["37","Elektros tinklų iškėlimas"],
+            ["50","Transformatorinės keitimas"],["49","Ryšių tinklų įrengimas"],["35","Dujotiekio tinklų įrengimas"],
+            ["34","Dujotiekio tinklų rekonstrukcija"],["6","Vandentiekio, lietaus nuotekų tinklų įrengimas"],
+            ["43","Lauko nuotekų tinklų įrengimas"],["42","Lauko nuotekų tinklų rekonstrukcija"],
+            ["39","Gatvės rekonstravimas"],["40","Gatvės įrengimas"],["41","Gerbūvio tvarkymo darbai"],
+            ["47","Pėsčiųjų ir dviračių tako įrengimas"],["7","Kasinėjimo darbai stoginių įrengimui"]].map(function(o){
+            return <option key={o[0]} value={o[0]}>{o[1]}</option>;
+          })}
+        </select>
+      </div>}
       {/* Objekto parinkimas iš esamų paraiškų — tik planiniai darbai */}
       {workType==="planiniai"&&permitSources.length>0&&<div>
         <div style={{fontSize:11,fontWeight:600,color:C.t2,marginBottom:6,fontFamily:F}}>Objektas <span style={{fontSize:10,color:C.t3,fontWeight:400}}>(pasirinkti iš gautų leidimų)</span></div>
@@ -1728,6 +1744,8 @@ function SavivaldybeSubmitBtn(p){
       location:o.location||"",
       startDate:savStart,
       endDate:savEnd,
+      workType:o.workType||"planiniai",
+      savDarbaiTipas:o.savDarbaiTipas||"38",
       description:o.description||"",
       url:SAV_URL,
       notifyEmail:currentUser.email||"eimutis.simkus@energolt.eu",
@@ -6576,37 +6594,4 @@ function App(){
           }
           if(entry.items.length===1){
             var pm=entry.items[0];
-            return <PermitRow key={pm.id} permit={pm} users={users} viewMode={view}
-              draggable={canMerge}
-              onDragStart={canMerge?function(e){e.dataTransfer.setData("permitId",pm.id);sDragId(pm.id);}:undefined}
-              onDragOver={canMerge&&dragId&&dragId!==pm.id?function(e){e.preventDefault();sDropId(pm.id);}:undefined}
-              onDragLeave={canMerge?function(){if(dropId===pm.id)sDropId(null);}:undefined}
-              onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");if(src&&src!==pm.id){sMergeConfirm({aId:src,bId:pm.id});}sDragId(null);sDropId(null);}:undefined}
-              isDragOver={dropId===pm.id&&dragId!==pm.id}
-              onClick={function(){setDetail(pm)}}/>;
-          }
-          return <PermitGroup key={entry.key} group={entry.items} users={users} viewMode={view} onSelect={setDetail}
-            manual={entry.manual} internalCode={entry.internalCode||null} onUnmerge={entry.manual?doUnmerge:undefined}
-            onDragStart={canMerge?function(e,pmId){e.dataTransfer.setData("permitId",pmId);sDragId(pmId);}:undefined}
-            onDragOver={canMerge&&dragId?function(e){e.preventDefault();}:undefined}
-            onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");var tgt=entry.items[0].id;if(src&&src!==tgt){sMergeConfirm({aId:src,bId:tgt});}sDragId(null);sDropId(null);}:undefined}
-            dragId={dragId}/>;
-        });
-      })()}
-    </div>;
-  }
-
-  return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
-    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
-      onUpdate={function(u){updatePermit(u);setDetail(u)}}
-      onSend={function(u){updatePermit(u);setDetail(null)}}
-      onDelete={function(id){deletePermit(id);setDetail(null)}}
-      onClose={function(){setDetail(null)}}/>}
-  </div>
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+            return <PermitRow key={pm.i
