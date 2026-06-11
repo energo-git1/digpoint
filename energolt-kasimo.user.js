@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EnergoLT — Kasimo leidimai
 // @namespace    http://energolt.eu/
-// @version      1.0.7
+// @version      1.0.8
 // @description  Automatizuotas Kauno m. sav. ir ESO kasimo leidimų paraiškų pildymas
 // @author       EnergoLT
 // @match        https://kasimai.kaunas.lt/*
@@ -126,51 +126,73 @@
 
   // ── 1. E. valdžios vartai — pasirinkti Swedbank ───────────────
   if (url.includes('epaslaugos.lt') && url.includes('/login')) {
-    log('E. valdžios vartai — ieškoma Swedbank');
-    waitFor('img[alt*="Swedbank"]', (img) => {
-      // Mažas delay kad puslapiui stabilizuotis
-      setTimeout(() => {
-        const parent = img.closest('a,button,div[role="button"]') || img.parentElement;
-        click(parent);
-        log('Swedbank pasirinktas');
-      }, 500);
+    digpointGet('/api/store/kl-sav-task', (err, data) => {
+      if (err || !isActiveTask(data && data.value)) {
+        log('Nėra aktyvios kl-sav-task — ignoruojama epaslaugos.lt/login');
+        return;
+      }
+      log('E. valdžios vartai — ieškoma Swedbank');
+      waitFor('img[alt*="Swedbank"]', (img) => {
+        setTimeout(() => {
+          const parent = img.closest('a,button,div[role="button"]') || img.parentElement;
+          click(parent);
+          log('Swedbank pasirinktas');
+        }, 500);
+      });
     });
     return;
   }
 
   // ── 2. E. valdžios vartai — duomenų perdavimo patvirtinimas ──
   if (url.includes('epaslaugos.lt/auth-redirect')) {
-    log('E. valdžios vartai — Asmens duomenų perdavimas');
-    waitForText('button', 'Prisijungti', (btn) => {
-      setTimeout(() => { click(btn); log('Prisijungti paspaustas'); }, 800);
+    digpointGet('/api/store/kl-sav-task', (err, data) => {
+      if (err || !isActiveTask(data && data.value)) {
+        log('Nėra aktyvios kl-sav-task — ignoruojama epaslaugos.lt/auth-redirect');
+        return;
+      }
+      log('E. valdžios vartai — Asmens duomenų perdavimas');
+      waitForText('button', 'Prisijungti', (btn) => {
+        setTimeout(() => { click(btn); log('Prisijungti paspaustas'); }, 800);
+      });
     });
     return;
   }
 
   // ── 3. Swedbank — įvesti vartotojo ID ─────────────────────────
   if (url.includes('log-in.swedbank.lt')) {
-    log('Swedbank — pildomas prisijungimo ID');
-    waitFor('#login-widget-user-id-simple', (idField) => {
-      setTimeout(() => {
-        setAngularVal(idField, SWB_ID);
-        log(`ID įvestas: ${SWB_ID}`);
-        // Spausti Prisijungti po 0.5s
+    digpointGet('/api/store/kl-sav-task', (err, data) => {
+      if (err || !isActiveTask(data && data.value)) {
+        log('Nėra aktyvios kl-sav-task — ignoruojama swedbank login');
+        return;
+      }
+      log('Swedbank — pildomas prisijungimo ID');
+      waitFor('#login-widget-user-id-simple', (idField) => {
         setTimeout(() => {
-          waitForText('button', 'Prisijungti', (btn) => {
-            click(btn);
-            log('Prisijungti paspaustas — laukiame telefono patvirtinimo...');
-          });
-        }, 500);
-      }, 300);
+          setAngularVal(idField, SWB_ID);
+          log(`ID įvestas: ${SWB_ID}`);
+          setTimeout(() => {
+            waitForText('button', 'Prisijungti', (btn) => {
+              click(btn);
+              log('Prisijungti paspaustas — laukiame telefono patvirtinimo...');
+            });
+          }, 500);
+        }, 300);
+      });
     });
     return;
   }
 
   // ── 4. Swedbank — duomenų siuntimas (banklink) ────────────────
   if (url.includes('swedbank.lt/banklink/auth')) {
-    log('Swedbank — Siųsti duomenis');
-    waitFor('input[type="button"][value="Siųsti duomenis"]', (btn) => {
-      setTimeout(() => { click(btn); log('Siųsti duomenis paspaustas'); }, 600);
+    digpointGet('/api/store/kl-sav-task', (err, data) => {
+      if (err || !isActiveTask(data && data.value)) {
+        log('Nėra aktyvios kl-sav-task — ignoruojama banklink');
+        return;
+      }
+      log('Swedbank — Siųsti duomenis');
+      waitFor('input[type="button"][value="Siųsti duomenis"]', (btn) => {
+        setTimeout(() => { click(btn); log('Siųsti duomenis paspaustas'); }, 600);
+      });
     });
     return;
   }
