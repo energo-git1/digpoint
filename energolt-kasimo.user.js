@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EnergoLT — Kasimo leidimai
 // @namespace    http://energolt.eu/
-// @version      1.0.4
+// @version      1.0.5
 // @description  Automatizuotas Kauno m. sav. ir ESO kasimo leidimų paraiškų pildymas
 // @author       EnergoLT
 // @match        https://kasimai.kaunas.lt/*
@@ -186,124 +186,154 @@
     return;
   }
 
-  // ── 5. kasimai.kaunas.lt — mano prašymai: atidaryti pirmą ir kopijuoti ──
-  if (url.includes('kasimai.kaunas.lt/mano-prasymai')) {
-    log('kasimai — mano prašymai, laukiama sąrašo');
+  // ─── Savivaldybė formos pildymas (bendra funkcija) ──────────
+  // Naudojama tiek SPA atvejui (mano-prasymai po kopijos), tiek pilno URL atvejui
+  function fillSavForm(t) {
+    log(`Pildome SAV formą: ${t.manager}, ${t.startDate}–${t.endDate}`);
 
-    // Pirma tikriname ar yra aktyvi užduotis — tik tada vykdome bet ką
+    // Debug: išvedam visus rastus laukus (diagnozei)
+    setTimeout(() => {
+      const found = Array.from(document.querySelectorAll('input[name], select[name], textarea[name]'))
+        .map(el => `${el.tagName.toLowerCase()}[name="${el.name}"]`).join(', ');
+      log('Rasti formos laukai: ' + (found || '— nėra'));
+    }, 500);
+
+    waitFor('input[name="dv_vardas"]', () => {
+      setTimeout(() => {
+        const nameParts = (t.manager || '').split(' ');
+        setVal('dv_vardas',      nameParts[0] || '');
+        setVal('dv_pavarde',     nameParts.slice(1).join(' ') || '');
+        setVal('dv_tel',         t.managerPhone || '');
+        setVal('darbai_pradzia', t.startDate || '');
+        setVal('darbai_pabaiga', t.endDate   || '');
+
+        const sel = document.querySelector('select[name="planuojami_darbai"]');
+        if (sel) {
+          const opt = Array.from(sel.options).find(o => o.text.toLowerCase().includes('elektros tinkl'));
+          if (opt) { sel.value = opt.value; sel.dispatchEvent(new Event('change', { bubbles: true })); log('Darbų tipas nustatytas'); }
+        }
+
+        log('✅ Formos laukai užpildyti');
+
+        // Pažymime užduotį kaip atliktą (teisingai: value: {...})
+        GM_xmlhttpRequest({
+          method: 'PUT',
+          url: `${DIGPOINT}/api/store/kl-sav-task`,
+          headers: { 'Content-Type': 'application/json' },
+          data: JSON.stringify({ value: { ...t, status: 'done', doneAt: new Date().toISOString() } }),
+          onload: () => log('kl-sav-task pažymėta "done"'),
+        });
+
+        // Įkeliame priedų PDF
+        if (t.permitId) {
+          const fileInput = document.querySelector('input[type="file"]');
+          if (fileInput) {
+            digpointGet('/api/store/kl-permits', (err2, permitsData) => {
+              const permits = (permitsData && permitsData.value) || [];
+              const permit  = permits.find(pm => pm.id === t.permitId);
+              const prep    = (permit && permit.savivaldybePreparation) || {};
+              const srcId   = prep.srcId || t.permitId;
+              const selFn   = prep.selectedFilenames || [];
+              const extraFn = (prep.extraFiles || []).map(f => f.filename).filter(Boolean);
+              const loc     = (permit && permit.location) || '';
+              GM_xmlhttpRequest({
+                method: 'POST',
+                url: `${DIGPOINT}/api/admin/merge-sav-priedai`,
+                headers: { 'Content-Type': 'application/json' },
+                data: JSON.stringify({ permitId: srcId, selectedFilenames: selFn, extraFilenames: extraFn, location: loc }),
+                onload: (r) => {
+                  try {
+                    const d = JSON.parse(r.responseText);
+                    if (d.ok && d.content) { uploadBase64(fileInput, d.content, d.filename || 'priedai_savivaldybei.pdf'); log(`Priedų PDF įkeltas: ${d.pages} psl.`); }
+                    else log('Priedų PDF klaida: ' + (d.error || 'nežinoma'));
+                  } catch (e) { log('Priedų PDF klaida: ' + e.message); }
+                },
+              });
+            });
+          } else {
+            log('Failo input nerastas — priedai neįkelti');
+          }
+        }
+      }, 400);
+    }, 20000); // timeout 20s
+
+    // Failsafe: jei po 22s forma vis dar nepasipildė — pažymime kaip failed kad nesikartoų
+    setTimeout(() => {
+      digpointGet('/api/store/kl-sav-task', (err, data) => {
+        if (data && data.value && data.value.status === 'pending') {
+          log('⚠️ Forma neužpildyta per 22s — žymime failed');
+          GM_xmlhttpRequest({
+            method: 'PUT',
+            url: `${DIGPOINT}/api/store/kl-sav-task`,
+            headers: { 'Content-Type': 'application/json' },
+            data: JSON.stringify({ value: { ...data.value, status: 'failed', failedAt: new Date().toISOString() } }),
+          });
+        }
+      });
+    }, 22000);
+  }
+
+  // ── 5. kasimai.kaunas.lt — mano prašymai: kopijuoti paskutinį ──
+  if (url.includes('kasimai.kaunas.lt/mano-prasymai')) {
+    log('kasimai — mano prašymai');
+
     setTimeout(() => {
       digpointGet('/api/store/kl-sav-task', (err, data) => {
         if (err || !data || !data.value || !isActiveTask(data.value)) {
           log('Nėra aktyvios užduoties — nieko nedarome');
           return;
         }
+        const t = data.value;
 
-        // Aktyvi užduotis — tikrinti ar prisijungęs
+        // Tikrinti ar prisijungęs
         const loginBtn = Array.from(document.querySelectorAll('a, button')).find(el => {
           const txt = (el.textContent || '').trim();
           return txt.startsWith('Prisijungti') && !el.closest('nav, header, .navbar');
         });
         if (loginBtn) {
-          log('Aktyvus task + neprisijungęs — spaudžiamas "Prisijungti"');
+          log('Neprisijungęs — spaudžiamas "Prisijungti"');
           click(loginBtn);
           return;
         }
 
-        // Prisijungęs ir aktyvi užduotis — kopijuojame pirmą prašymą
-        log('Yra aktyvus kl-sav-task — kopijuojame pirmą prašymą');
+        // Prisijungęs — kopijuoti pirmą prašymą
+        log('Aktyvus task — ieškoma "Kopijuoti prašymą"');
         waitForText('a', 'Kopijuoti prašymą', (btn) => {
-          setTimeout(() => { click(btn); log('"Kopijuoti prašymą" paspaustas'); }, 800);
+          log('"Kopijuoti prašymą" href: ' + (btn.href || 'nėra (SPA)'));
+          setTimeout(() => {
+            click(btn);
+            log('"Kopijuoti prašymą" paspaustas');
+            // SPA atvejis: forma gali atsirasti tame pačiame puslapyje be URL keitimo
+            // Laukiame formos atsiradimo šiame puslapyje
+            setTimeout(() => {
+              const hasForm = document.querySelector('input[name="dv_vardas"]');
+              if (hasForm) {
+                log('SPA: forma atsirado tame pačiame puslapyje — pildome');
+                fillSavForm(t);
+              } else {
+                log('Navigacija į kitą puslapį — section 6 užpildys');
+                // Jei navigacija neįvyko per 5s, bandome dar kartą rasti formą
+                setTimeout(() => {
+                  if (document.querySelector('input[name="dv_vardas"]')) fillSavForm(t);
+                }, 5000);
+              }
+            }, 2000);
+          }, 800);
         }, 10000);
       });
     }, 1500);
     return;
   }
 
-  // ── 6. kasimai.kaunas.lt — formos pildymas ────────────────────
-  if (url.includes('kasimai.kaunas.lt/naujas-prasymas')) {
-    log('kasimai.kaunas.lt — formos pildymas');
+  // ── 6. kasimai.kaunas.lt — formos pildymas (po URL navigacijos) ──
+  // Pagauna bet kurį kasimai.kaunas.lt puslapį su forma (ne root, ne mano-prasymai)
+  if (url.includes('kasimai.kaunas.lt') && !url.includes('/mano-prasymai') && !url.match(/kasimai\.kaunas\.lt\/?(\?.*)?$/)) {
+    log('kasimai — forma (URL: ' + url + ')');
 
-    // Gauname užduoties duomenis iš Digpoint
     digpointGet('/api/store/kl-sav-task', (err, data) => {
-      if (err || !data || !data.value) {
-        log('Nerasta kl-sav-task — formą pildykite rankiniu būdu');
-        return;
-      }
-      if (!isActiveTask(data.value)) {
-        log('Užduotis neaktyvi — formą pildykite rankiniu būdu');
-        return;
-      }
-      const t = data.value;
-      log(`Duomenys gauti: ${t.manager}, ${t.startDate}–${t.endDate}`);
-
-      // Laukiame kol formos laukai bus paruošti
-      waitFor('input[name="dv_vardas"]', () => {
-        setTimeout(() => {
-          const nameParts = (t.manager || '').split(' ');
-          setVal('dv_vardas',   nameParts[0] || '');
-          setVal('dv_pavarde',  nameParts.slice(1).join(' ') || '');
-          setVal('dv_tel',      t.managerPhone || '');
-          setVal('darbai_pradzia', t.startDate || '');
-          setVal('darbai_pabaiga', t.endDate   || '');
-
-          // Planuojami darbai — "Elektros tinklų įrengimas"
-          const sel = document.querySelector('select[name="planuojami_darbai"]');
-          if (sel) {
-            const opt = Array.from(sel.options).find(o => o.text.toLowerCase().includes('elektros tinkl'));
-            if (opt) {
-              sel.value = opt.value;
-              sel.dispatchEvent(new Event('change', { bubbles: true }));
-              log('Darbų tipas: Elektros tinklų įrengimas');
-            }
-          }
-
-          log('Formos laukai užpildyti');
-
-          // Pažymime užduotį kaip atliktą
-          GM_xmlhttpRequest({
-            method: 'PUT',
-            url: `${DIGPOINT}/api/store/kl-sav-task`,
-            headers: { 'Content-Type': 'application/json' },
-            data: JSON.stringify({ ...t, status: 'done', doneAt: new Date().toISOString() }),
-            onload: () => log('kl-sav-task pažymėta "done"'),
-          });
-
-          // Įkeliame priedų PDF — naudojame merge-sav-priedai su išsaugotais pasirinkimais
-          if (t.permitId) {
-            const fileInput = document.querySelector('input[type="file"]');
-            if (fileInput) {
-              // Gauname išsaugotus pasirinkimus iš kl-permits
-              digpointGet('/api/store/kl-permits', (err2, permitsData) => {
-                const permits = (permitsData && permitsData.value) || [];
-                const permit = permits.find(pm => pm.id === t.permitId);
-                const prep = (permit && permit.savivaldybePreparation) || {};
-                const srcId = prep.srcId || t.permitId;
-                const selectedFilenames = prep.selectedFilenames || [];
-                const extraFilenames = (prep.extraFiles || []).map(f => f.filename).filter(Boolean);
-                const location = (permit && permit.location) || '';
-
-                GM_xmlhttpRequest({
-                  method: 'POST',
-                  url: `${DIGPOINT}/api/admin/merge-sav-priedai`,
-                  headers: { 'Content-Type': 'application/json' },
-                  data: JSON.stringify({ permitId: srcId, selectedFilenames, extraFilenames, location }),
-                  onload: (r) => {
-                    try {
-                      const d = JSON.parse(r.responseText);
-                      if (d.ok && d.content) {
-                        uploadBase64(fileInput, d.content, d.filename || 'priedai_savivaldybei.pdf');
-                        log(`Priedų PDF įkeltas: ${d.pages} psl. — ${d.filename}`);
-                      } else {
-                        log('Priedų PDF klaida: ' + (d.error || 'nežinoma'));
-                      }
-                    } catch (e) { log('Priedų PDF klaida: ' + e.message); }
-                  },
-                });
-              });
-            }
-          }
-        }, 400);
-      });
+      if (err || !data || !data.value) { log('Nėra kl-sav-task — pildykite rankiniu būdu'); return; }
+      if (!isActiveTask(data.value)) { log('Užduotis neaktyvi'); return; }
+      fillSavForm(data.value);
     });
     return;
   }
@@ -365,42 +395,4 @@
       const tryFill = (attempt = 0) => {
         if (attempt > 120) { log('ESO: timeout (60s), bandykite rankiniu būdu'); return; }
 
-        const addrInput = document.querySelector('input[name="obj_address"]');
-        if (!addrInput) {
-          // Forma dar nepasirodė — laukiame toliau (kas 500ms, iki 60s)
-          if (attempt === 0) log('ESO: laukiama kol pasirodys forma (pasirinkite rangovo tipą ir spauskite Toliau)...');
-          setTimeout(() => tryFill(attempt + 1), 500);
-          return;
-        }
-
-        // Forma paruošta — pildome
-        log('ESO: forma pasirodė — pildome laukus');
-        if (!fillAngular()) {
-          setTimeout(() => tryFill(attempt + 1), 500);
-        }
-      };
-
-      // Pradedame tikrinti po 2s (puslapiui stabilizuotis)
-      setTimeout(() => tryFill(), 2000);
-    }
-
-    if (hashMatch) {
-      try {
-        const task = JSON.parse(decodeURIComponent(escape(atob(hashMatch[1]))));
-        log('ESO: duomenys iš URL hash');
-        fillEsoForm(task);
-      } catch (e) { log('Hash klaida: ' + e.message); }
-    } else {
-      // Bandome iš kl-eso-tasks
-      digpointGet('/api/store/kl-eso-tasks', (err, data) => {
-        if (err || !data || !data.value) { log('ESO: nėra užduočių'); return; }
-        const tasks = (data.value || []).filter(t => t.status === 'pending');
-        if (!tasks.length) { log('ESO: nėra pending užduočių'); return; }
-        log(`ESO: rasta ${tasks.length} užduotis`);
-        fillEsoForm(tasks[0]);
-      });
-    }
-    return;
-  }
-
-})();
+        const addrInput = document.querySelector('input[name="obj_address"]');
