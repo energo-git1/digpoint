@@ -1735,44 +1735,31 @@ app.get('/api/admin/list-sav-priedai', (req, res) => {
   if (!permit) return res.status(404).json({ error: 'Paraiška nerasta.' });
 
   const docs = [];
-  const added = new Set();
+  const added = new Set();       // tikslūs raktai (su __pages: priesagomis)
+  const addedBase = new Set();   // baziniai failų vardai — duplikatų prevencija tarp pendingEmail blokų
   function addDoc(f, label) {
     if (!f || !f.filename || added.has(f.filename)) return;
     added.add(f.filename);
+    addedBase.add(f.filename);
     docs.push({ filename: f.filename, name: f.name || f.filename, label, url: f.url || `/uploads/${f.filename}` });
   }
 
   const pdfs = permit.permitPdfs || {};
+  const PERMIT_PAT = /^(lzd[_\-]|sutikimas[_\-]|ke[_\-]|kaun.*energ|litgrid)/i;
 
-  // Projekto brėžinys + Telia/KE derinimų puslapiai
-  for (const src of ((permit.pendingEmail || {}).attachmentSources || [])) {
-    const sf = (permit.files || []).find(f => f.name === src.sourceFileName);
-    if (sf) {
-      const fkey = sf.filename + (src.pageNumbers && src.pageNumbers.length ? '__pages:' + src.pageNumbers.join(',') : '');
-      if (!added.has(fkey)) { added.add(fkey); docs.push({ filename: fkey, name: src.filename || sf.name, label: src.filename && src.filename.toLowerCase().includes('brezinys') ? 'Projekto brėžinys' : 'Telia derinimas' }); }
-    }
-  }
-  for (const src of ((permit.pendingKauoenergijaEmail || {}).attachmentSources || [])) {
-    const sf = (permit.files || []).find(f => f.name === src.sourceFileName);
-    if (sf) {
-      const fkey = sf.filename + (src.pageNumbers && src.pageNumbers.length ? '__pages:' + src.pageNumbers.join(',') : '');
-      if (!added.has(fkey)) { added.add(fkey); docs.push({ filename: fkey, name: src.filename || sf.name, label: 'KE derinimas' }); }
-    }
-  }
-
-  // Gauti leidimai iš permitPdfs
-  if (pdfs.eso     && pdfs.eso.filename)      addDoc(pdfs.eso,      'ESO sutikimas');
-  if (pdfs.telia   && pdfs.telia.filename)    addDoc(pdfs.telia,    'Telia leidimas');
-  if (pdfs.telia_inv && pdfs.telia_inv.filename) addDoc(pdfs.telia_inv, 'Telia inv. leidimas');
-  if (pdfs.ke      && pdfs.ke.filename)       addDoc(pdfs.ke,       'KE leidimas');
-  if (pdfs.vandenys && pdfs.vandenys.filename) addDoc(pdfs.vandenys, 'Vandenys leidimas');
-  if (pdfs.litgrid && pdfs.litgrid.filename)  addDoc(pdfs.litgrid,  'LitGrid leidimas');
+  // Gauti leidimai iš permitPdfs — pirma, kad addedBase žinotų kokie failai jau pridėti
+  if (pdfs.eso     && pdfs.eso.filename)         addDoc(pdfs.eso,      'ESO sutikimas');
+  if (pdfs.telia   && pdfs.telia.filename)       addDoc(pdfs.telia,    'Telia leidimas');
+  if (pdfs.telia_inv && pdfs.telia_inv.filename) addDoc(pdfs.telia_inv,'Telia inv. leidimas');
+  if (pdfs.ke      && pdfs.ke.filename)          addDoc(pdfs.ke,       'KE leidimas');
+  if (pdfs.vandenys && pdfs.vandenys.filename)   addDoc(pdfs.vandenys, 'Vandenys leidimas');
+  if (pdfs.litgrid && pdfs.litgrid.filename)     addDoc(pdfs.litgrid,  'LitGrid leidimas');
 
   // Taip pat tikrinti files[] — tik jei permitPdfs dar NETURI šios institucijos dokumento
-  const hasEsoPdf    = pdfs.eso      && pdfs.eso.filename;
-  const hasTeliaPdf  = (pdfs.telia   && pdfs.telia.filename) || (pdfs.telia_inv && pdfs.telia_inv.filename);
-  const hasKePdf     = pdfs.ke       && pdfs.ke.filename;
-  const hasLgPdf     = pdfs.litgrid  && pdfs.litgrid.filename;
+  const hasEsoPdf   = pdfs.eso      && pdfs.eso.filename;
+  const hasTeliaPdf = (pdfs.telia   && pdfs.telia.filename) || (pdfs.telia_inv && pdfs.telia_inv.filename);
+  const hasKePdf    = pdfs.ke       && pdfs.ke.filename;
+  const hasLgPdf    = pdfs.litgrid  && pdfs.litgrid.filename;
   for (const f of (permit.files || [])) {
     if (!f.filename || !f.name) continue;
     if (/^lzd[_\-]/i.test(f.name)            && !hasTeliaPdf) addDoc(f, 'Telia leidimas (files)');
@@ -1781,25 +1768,56 @@ app.get('/api/admin/list-sav-priedai', (req, res) => {
     else if (/^litgrid/i.test(f.name)         && !hasLgPdf)   addDoc(f, 'LitGrid leidimas (files)');
   }
 
+  // Projekto brėžinys + Telia/KE derinimų puslapiai (iš išsiųstų laiškų)
+  // addedBase naudojamas kad tas pats failas nebūtų pridėtas per abu pendingEmail blokus
+  for (const src of ((permit.pendingEmail || {}).attachmentSources || [])) {
+    const sf = (permit.files || []).find(f => f.name === src.sourceFileName);
+    if (sf && !addedBase.has(sf.filename)) {
+      const fkey = sf.filename + (src.pageNumbers && src.pageNumbers.length ? '__pages:' + src.pageNumbers.join(',') : '');
+      if (!added.has(fkey)) {
+        added.add(fkey);
+        addedBase.add(sf.filename);
+        const lbl = src.filename && src.filename.toLowerCase().includes('brezinys') ? 'Projekto brėžinys' : 'Telia derinimas';
+        docs.push({ filename: fkey, name: src.filename || sf.name, label: lbl });
+      }
+    }
+  }
+  for (const src of ((permit.pendingKauoenergijaEmail || {}).attachmentSources || [])) {
+    const sf = (permit.files || []).find(f => f.name === src.sourceFileName);
+    if (sf && !addedBase.has(sf.filename)) {
+      const fkey = sf.filename + (src.pageNumbers && src.pageNumbers.length ? '__pages:' + src.pageNumbers.join(',') : '');
+      if (!added.has(fkey)) {
+        added.add(fkey);
+        addedBase.add(sf.filename);
+        docs.push({ filename: fkey, name: src.filename || sf.name, label: 'KE derinimas' });
+      }
+    }
+  }
+
+  // Visi kiti projekto failai iš šaltinio paraiškos (PDF ir nuotraukos, išskyrus leidimų šablonus)
+  for (const f of (permit.files || [])) {
+    if (!f.filename || !f.name) continue;
+    if (PERMIT_PAT.test(f.name)) continue; // leidimų failai jau pridėti aukščiau
+    addDoc(f, 'Projekto dokumentas');
+  }
+
   // Nuotraukos prieš darbus
   for (const f of (permit.beforeFiles || [])) addDoc(f, 'Prieš darbus');
 
-  // Papildomi projekto failai iš dabartinės paraiškos (ne leidimų šablonų failai)
+  // Nuotraukos pildymo/darbų metu
+  for (const f of (permit.closeFiles || [])) addDoc(f, 'Darbų nuotraukos');
+
+  // Papildomi projekto failai iš dabartinės paraiškos (jei skiriasi nuo šaltinio)
   if (currentPermitId && currentPermitId !== permitId) {
     const currentPermit = permits.find((p) => p.id === currentPermitId);
     if (currentPermit) {
       for (const f of (currentPermit.files || [])) {
         if (!f.filename || !f.name) continue;
-        // Praleisti jei jau įtrauktas
-        if (added.has(f.filename)) continue;
-        // Praleisti leidimų šabloninius failus (jie rodomi per permitPdfs)
-        const fn = f.name;
-        if (/^lzd[_\-]/i.test(fn) || /^sutikimas[_\-]/i.test(fn) ||
-            /^ke[_\-]|^kaun.*energ/i.test(fn) || /^litgrid/i.test(fn)) continue;
-        // Praleisti jei ne PDF
-        if (!fn.match(/\.pdf$/i)) continue;
-        addDoc(f, 'Projekto dokumentas');
+        if (PERMIT_PAT.test(f.name)) continue;
+        addDoc(f, 'Projekto dokumentas (dabartinis)');
       }
+      for (const f of (currentPermit.beforeFiles || [])) addDoc(f, 'Prieš darbus');
+      for (const f of (currentPermit.closeFiles  || [])) addDoc(f, 'Darbų nuotraukos');
     }
   }
 
@@ -3293,57 +3311,4 @@ app.post('/api/extract-municipality', async (req, res) => {
       if (!fs.existsSync(fpath)) fpath = path.join(__dirname, 'public', rel);
     }
     if (!fpath || !fs.existsSync(fpath)) {
-      return res.json({ municipality: null, error: 'Failas nerastas: ' + (fpath || '?') });
-    }
-    const buf = fs.readFileSync(fpath);
-    const parsed = await pdfParse(buf);
-    const text = parsed.text || '';
-    const municipality = extractMunicipalityFromText(text);
-    console.log('[MUN] Is PDF:', path.basename(fpath), municipality || 'nerasta');
-    res.json({ municipality, text: text.slice(0, 800) });
-  } catch (e) {
-    console.warn('[MUN] Klaida:', e.message);
-    res.json({ municipality: null, error: e.message });
-  }
-});
-
-function extractMunicipalityFromText(text) {
-  if (!text) return null;
-  const m1 = text.match(/([A-Z\u00c0-\u017e][a-z\u00c0-\u017e\-]+(?: [a-z\u00c0-\u017e]+)?)\s+(?:r|m)\.\s*sav\./);
-  if (m1) return m1[0].replace(/\s+/g, ' ').trim();
-  const m2 = text.match(/([A-Z\u00c0-\u017e][a-z\u00c0-\u017e\-]+(?: [a-z\u00c0-\u017e]+)?)\s+sav\./);
-  if (m2) return m2[0].replace(/\s+/g, ' ').trim();
-  return null;
-}
-
-app.get('/api/version', (req, res) => {
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
-    res.json({ version: pkg.version });
-  } catch (e) {
-    res.json({ version: '?' });
-  }
-});
-
-app.listen(PORT, () => {
-  console.log('Kasimo leidimai veikia: http://localhost:' + PORT);
-  console.log('DB: ' + DB_FILE);
-
-  setTimeout(() => {
-    const settings = dbGet('kl-settings') || {};
-    syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
-      console.log('[SYNC] El. pasto sinchronizacija:', r.log.join(', '));
-    });
-  }, 3000);
-
-  setTimeout(() => {
-    checkImapMail().then((r) => {
-      if (r.checked > 0) console.log('[IMAP] Pradinis tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-    });
-    setInterval(() => {
-      checkImapMail().then((r) => {
-        if (r.checked > 0) console.log('[IMAP] Tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-      });
-    }, 15 * 60 * 1000);
-  }, 10000);
-});
+      return res.json({ municipality: null, error: 'Failas nerastas: ' + (fpath |
