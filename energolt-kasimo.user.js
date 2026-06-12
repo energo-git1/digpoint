@@ -487,4 +487,9 @@
         if (!tasks.length) { log('ESO: nėra pending užduočių'); return; }
         log(`ESO: rasta ${tasks.length} užduotis`);
         fillEsoForm(tasks[0]);
-   
+      });
+    }
+    return;
+  }
+
+})();
