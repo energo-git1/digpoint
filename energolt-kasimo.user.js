@@ -30,9 +30,9 @@
   // Tikrina ar užduotis aktyvi (status=pending ir ne senesnė nei TTL)
   function isActiveTask(t) {
     if (!t || t.status !== 'pending') return false;
-    const age = Date.now() - new Date(t.createdAt).getTime();
-    if (age > TASK_TTL) {
-      log(`Užduotis per sena (${Math.round(age / 60000)} min.) — ignoruojama`);
+    const age = Date.now() - new Date(t.createdAt || 0).getTime();
+    if (isNaN(age) || age > TASK_TTL) {
+      log(`Užduotis per sena arba nežinomas laikas (${Math.round(age / 60000)} min.) — ignoruojama`);
       return false;
     }
     return true;
@@ -487,9 +487,4 @@
         if (!tasks.length) { log('ESO: nėra pending užduočių'); return; }
         log(`ESO: rasta ${tasks.length} užduotis`);
         fillEsoForm(tasks[0]);
-      });
-    }
-    return;
-  }
-
-})();
+   

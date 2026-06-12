@@ -1740,7 +1740,7 @@ function SavivaldybeSubmitBtn(p){
       permitId:o.id,
       manager:o.manager||"",
       managerPhone:o.managerPhone||"",
-      managerEmail:o.email||"",
+      managerEmail:o.managerEmail||"",
       location:o.location||"",
       startDate:savStart,
       endDate:savEnd,
@@ -4526,9 +4526,10 @@ function ScheduleView(p){
 
   // Filtravimas
   var allLocs=[...new Set(p.permits.map(function(x){return x.location||""}).filter(Boolean))].sort();
-  var orgs=[...new Set(p.permits.map(function(x){return x.organization}).filter(Boolean))];
+  var orgs=[...new Set(p.permits.map(function(x){return x.organization||(x.organizations&&x.organizations[0])||""}).filter(Boolean))];
   var filtered=p.permits.filter(function(permit){
-    if(orgF&&permit.organization!==orgF)return false;
+    var permOrg=permit.organization||(permit.organizations&&permit.organizations[0])||"";
+    if(orgF&&permOrg!==orgF)return false;
     if(stF&&permit.status!==stF)return false;
     if(locF&&(permit.location||"")!==locF)return false;
     return true;
@@ -6066,8 +6067,9 @@ function checkExpired(arr){
     var nKey="kl-notif-"+permit.id+"-5dd";
     if(lsGet(nKey))return;
     lsSet(nKey,true);
-    var subj="Kasimo leidimas baigiasi per 5 d.d. - "+permit.organization;
-    var rows=emailRow("Organizacija:",permit.organization)+emailRow("Paraiskas:",permit.id.slice(-5).toUpperCase())+emailRow("Galioja iki:",permit.permitValidUntil);
+    var permOrgLabel=permit.organization||(permit.organizations||[]).join(", ")||"";
+    var subj="Kasimo leidimas baigiasi per 5 d.d. - "+permOrgLabel;
+    var rows=emailRow("Organizacija:",permOrgLabel)+emailRow("Paraiskas:",permit.id.slice(-5).toUpperCase())+emailRow("Galioja iki:",permit.permitValidUntil);
     var body=emailWrap("Leidimo terminas baigiasi","#EAB308","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Leidimas baigia galioti "+permit.permitValidUntil+" &mdash; liko 5 darbo dienos.</p><table style=\"border-collapse:collapse;width:100%\">"+rows+"</table>");
     if(permit.email)sendEmail(permit.email,subj,body);
     sendEmail("uzklausos@energolt.eu",subj,body);
@@ -6286,8 +6288,9 @@ function App(){
       var prev=permits.find(function(x){return x.id===updated.id});
       if(!prev||!prev.closingSubmitted){
         var asgn=users.find(function(u){return u.id===updated.assignedTo});
-        var clSubj="Pateikta leidimo uzdarymo informacija - "+updated.organization;
-        var clRows=emailRow("Paraiskas:",updated.id.slice(-5).toUpperCase())+emailRow("Organizacija:",updated.organization);
+        var updOrgLabel=updated.organization||(updated.organizations||[]).join(", ")||"";
+        var clSubj="Pateikta leidimo uzdarymo informacija - "+updOrgLabel;
+        var clRows=emailRow("Paraiskas:",updated.id.slice(-5).toUpperCase())+emailRow("Organizacija:",updOrgLabel);
         var clBody=emailWrap("Leidimo uzdarymas","#10B981","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Uzsakovas pateike dokumentus leidimo uzdarymui.</p><table style=\"border-collapse:collapse;width:100%\">"+clRows+"</table>");
         if(asgn&&asgn.email)sendEmail(asgn.email,clSubj,clBody);
         sendEmail("uzklausos@energolt.eu",clSubj,clBody);
@@ -6318,20 +6321,21 @@ function App(){
       var wasGautas=prev&&(prev.status==="Gautas leidimas"||prev.status==="Gautas");
       if(!wasGautas){
         var permitNo=updated.id?updated.id.slice(-5).toUpperCase():"?????";
-        var gSubj="Kasimo leidimas gautas — "+updated.organization+" #"+permitNo;
+        var gOrgLabel=updated.organization||(updated.organizations||[]).join(", ")||"";
+        var gSubj="Kasimo leidimas gautas — "+gOrgLabel+" #"+permitNo;
         var permitUrl=(typeof window!=="undefined"&&window.location)
           ?(window.location.origin+window.location.pathname+"#permit="+encodeURIComponent(updated.id)):"";
         var gLinkBtn=permitUrl
           ?'<p style="margin:16px 0"><a href="'+permitUrl+'" style="color:#1155CC">Atidaryti paraišką sistemoje</a></p>':"";
         var gRows=emailRow("Paraiška Nr.:",permitNo)
-          +emailRow("Organizacija:",updated.organization)
+          +emailRow("Organizacija:",gOrgLabel)
           +emailRow("Vieta:",updated.location||"-")
           +(updated.permitValidFrom?emailRow("Galioja nuo:",updated.permitValidFrom):"")
           +(updated.permitValidUntil?emailRow("Galioja iki:",updated.permitValidUntil):"");
         var gBody='<!DOCTYPE html><html><body style="margin:0;padding:0;background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1F2937;line-height:1.6">'
           +'<div style="max-width:600px;margin:20px auto;padding:0 16px">'
           +"<p style=\"margin:0 0 12px\">Gerb. "+(updated.manager||"")+"</p>"
-          +"<p style=\"margin:0 0 12px\">informuojame, kad Jūsų kasimo leidimo paraiška <strong>#"+permitNo+"</strong> ("+updated.organization+") yra patvirtinta ir leidimas gautas.</p>"
+          +"<p style=\"margin:0 0 12px\">informuojame, kad Jūsų kasimo leidimo paraiška <strong>#"+permitNo+"</strong> ("+gOrgLabel+") yra patvirtinta ir leidimas gautas.</p>"
           +"<table style=\"border-collapse:collapse;width:100%;margin:12px 0\">"+gRows+"</table>"
           +gLinkBtn
           +'</div></body></html>';
@@ -6349,7 +6353,7 @@ function App(){
           lsSet(notifKey,true);
           var kRows2=emailRow("Paraiskas:",updated.id.slice(-5).toUpperCase())+emailRow("Darbu vadovas:",updated.manager)+emailRow("Laikotarpis:",updated.startDate+" – "+updated.endDate);
           var kBody2=emailWrap("Galima pateikti Kauno m. sav.","#10B981","<p style=\"color:#374151;font-size:14px;margin:0 0 12px\">Gauti visi reikalingi leidimai. Galima pateikti Kauno m. sav. leidimo paraiskas.</p><table style=\"border-collapse:collapse;width:100%\">"+kRows2+"</table>");
-          sendEmail("uzklausos@energolt.eu","Galima pateikti Kauno m. sav. - "+updated.organization,kBody2);
+          sendEmail("uzklausos@energolt.eu","Galima pateikti Kauno m. sav. - "+(updated.organization||(updated.organizations||[]).join(", ")||""),kBody2);
         }
       }
     }
@@ -6617,14 +6621,4 @@ function App(){
   return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
     <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
     <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
-      onUpdate={function(u){updatePermit(u);setDetail(u)}}
-      onSend={function(u){updatePermit(u);setDetail(null)}}
-      onDelete={function(id){deletePermit(id);setDetail(null)}}
-      onClose={function(){setDetail(null)}}/>}
-  </div>
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+    {detail&&<PermitDetail permit={detail} user={user} users={us

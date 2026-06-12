@@ -172,6 +172,21 @@ app.put('/api/store/:key', (req, res) => {
   if (req.params.key === 'kl-users') {
     return res.status(403).json({ error: 'Vartotojų sąrašas keičiamas tik per /api/users/* endpointus.' });
   }
+  // kl-permits: smart merge — permitPdfs niekada neperrašomi senesniais duomenimis
+  // Apsauga nuo IMAP race condition: frontend'as gali turėti seną permits kopiją
+  if (req.params.key === 'kl-permits') {
+    const incoming = req.body.value || [];
+    const existing = dbGet('kl-permits') || [];
+    const merged = incoming.map((p) => {
+      const ex = existing.find((e) => e.id === p.id);
+      if (!ex) return p;
+      // Sujungiame permitPdfs: išsaugome visus raktus iš ABIEJŲ versijų
+      const mergedPdfs = Object.assign({}, ex.permitPdfs || {}, p.permitPdfs || {});
+      return { ...p, permitPdfs: mergedPdfs };
+    });
+    dbSet('kl-permits', merged);
+    return res.json({ ok: true });
+  }
   dbSet(req.params.key, req.body.value);
   res.json({ ok: true });
 });
@@ -3344,24 +3359,4 @@ app.get('/api/version', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log('Kasimo leidimai veikia: http://localhost:' + PORT);
-  console.log('DB: ' + DB_FILE);
-
-  setTimeout(() => {
-    const settings = dbGet('kl-settings') || {};
-    syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
-      console.log('[SYNC] El. pasto sinchronizacija:', r.log.join(', '));
-    });
-  }, 3000);
-
-  setTimeout(() => {
-    checkImapMail().then((r) => {
-      if (r.checked > 0) console.log('[IMAP] Pradinis tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-    });
-    setInterval(() => {
-      checkImapMail().then((r) => {
-        if (r.checked > 0) console.log('[IMAP] Tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-      });
-    }, 15 * 60 * 1000);
-  }, 10000);
-});
+  console.log('Kasimo leidimai veiki
