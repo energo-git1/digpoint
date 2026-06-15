@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EnergoLT — Kasimo leidimai
 // @namespace    http://energolt.eu/
-// @version      1.0.8
+// @version      1.0.9
 // @description  Automatizuotas Kauno m. sav. ir ESO kasimo leidimų paraiškų pildymas
 // @author       EnergoLT
 // @match        https://kasimai.kaunas.lt/*
@@ -402,6 +402,26 @@
     // Bandome gauti duomenis iš URL hash arba kl-eso-tasks
     const hashMatch = location.hash.match(/dp=([A-Za-z0-9+/=]+)/);
 
+    // Pažymi ESO užduotį kaip done arba failed DB
+    function markEsoTask(task, status) {
+      if (!task || !task.permitId) return; // URL hash task — nėra DB įrašo
+      digpointGet('/api/store/kl-eso-tasks', (err, data) => {
+        if (err || !data || !data.value) return;
+        const updated = (data.value || []).map(t =>
+          t.permitId === task.permitId && t.status === 'pending'
+            ? { ...t, status, [status === 'done' ? 'doneAt' : 'failedAt']: new Date().toISOString() }
+            : t
+        );
+        GM_xmlhttpRequest({
+          method: 'PUT',
+          url: `${DIGPOINT}/api/store/kl-eso-tasks`,
+          headers: { 'Content-Type': 'application/json' },
+          data: JSON.stringify({ value: updated }),
+          onload: () => log(`kl-eso-tasks pažymėta "${status}"`),
+        });
+      });
+    }
+
     function fillEsoForm(task) {
       log(`ESO forma — pildoma: ${task.location}`);
       const ph = (task.managerPhone || '').replace(/^\+370/, '').replace(/\s/g, '');
@@ -442,6 +462,7 @@
           if (cb && !cb.checked) cb.click();
 
           log('ESO forma užpildyta ✅');
+          markEsoTask(task, 'done'); // Pažymime kaip atliktą
           return true;
         } catch (e) {
           log('Angular klaida: ' + e.message);
@@ -452,44 +473,15 @@
       // Laukiame kol vartotojas pasirenka rangovo tipą ir pereina į formos puslapį
       // NESPAUČIAME "Toliau" — vartotojas pats turi pasirinkti rangovo tipą
       const tryFill = (attempt = 0) => {
-        if (attempt > 120) { log('ESO: timeout (60s), bandykite rankiniu būdu'); return; }
+        if (attempt > 120) {
+          log('ESO: timeout (60s), bandykite rankiniu būdu');
+          markEsoTask(task, 'failed'); // Žymime failed kad nesikartoų
+          return;
+        }
 
         const addrInput = document.querySelector('input[name="obj_address"]');
         if (!addrInput) {
           // Forma dar nepasirodė — laukiame toliau (kas 500ms, iki 60s)
           if (attempt === 0) log('ESO: laukiama kol pasirodys forma (pasirinkite rangovo tipą ir spauskite Toliau)...');
           setTimeout(() => tryFill(attempt + 1), 500);
-          return;
-        }
-
-        // Forma paruošta — pildome
-        log('ESO: forma pasirodė — pildome laukus');
-        if (!fillAngular()) {
-          setTimeout(() => tryFill(attempt + 1), 500);
-        }
-      };
-
-      // Pradedame tikrinti po 2s (puslapiui stabilizuotis)
-      setTimeout(() => tryFill(), 2000);
-    }
-
-    if (hashMatch) {
-      try {
-        const task = JSON.parse(decodeURIComponent(escape(atob(hashMatch[1]))));
-        log('ESO: duomenys iš URL hash');
-        fillEsoForm(task);
-      } catch (e) { log('Hash klaida: ' + e.message); }
-    } else {
-      // Bandome iš kl-eso-tasks
-      digpointGet('/api/store/kl-eso-tasks', (err, data) => {
-        if (err || !data || !data.value) { log('ESO: nėra užduočių'); return; }
-        const tasks = (data.value || []).filter(t => t.status === 'pending');
-        if (!tasks.length) { log('ESO: nėra pending užduočių'); return; }
-        log(`ESO: rasta ${tasks.length} užduotis`);
-        fillEsoForm(tasks[0]);
-      });
-    }
-    return;
-  }
-
-})();
+    
