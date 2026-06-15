@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EnergoLT — Kasimo leidimai
 // @namespace    http://energolt.eu/
-// @version      1.0.10
+// @version      1.0.11
 // @description  Automatizuotas Kauno m. sav. ir ESO kasimo leidimų paraiškų pildymas
 // @author       EnergoLT
 // @match        https://kasimai.kaunas.lt/*
@@ -463,29 +463,61 @@
         }
       };
 
-      // Laukiame kol vartotojas pasirenka rangovo tipą ir pereina į formos puslapį
-      // NESPAUČIAME "Toliau" — vartotojas pats turi pasirinkti rangovo tipą
+      // Automatiskai spaudziame "ESO rangovas" jei forma dar neatsidariusi
+      function clickEsoRangovas() {
+        if (document.querySelector('input[name="obj_address"]')) return;
+        const btn = Array.from(document.querySelectorAll('button.action')).find((b) =>
+          (b.closest('div,li,section,article') || b.parentElement || b).textContent.includes('ESO rangovas')
+        );
+        if (btn) {
+          log('ESO: automatiskai spaudziamas "ESO rangovas"');
+          btn.click();
+        } else {
+          log('ESO: "ESO rangovas" mygtukas nerastas');
+        }
+      }
+
       const tryFill = (attempt = 0) => {
         if (attempt > 120) {
-          log('ESO: timeout (60s), bandykite rankiniu būdu');
-          markEsoTask(task, 'failed'); // Žymime failed kad nesikartoų
+          log('ESO: timeout (60s), bandykite rankiniu budu');
+          markEsoTask(task, 'failed');
           return;
         }
 
         const addrInput = document.querySelector('input[name="obj_address"]');
         if (!addrInput) {
-          // Forma dar nepasirodė — laukiame toliau (kas 500ms, iki 60s)
-          if (attempt === 0) log('ESO: laukiama kol pasirodys forma (pasirinkite rangovo tipą ir spauskite Toliau)...');
+          if (attempt % 6 === 0) clickEsoRangovas(); // kas 3s bandome dar karta
           setTimeout(() => tryFill(attempt + 1), 500);
           return;
         }
 
-        // Forma paruošta — pildome
-        log('ESO: forma pasirodė — pildome laukus');
+        log('ESO: forma pasirodeje - pildome laukus');
         if (!fillAngular()) {
           setTimeout(() => tryFill(attempt + 1), 500);
         }
       };
 
-      // Pradedame tikrinti po 2s (puslapiui stabilizuotis)
-      setTimeout(() => 
+      // Pradedame po 2s, is karto bandome paspausti "ESO rangovas"
+      setTimeout(() => { clickEsoRangovas(); tryFill(); }, 2000);
+    }
+
+    if (hashMatch) {
+      try {
+        const task = JSON.parse(decodeURIComponent(escape(atob(hashMatch[1]))));
+        log('ESO: duomenys is URL hash');
+        fillEsoForm(task);
+      } catch (e) { log('Hash klaida: ' + e.message); }
+    } else {
+      // Bandome is kl-eso-tasks - tik aktyvios (pending + TTL)
+      digpointGet('/api/store/kl-eso-tasks', (err, data) => {
+        if (err || !data || !data.value) { log('ESO: nera uzduociu'); return; }
+        const tasks = (data.value || []).filter(t => isActiveTask(t));
+        if (!tasks.length) { log('ESO: nera aktyviu pending uzduociu'); return; }
+        log(`ESO: rasta ${tasks.length} aktyvi uzduotis`);
+        fillEsoForm(tasks[0]);
+      });
+    }
+    return;
+  }
+
+})();
