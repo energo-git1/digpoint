@@ -1400,7 +1400,7 @@ async function _checkImapMailImpl() {
                   assignedCount++;
                   const updPdfs = { ...(p.permitPdfs || {}), vandenys: savedFiles[0] };
                   return { ...p, permitPdfs: updPdfs,
-                    files: [...(p.files || []), ...savedFiles],
+                    files: [...(p.files || []), ...savedFiles.filter((sf) => !(p.files || []).some((ef) => ef.name === sf.name))],
                     history: [...(p.history || []), { status: p.status, date: fmtDateSrv(new Date()),
                       note: `Kauno vandenys leidimas gautas automatiškai (daugiaobjektinis PDF, inv. ${pInv})` }],
                   };
@@ -1633,7 +1633,7 @@ async function _checkImapMailImpl() {
               return {
                   ...p,
                   status:           newStatus,
-                  files:            [...(p.files || []), ...savedFiles],
+                  files:            [...(p.files || []), ...savedFiles.filter((sf) => !(p.files || []).some((ef) => ef.name === sf.name))],
                   permitPdfs:       updatedPermitPdfs,
                   location:         p.location || savExtracted.location || pdfLocExtracted || '',
                   startDate:        p.startDate || savExtracted.startDate || pdfStart || '',
@@ -1766,10 +1766,14 @@ app.get('/api/admin/list-sav-priedai', (req, res) => {
   const docs = [];
   const added = new Set();       // tikslūs raktai (su __pages: priesagomis)
   const addedBase = new Set();   // baziniai failų vardai — duplikatų prevencija tarp pendingEmail blokų
+  const addedNames = new Set();  // originalūs failų vardai — duplikatų prevencija tarp IMAP pakartotinių
   function addDoc(f, label) {
     if (!f || !f.filename || added.has(f.filename)) return;
+    const origName = f.name || f.filename;
+    if (addedNames.has(origName)) return;
     added.add(f.filename);
     addedBase.add(f.filename);
+    addedNames.add(origName);
     docs.push({ filename: f.filename, name: f.name || f.filename, label, url: f.url || `/uploads/${f.filename}` });
   }
 
