@@ -1450,6 +1450,14 @@ async function _checkImapMailImpl() {
             const pdfLocation = extractLocationFromPdf(fullPdfText);
             const searchText  = subject + ' ' + fullPdfText + (pdfLocation ? ' ' + pdfLocation : '');
 
+            // Telia/KE siunčia adresą temos eilutėje: "Kasimo leidimas: Mituvos g. (2 lapai)"
+            // Ištraukiame kaip papildomą gretinimo signalą
+            const subjectAddr = (() => {
+              const m = subject.match(/leidimas[^:]*:\s*([^(,\n]{4,60})/i);
+              return m ? m[1].trim() : '';
+            })();
+            if (subjectAddr) console.log(`[IMAP] ${org}: temos adresas — "${subjectAddr}"`);
+
             // Rūšiuojame kandidatus: pirmiausia "Pateikta", tada pagal sukūrimo datą (naujausios pirmos)
             // Tai užtikrina, kad ties lygiomis score'u parenka naujausią/pateiktą paraišką
             const candidates = [...pendingForOrg].sort((a, b) => {
@@ -1464,14 +1472,15 @@ async function _checkImapMailImpl() {
               candidates.forEach((c, i) => console.log(`[IMAP]   [${i}] #${c.id.slice(-5).toUpperCase()} status=${c.status} inv=${c.investNo||'—'} loc=${(c.location||'').slice(0,40)}`));
             }
 
-            // Dvikryptis adreso atitikimas: PDF adresas ↔ paraiškos adresas
-            function calcBidirectionalScore(permitAddr, pdfAddr, searchText) {
+            // Dvikryptis adreso atitikimas: PDF/temos adresas ↔ paraiškos laukai
+            function calcBidirectionalScore(permitAddr, pdfAddr, searchText, permitAllText) {
               // 1) Paraiškos adreso žodžiai PDF/email tekste
               const s1 = calcLocationScore(permitAddr, searchText);
-              // 2) PDF adreso žodžiai paraiškos adrese (atvirkštinis)
-              const s2 = pdfAddr ? calcLocationScore(pdfAddr, permitAddr) : 0;
-              // Imame geriausią
-              return Math.max(s1, s2);
+              // 2) PDF arba temos adresas → paraiškos adreso laukai (arba visi laukai jei adresas tuščias)
+              const target = permitAddr || permitAllText || '';
+              const s2 = pdfAddr ? calcLocationScore(pdfAddr, target) : 0;
+              const s3 = subjectAddr ? calcLocationScore(subjectAddr, target) : 0;
+              return Math.max(s1, s2, s3);
             }
 
             let bestPermit = bestPermitByInvNo;
@@ -1500,15 +1509,8 @@ async function _checkImapMailImpl() {
             } else if (!bestPermit) {
               for (const p of candidates) {
                 const permitAddr = p.teliaRouteTo || p.teliaRouteFrom || p.location || '';
-                let score = calcBidirectionalScore(permitAddr, pdfLocation, searchText);
-                // Papildomas patikrinimas: laiško žodžiai paraiškos laukuose (kai permit neturi adreso)
-                if (score === 0 && !permitAddr) {
-                  const permitText = normalizeForMatch([p.investNo, p.description, p.location, p.teliaRouteTo, p.teliaRouteFrom].filter(Boolean).join(' '));
-                  const searchWords = normalizeForMatch(searchText).split(' ').filter((w) => w.length >= 4);
-                  if (permitText && searchWords.length) {
-                    score = searchWords.filter((w) => permitText.includes(w)).length / searchWords.length * 0.5;
-                  }
-                }
+                const permitAllText = [p.investNo, p.description, p.location, p.teliaRouteTo, p.teliaRouteFrom].filter(Boolean).join(' ');
+                const score = calcBidirectionalScore(permitAddr, pdfLocation, searchText, permitAllText);
                 if (score > bestScore) { bestScore = score; bestPermit = p; }
               }
             }
@@ -3352,31 +3354,4 @@ function extractMunicipalityFromText(text) {
 app.get('/api/version', (req, res) => {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
-    res.json({ version: pkg.version });
-  } catch (e) {
-    res.json({ version: '?' });
-  }
-});
-
-app.listen(PORT, () => {
-  console.log('Kasimo leidimai veikia: http://localhost:' + PORT);
-  console.log('DB: ' + DB_FILE);
-
-  setTimeout(() => {
-    const settings = dbGet('kl-settings') || {};
-    syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
-      console.log('[SYNC] El. pasto sinchronizacija:', r.log.join(', '));
-    });
-  }, 3000);
-
-  setTimeout(() => {
-    checkImapMail().then((r) => {
-      if (r.checked > 0) console.log('[IMAP] Pradinis tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-    });
-    setInterval(() => {
-      checkImapMail().then((r) => {
-        if (r.checked > 0) console.log('[IMAP] Tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-      });
-    }, 15 * 60 * 1000);
-  }, 10000);
-});
+    res.json({ version: pkg.ve
