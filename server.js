@@ -773,12 +773,17 @@ function extractLocationFromPdf(pdfText) {
     // ESO specifinis: "vykdymo vieta" arba "kasimo darbų vieta"
     /(?:vykdymo\s+vieta|kasimo\s+darb[uų]\s+viet[ao])[:\s\n]+([^\n(]{5,100})/i,
     /(?:darbų\s+vieta|objekto\s+vieta|adresas|statybos\s+vieta|vieta)[:\s]+([^\n]{5,80})/i,
+    // Telia specifinis: "Darbų atlikimo vieta" arba "Statinių statybos vieta"
+    /(?:darbų\s+atlikimo\s+vieta|statini[uo]\s+statybos\s+vieta|tinklo\s+trasа|trasa)[:\s]+([^\n]{5,80})/i,
+    // Bendra gatvės ištraukimas: "Gatvės pavadinimas g./pr./al." po dvitaškio ar lentelės langelio
     /(?:gatvė|g\.|pr\.|al\.|pl\.)[:\s]*([A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž][^\n]{3,60})/i,
+    // Telia: gatvė kaip pirmasis žodis eilutėje + g./pr./al.
+    /^([A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž]{3,}\s+(?:g\.|pr\.|al\.|pl\.|gatv|prospekt)[^\n]{0,40})/m,
   ];
   for (const pat of patterns) {
     const m = pdfText.match(pat);
     if (m) {
-      let v = m[1].replace(/\s+/g, ' ').trim();
+      let v = (m[1] || m[0]).replace(/\s+/g, ' ').trim();
       // Pjauname ties sekančia stambių didžiųjų raidžių grupe (kita lentelės antraštė)
       const cut = v.search(/\b[A-ZĄČĘĖĮŠŲŪŽ]{4,}\s+[A-ZĄČĘĖĮŠŲŪŽ]{4,}/);
       if (cut > 3) v = v.substring(0, cut).trim();
@@ -1506,6 +1511,13 @@ async function _checkImapMailImpl() {
               } else {
                 console.log(`[IMAP] ${org}: viena kandidatė bet investNo (${candidateInvNo}) neatitinka PDF — priskyrimas atšauktas`);
               }
+            } else if (!bestPermit && candidates.length === 1 && subjectAddr) {
+              // Viena kandidatė su adresu, bet adresas nesutampa su temos adresu.
+              // Telia/KE: jei tema turi adresą ir yra tik viena laukianti paraiška —
+              // priskiriame ją (vartotojas pats patikrins) su žemu score.
+              bestPermit = candidates[0];
+              bestScore  = 0.3;
+              console.log(`[IMAP] ${org}: viena kandidatė — temos adresas "${subjectAddr}" → priskiriama #${bestPermit.id.slice(-5).toUpperCase()} (score=0.3, patikrinkite rankiniu būdu)`);
             } else if (!bestPermit) {
               for (const p of candidates) {
                 const permitAddr = p.teliaRouteTo || p.teliaRouteFrom || p.location || '';
@@ -1517,7 +1529,7 @@ async function _checkImapMailImpl() {
 
             // ESO: turi reg.nr. sistemą — žemesnis slenkstis kai nėra investNo
             // KE/Telia: tik adreso matching — aukštesnis slenkstis, nes nėra papildomo tikrinimo
-            const THRESHOLD = (candidates.length === 1 && !hasAddr) ? 0
+            const THRESHOLD = (candidates.length === 1 && (!hasAddr || subjectAddr)) ? 0
               : (bestPermitByInvNo ? 1.0  // investNo match — visada priimame
               : (org === 'Kauno energija' || org === 'Telia, Kaunas') ? 0.65
               : 0.5);
@@ -3328,57 +3340,4 @@ app.post('/api/extract-municipality', async (req, res) => {
       if (!fs.existsSync(fpath)) fpath = path.join(__dirname, 'public', rel);
     }
     if (!fpath || !fs.existsSync(fpath)) {
-      return res.json({ municipality: null, error: 'Failas nerastas: ' + (fpath || '?') });
-    }
-    const buf = fs.readFileSync(fpath);
-    const parsed = await pdfParse(buf);
-    const text = parsed.text || '';
-    const municipality = extractMunicipalityFromText(text);
-    console.log('[MUN] Is PDF:', path.basename(fpath), municipality || 'nerasta');
-    res.json({ municipality, text: text.slice(0, 800) });
-  } catch (e) {
-    console.warn('[MUN] Klaida:', e.message);
-    res.json({ municipality: null, error: e.message });
-  }
-});
-
-function extractMunicipalityFromText(text) {
-  if (!text) return null;
-  const m1 = text.match(/([A-Z\u00c0-\u017e][a-z\u00c0-\u017e\-]+(?: [a-z\u00c0-\u017e]+)?)\s+(?:r|m)\.\s*sav\./);
-  if (m1) return m1[0].replace(/\s+/g, ' ').trim();
-  const m2 = text.match(/([A-Z\u00c0-\u017e][a-z\u00c0-\u017e\-]+(?: [a-z\u00c0-\u017e]+)?)\s+sav\./);
-  if (m2) return m2[0].replace(/\s+/g, ' ').trim();
-  return null;
-}
-
-app.get('/api/version', (req, res) => {
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
-    res.json({ version: pkg.version });
-  } catch (e) {
-    res.json({ version: '?' });
-  }
-});
-
-app.listen(PORT, () => {
-  console.log('Kasimo leidimai veikia: http://localhost:' + PORT);
-  console.log('DB: ' + DB_FILE);
-
-  setTimeout(() => {
-    const settings = dbGet('kl-settings') || {};
-    syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
-      console.log('[SYNC] El. pasto sinchronizacija:', r.log.join(', '));
-    });
-  }, 3000);
-
-  setTimeout(() => {
-    checkImapMail().then((r) => {
-      if (r.checked > 0) console.log('[IMAP] Pradinis tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-    });
-    setInterval(() => {
-      checkImapMail().then((r) => {
-        if (r.checked > 0) console.log('[IMAP] Tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
-      });
-    }, 15 * 60 * 1000);
-  }, 10000);
-});
+      return res.json
