@@ -484,4 +484,37 @@
           // Forma dar nepasirodė — laukiame toliau (kas 500ms, iki 60s)
           if (attempt === 0) log('ESO: laukiama kol pasirodys forma (pasirinkite rangovo tipą ir spauskite Toliau)...');
           setTimeout(() => tryFill(attempt + 1), 500);
-    
+          return;
+        }
+
+        // Forma paruošta — pildome
+        log('ESO: forma pasirodė — pildome laukus');
+        if (!fillAngular()) {
+          setTimeout(() => tryFill(attempt + 1), 500);
+        }
+      };
+
+      // Pradedame tikrinti po 2s (puslapiui stabilizuotis)
+      setTimeout(() => tryFill(), 2000);
+    }
+
+    if (hashMatch) {
+      try {
+        const task = JSON.parse(decodeURIComponent(escape(atob(hashMatch[1]))));
+        log('ESO: duomenys iš URL hash');
+        fillEsoForm(task);
+      } catch (e) { log('Hash klaida: ' + e.message); }
+    } else {
+      // Bandome iš kl-eso-tasks — tik aktyvios (pending + TTL)
+      digpointGet('/api/store/kl-eso-tasks', (err, data) => {
+        if (err || !data || !data.value) { log('ESO: nėra užduočių'); return; }
+        const tasks = (data.value || []).filter(t => isActiveTask(t));
+        if (!tasks.length) { log('ESO: nėra aktyvių pending užduočių'); return; }
+        log(`ESO: rasta ${tasks.length} aktyvi užduotis`);
+        fillEsoForm(tasks[0]);
+      });
+    }
+    return;
+  }
+
+})();
