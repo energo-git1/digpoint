@@ -3354,4 +3354,31 @@ function extractMunicipalityFromText(text) {
 app.get('/api/version', (req, res) => {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
-    res.json({ version: pkg.ve
+    res.json({ version: pkg.version });
+  } catch (e) {
+    res.json({ version: '?' });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log('Kasimo leidimai veikia: http://localhost:' + PORT);
+  console.log('DB: ' + DB_FILE);
+
+  setTimeout(() => {
+    const settings = dbGet('kl-settings') || {};
+    syncAdEmailsPromise(settings.emailDomain || '').then((r) => {
+      console.log('[SYNC] El. pasto sinchronizacija:', r.log.join(', '));
+    });
+  }, 3000);
+
+  setTimeout(() => {
+    checkImapMail().then((r) => {
+      if (r.checked > 0) console.log('[IMAP] Pradinis tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
+    });
+    setInterval(() => {
+      checkImapMail().then((r) => {
+        if (r.checked > 0) console.log('[IMAP] Tikrinimas: ' + r.checked + ' laisku, ' + r.processed + ' apdorota.');
+      });
+    }, 15 * 60 * 1000);
+  }, 10000);
+});
