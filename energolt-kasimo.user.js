@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EnergoLT — Kasimo leidimai
 // @namespace    http://energolt.eu/
-// @version      1.0.9
+// @version      1.0.10
 // @description  Automatizuotas Kauno m. sav. ir ESO kasimo leidimų paraiškų pildymas
 // @author       EnergoLT
 // @match        https://kasimai.kaunas.lt/*
@@ -356,28 +356,21 @@
         }
 
         // Prisijungęs — kopijuoti pirmą prašymą
+        // "Kopijuoti prašymą" mygtukai yra DOM'e bet paslėpti (eilutė nesuspaudžiama).
+        // dispatchEvent nenaviaguoja ant paslėptų <a> — naudojame location.href tiesiogiai.
         log('Aktyvus task — ieškoma "Kopijuoti prašymą"');
         waitForText('a', 'Kopijuoti prašymą', (btn) => {
-          log('"Kopijuoti prašymą" href: ' + (btn.href || 'nėra (SPA)'));
-          setTimeout(() => {
-            click(btn);
-            log('"Kopijuoti prašymą" paspaustas');
-            // SPA atvejis: forma gali atsirasti tame pačiame puslapyje be URL keitimo
-            // Laukiame formos atsiradimo šiame puslapyje
+          const href = btn.href;
+          log('"Kopijuoti prašymą" href: ' + href);
+          if (href && href.includes('/naujas-prasymas/')) {
             setTimeout(() => {
-              const hasForm = document.querySelector('input[name="dv_vardas"]');
-              if (hasForm) {
-                log('SPA: forma atsirado tame pačiame puslapyje — pildome');
-                fillSavForm(t);
-              } else {
-                log('Navigacija į kitą puslapį — section 6 užpildys');
-                // Jei navigacija neįvyko per 5s, bandome dar kartą rasti formą
-                setTimeout(() => {
-                  if (document.querySelector('input[name="dv_vardas"]')) fillSavForm(t);
-                }, 5000);
-              }
-            }, 2000);
-          }, 800);
+              log('Navigacija į kopiją: ' + href);
+              location.href = href; // tiesioginis href — veikia ir ant paslėptų elementų
+            }, 500);
+          } else {
+            log('Nerastas tinkamas href — bandome native click');
+            btn.click();
+          }
         }, 10000);
       });
     }, 1500);
@@ -495,26 +488,4 @@
       };
 
       // Pradedame tikrinti po 2s (puslapiui stabilizuotis)
-      setTimeout(() => tryFill(), 2000);
-    }
-
-    if (hashMatch) {
-      try {
-        const task = JSON.parse(decodeURIComponent(escape(atob(hashMatch[1]))));
-        log('ESO: duomenys iš URL hash');
-        fillEsoForm(task);
-      } catch (e) { log('Hash klaida: ' + e.message); }
-    } else {
-      // Bandome iš kl-eso-tasks — tik aktyvios (pending + TTL)
-      digpointGet('/api/store/kl-eso-tasks', (err, data) => {
-        if (err || !data || !data.value) { log('ESO: nėra užduočių'); return; }
-        const tasks = (data.value || []).filter(t => isActiveTask(t));
-        if (!tasks.length) { log('ESO: nėra aktyvių pending užduočių'); return; }
-        log(`ESO: rasta ${tasks.length} aktyvi užduotis`);
-        fillEsoForm(tasks[0]);
-      });
-    }
-    return;
-  }
-
-})();
+      setTimeout(() => 
