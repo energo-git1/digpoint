@@ -5752,6 +5752,8 @@ function SavPriedaiBlock(p){
   var _extraPages=useState({});var extraPages=_extraPages[0],sExtraPages=_extraPages[1];
   var _showPicker=useState(null);var showPicker=_showPicker[0],sShowPicker=_showPicker[1];
   var _docPages=useState({});var docPages=_docPages[0],sDocPages=_docPages[1]; // {filename:[pages]} puslapių parinkimas docList elementams
+  var _dragIdx=useState(null);var dragIdx=_dragIdx[0],sDragIdx=_dragIdx[1];
+  var _dragOverIdx=useState(null);var dragOverIdx=_dragOverIdx[0],sDragOverIdx=_dragOverIdx[1];
   var _saved=useState(false);var saved=_saved[0],sSaved=_saved[1];
   var _priedai=useState(null);var priedai=_priedai[0],sPriedai=_priedai[1];
   var _busy=useState(false);var busy=_busy[0],sBusy=_busy[1];
@@ -5891,11 +5893,18 @@ function SavPriedaiBlock(p){
 
     {/* Dokumentų sąrašas su eiliškumo keitimu */}
     {docList&&docList.length>0&&<div style={{marginBottom:10}}>
-      <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>Dokumentai prieduose <span style={{fontWeight:400,color:C.t3}}>(↑↓ keisti eiliškumą)</span></div>
+      <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:6}}>Dokumentai prieduose <span style={{fontWeight:400,color:C.t3}}>(↑↓ arba tempiant keisti eiliškumą)</span></div>
       {docList.map(function(doc,idx){
         var isPdf=doc.filename&&!doc.filename.includes('__pages:')&&doc.name&&doc.name.toLowerCase().endsWith('.pdf');
         var hasDocPgs=docPages[doc.filename]&&docPages[doc.filename].length>0;
-        return <div key={doc.filename} style={{display:"flex",alignItems:"center",gap:4,marginBottom:4}}>
+        var isDragOver=dragOverIdx===idx&&dragIdx!==null&&dragIdx!==idx;
+        return <div key={doc.filename} draggable={true}
+          onDragStart={function(e){e.dataTransfer.effectAllowed='move';sDragIdx(idx);}}
+          onDragOver={function(e){e.preventDefault();e.dataTransfer.dropEffect='move';sDragOverIdx(idx);}}
+          onDragLeave={function(){sDragOverIdx(null);}}
+          onDrop={function(e){e.preventDefault();if(dragIdx===null||dragIdx===idx){sDragIdx(null);sDragOverIdx(null);return;}sDocList(function(prev){var a=prev.slice();var item=a.splice(dragIdx,1)[0];a.splice(idx,0,item);return a;});sDragIdx(null);sDragOverIdx(null);sPriedai(null);}}
+          onDragEnd={function(){sDragIdx(null);sDragOverIdx(null);}}
+          style={{display:"flex",alignItems:"center",gap:4,marginBottom:4,opacity:dragIdx===idx?0.4:1,borderTop:isDragOver?"2px solid "+C.ac:"2px solid transparent",cursor:"grab"}}>
           <input type="checkbox" checked={!!selected[doc.filename]} onChange={function(e){
             var chk=e.target.checked;var fn=doc.filename;
             sSelected(function(prev){var n=Object.assign({},prev);n[fn]=chk;autoSave(srcId,n,extraPages);return n;});
@@ -6608,27 +6617,4 @@ function App(){
               onClick={function(){setDetail(pm)}}/>;
           }
           return <PermitGroup key={entry.key} group={entry.items} users={users} viewMode={view} onSelect={setDetail}
-            manual={entry.manual} internalCode={entry.internalCode||null} onUnmerge={entry.manual?doUnmerge:undefined}
-            onDragStart={canMerge?function(e,pmId){e.dataTransfer.setData("permitId",pmId);sDragId(pmId);}:undefined}
-            onDragOver={canMerge&&dragId?function(e){e.preventDefault();}:undefined}
-            onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");var tgt=entry.items[0].id;if(src&&src!==tgt){sMergeConfirm({aId:src,bId:tgt});}sDragId(null);sDropId(null);}:undefined}
-            dragId={dragId}/>;
-        });
-      })()}
-    </div>;
-  }
-
-  return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
-    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
-      onUpdate={function(u){updatePermit(u);setDetail(u)}}
-      onSend={function(u){updatePermit(u);setDetail(null)}}
-      onDelete={function(id){deletePermit(id);setDetail(null)}}
-      onClose={function(){setDetail(null)}}/>}
-  </div>
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+            manual={entry.manual} internalCode={entry.internalCode||null} onUnmerge={entry.manual?doUnmerge:undefin
