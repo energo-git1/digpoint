@@ -24,6 +24,7 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const MAX_FILE_SIZE    = 500 * 1024 * 1024; // 500 MB
 const MAX_FILENAME_LEN = 70;
+const PROJECT_FILE_RETENTION_DAYS = 21; // projekto dokumentai trinami po 3 savaičių
 
 function srvUid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
@@ -3382,6 +3383,59 @@ app.get('/api/version', (req, res) => {
   }
 });
 
+// Projekto dokumentu automatinis valymas
+// Trinami files[] irasai (NE permitPdfs, NE leidimai/derinimai pagal pavadinima,
+// NE beforeFiles/closeFiles) kuriu ikelimo laikas > PROJECT_FILE_RETENTION_DAYS dienu.
+// srvUid prefiksas = Date.now().toString(36) leidzia atkurti ikelimo laika.
+function cleanupOldProjectFiles() {
+  const PERMIT_FILE_PAT = /^(lzd[_\-]|sutikimas[_\-]|ke[_\-]|kaun.*energ|litgrid)/i;
+  const cutoff = Date.now() - PROJECT_FILE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const permits = dbGet('kl-permits') || [];
+  let deletedFiles = 0;
+  let deletedDisk  = 0;
+
+  const updated = permits.map((p) => {
+    const protectedFilenames = new Set(
+      Object.values(p.permitPdfs || {}).filter(Boolean).map((f) => f.filename).filter(Boolean)
+    );
+
+    const toDelete = [];
+    const kept     = [];
+
+    for (const f of (p.files || [])) {
+      if (!f.filename) { kept.push(f); continue; }
+      if (PERMIT_FILE_PAT.test(f.name || '') || protectedFilenames.has(f.filename)) {
+        kept.push(f); continue;
+      }
+      const uidPrefix = f.filename.split('_')[0];
+      const uploadedAt = parseInt(uidPrefix, 36);
+      if (!uploadedAt || isNaN(uploadedAt) || uploadedAt > cutoff) {
+        kept.push(f); continue;
+      }
+      toDelete.push(f);
+    }
+
+    if (toDelete.length === 0) return p;
+
+    toDelete.forEach((f) => {
+      const fp = path.join(UPLOAD_DIR, f.filename);
+      try {
+        if (fs.existsSync(fp)) { fs.unlinkSync(fp); deletedDisk++; }
+      } catch (e) { console.error('[CLEANUP] Nepavyko istrinti:', fp, e.message); }
+      deletedFiles++;
+    });
+
+    return { ...p, files: kept };
+  });
+
+  if (deletedFiles > 0) {
+    dbSet('kl-permits', updated);
+    console.log('[CLEANUP] Projekto dokumentai: pasalinta ' + deletedFiles + ' irasu (' + deletedDisk + ' failu is disko)');
+  } else {
+    console.log('[CLEANUP] Projekto dokumentai: nieko netrinta');
+  }
+}
+
 app.listen(PORT, () => {
   console.log('Kasimo leidimai veikia: http://localhost:' + PORT);
   console.log('DB: ' + DB_FILE);
@@ -3403,4 +3457,10 @@ app.listen(PORT, () => {
       });
     }, 15 * 60 * 1000);
   }, 10000);
+
+  // Projekto dokumentu valymas -- karta per para (po 1 min. nuo paleidimo)
+  setTimeout(() => {
+    cleanupOldProjectFiles();
+    setInterval(cleanupOldProjectFiles, 24 * 60 * 60 * 1000);
+  }, 60 * 1000);
 });
