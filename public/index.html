@@ -5495,6 +5495,9 @@ function SystemTools(){
   var _fixDatesRes=useState(null);var fixDatesRes=_fixDatesRes[0],sFixDatesRes=_fixDatesRes[1];
   var _savLogBusy=useState(false);var savLogBusy=_savLogBusy[0],sSavLogBusy=_savLogBusy[1];
   var _savLogRes=useState(null);var savLogRes=_savLogRes[0],sSavLogRes=_savLogRes[1];
+  var _smtpPassInput=useState("");var smtpPassInput=_smtpPassInput[0],sSmtpPassInput=_smtpPassInput[1];
+  var _smtpPassSaving=useState(false);var smtpPassSaving=_smtpPassSaving[0],sSmtpPassSaving=_smtpPassSaving[1];
+  var _smtpPassMsg=useState("");var smtpPassMsg=_smtpPassMsg[0],sSmtpPassMsg=_smtpPassMsg[1];
 
   function checkMail(){
     sMailBusy(true);sMailRes(null);
@@ -5553,6 +5556,14 @@ function SystemTools(){
       .catch(function(e){sSavLogRes({error:e.message});sSavLogBusy(false)});
   }
 
+  function saveSmtpPass(){
+    if(!smtpPassInput.trim()){return;}
+    sSmtpPassSaving(true);sSmtpPassMsg("");
+    fetch("/api/admin/set-smtp-pass",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pass:smtpPassInput})})
+      .then(function(r){return r.json()})
+      .then(function(d){sSmtpPassSaving(false);sSmtpPassMsg(d.ok?"✅ Slaptažodis išsaugotas ir aktyvus":"❌ "+d.error);sSmtpPassInput("");})
+      .catch(function(e){sSmtpPassSaving(false);sSmtpPassMsg("❌ "+e.message);});
+  }
   var section={marginBottom:24,padding:"16px 18px",background:C.s2,border:"1px solid "+C.b1,borderRadius:10};
   var secTitle={fontSize:10,fontWeight:700,color:C.t3,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1};
 
@@ -5562,9 +5573,14 @@ function SystemTools(){
     {/* SMTP */}
     <div style={section}>
       <div style={secTitle}>El. paštas — SMTP</div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8,alignItems:"center"}}>
         <Btn sm onClick={testSmtp} disabled={smtpBusy}>{smtpBusy?"⏳ Jungiamasi...":"🔌 Testuoti SMTP"}</Btn>
+        <input type="password" placeholder="Nustatyti SMTP slaptažodį..." value={smtpPassInput} onChange={function(e){sSmtpPassInput(e.target.value);sSmtpPassMsg("");}}
+          onKeyDown={function(e){if(e.key==="Enter")saveSmtpPass();}}
+          style={{flex:1,minWidth:180,padding:"4px 8px",borderRadius:6,border:"1px solid "+C.b1,background:C.s1,color:C.tx,fontSize:12,fontFamily:FM}}/>
+        <Btn sm onClick={saveSmtpPass} disabled={smtpPassSaving||!smtpPassInput.trim()}>{smtpPassSaving?"⏳":"💾 Išsaugoti"}</Btn>
       </div>
+      {smtpPassMsg&&<div style={{fontSize:11,color:smtpPassMsg.startsWith("✅")?C.gn:C.rd,marginBottom:6,fontFamily:FM}}>{smtpPassMsg}</div>}
       {smtpRes&&<div style={{padding:"10px 12px",borderRadius:8,background:smtpRes.ok?C.gnD:C.rdD,border:"1px solid "+(smtpRes.ok?C.gn:C.rd)+"44",fontSize:11,fontFamily:FM}}>
         <div style={{fontWeight:700,color:smtpRes.ok?C.gn:C.rd,marginBottom:6}}>{smtpRes.ok?"✅ SMTP prisijungta":"❌ SMTP klaida"}</div>
         <div style={{display:"grid",gridTemplateColumns:"120px 1fr",gap:"3px 8px",color:C.tx}}>
@@ -6617,27 +6633,4 @@ function App(){
               onClick={function(){setDetail(pm)}}/>;
           }
           return <PermitGroup key={entry.key} group={entry.items} users={users} viewMode={view} onSelect={setDetail}
-            manual={entry.manual} internalCode={entry.internalCode||null} onUnmerge={entry.manual?doUnmerge:undefined}
-            onDragStart={canMerge?function(e,pmId){e.dataTransfer.setData("permitId",pmId);sDragId(pmId);}:undefined}
-            onDragOver={canMerge&&dragId?function(e){e.preventDefault();}:undefined}
-            onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");var tgt=entry.items[0].id;if(src&&src!==tgt){sMergeConfirm({aId:src,bId:tgt});}sDragId(null);sDropId(null);}:undefined}
-            dragId={dragId}/>;
-        });
-      })()}
-    </div>;
-  }
-
-  return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
-    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
-      onUpdate={function(u){updatePermit(u);setDetail(u)}}
-      onSend={function(u){updatePermit(u);setDetail(null)}}
-      onDelete={function(id){deletePermit(id);setDetail(null)}}
-      onClose={function(){setDetail(null)}}/>}
-  </div>
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+            manual={entry.manual} internalCode={entry.internalCode||null} onUnmerge={entry.manual?doUnmerge:undefin

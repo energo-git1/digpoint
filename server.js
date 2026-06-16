@@ -478,7 +478,7 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 // ── Email / SMTP ──────────────────────────────────────────────
 // Visi laiškai per mail.energolt.eu (192.168.1.101:465) SSL/TLS su autentikacija
 // PM2: pm2 set digpoint SMTP_PASS Uzkl2026TR
-const SMTP_PASS = process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS || '';
+let SMTP_PASS = process.env.SMTP_PASS || process.env.npm_package_config_SMTP_PASS || (dbGet('kl-settings') || {}).smtpPass || '';
 
 const _smtpOpts = {
   host: '192.168.1.101',
@@ -491,8 +491,14 @@ const _smtpOpts = {
   socketTimeout:     15000,
 };
 
-const mailer         = nodemailer.createTransport(_smtpOpts);
-const mailerInternal = nodemailer.createTransport(_smtpOpts); // tas pats serveris
+let mailer         = nodemailer.createTransport(_smtpOpts);
+let mailerInternal = nodemailer.createTransport(_smtpOpts); // tas pats serveris
+
+function refreshMailer() {
+  const opts = { ..._smtpOpts, auth: { user: 'uzklausos@energolt.eu', pass: SMTP_PASS } };
+  mailer         = nodemailer.createTransport(opts);
+  mailerInternal = nodemailer.createTransport(opts);
+}
 
 console.log(`[SMTP] mail.energolt.eu (192.168.1.101:465) SSL auth=${!!SMTP_PASS}`);
 
@@ -2237,6 +2243,18 @@ app.delete('/api/admin/sav-closure-pending/:id', (req, res) => {
 
 
 // Išvalyti apdorotų laiškų sąrašą
+// Nustatyti SMTP slaptazodi per admin UI (issaugoma DB, veikia be restart)
+app.post('/api/admin/set-smtp-pass', (req, res) => {
+  const { pass } = req.body || {};
+  if (!pass || pass.length < 4) return res.status(400).json({ ok: false, error: 'Per trumpas slaptazodis' });
+  const settings = dbGet('kl-settings') || {};
+  dbSet('kl-settings', { ...settings, smtpPass: pass });
+  SMTP_PASS = pass;
+  refreshMailer();
+  console.log('[ADMIN] SMTP_PASS atnaujintas per UI');
+  res.json({ ok: true });
+});
+
 app.post('/api/admin/clear-imap-done', (req, res) => {
   dbSet('kl-imap-done', []);
   console.log('[ADMIN] kl-imap-done išvalytas');
