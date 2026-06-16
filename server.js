@@ -3458,6 +3458,25 @@ app.listen(PORT, () => {
     }, 15 * 60 * 1000);
   }, 10000);
 
+  // Vienkartinis valymas: Zemes_kasimo_darbu_atmintine_ESO.pdf duplicatai
+  setTimeout(() => {
+    const ATMINTINE_RE = /^zemes_kasimo_darbu_atmintine_eso/i;
+    const allPermits = dbGet('kl-permits') || [];
+    let removed = 0;
+    const cleaned = allPermits.map((p) => {
+      const before = (p.files || []).length;
+      const kept = (p.files || []).filter((f) => !ATMINTINE_RE.test(f.name || ''));
+      if (kept.length === before) return p;
+      kept.forEach((f) => {});
+      (p.files || []).filter((f) => ATMINTINE_RE.test(f.name || '')).forEach((f) => {
+        if (f.filename) { try { const fp = path.join(UPLOAD_DIR, f.filename); if (fs.existsSync(fp)) fs.unlinkSync(fp); } catch (_) {} }
+        removed++;
+      });
+      return { ...p, files: kept };
+    });
+    if (removed > 0) { dbSet('kl-permits', cleaned); console.log('[STARTUP] Atmintine duplicatai pasalinti: ' + removed); }
+  }, 5000);
+
   // Projekto dokumentu valymas -- karta per para (po 1 min. nuo paleidimo)
   setTimeout(() => {
     cleanupOldProjectFiles();
