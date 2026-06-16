@@ -1297,9 +1297,15 @@ async function _checkImapMailImpl() {
             }
 
             // ── ŽINGSNIS 1: parsisiųsti ir išsaugoti PDF ──────────────
+            // Šablonai, kuriuos reikia praleisti (neinformatyvūs ESO/kt. priedai)
+            const SKIP_PDF_NAMES = [/^zemes_kasimo_darbu_atmintine_eso/i];
             const savedFiles = [];
             const pdfTexts   = [];
             for (const pdfPart of pdfParts) {
+              if (SKIP_PDF_NAMES.some((re) => re.test(pdfPart.filename))) {
+                console.log(`[IMAP] Praleidžiamas šabloninis PDF: ${pdfPart.filename}`);
+                continue;
+              }
               try {
                 const dl = await client.download(seq, pdfPart.part);
                 const chunks = [];
