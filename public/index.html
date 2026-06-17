@@ -5788,7 +5788,15 @@ function SavPriedaiBlock(p){
       var permits=v||[];
       var updated=permits.map(function(pm){
         if(pm.id!==p.permitId)return pm;
-        return Object.assign({},pm,{savivaldybePreparation:{
+        // Pridėti extraFiles į permit.files jei dar nėra (kad matytųsi tvirtinimo etape)
+        var existingFilenames=new Set((pm.files||[]).map(function(f){return f.filename;}));
+        var newFiles=(pm.files||[]).slice();
+        extraFilesMeta.forEach(function(ef){
+          if(ef.filename&&!existingFilenames.has(ef.filename)){
+            newFiles.push({id:ef.filename,filename:ef.filename,name:ef.name,url:ef.url,size:ef.size});
+          }
+        });
+        return Object.assign({},pm,{files:newFiles,savivaldybePreparation:{
           srcId:(newSrcId!==undefined?newSrcId:srcId)||null,selectedFilenames:selFiles,extraPages:newExtraPages||extraPages,docPages:docPages,extraFiles:extraFilesMeta,savedAt:fmtDate(new Date())
         }});
       });
@@ -6651,30 +6659,4 @@ function App(){
               onDragLeave={canMerge?function(){if(dropId===pm.id)sDropId(null);}:undefined}
               onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");if(src&&src!==pm.id){sMergeConfirm({aId:src,bId:pm.id});}sDragId(null);sDropId(null);}:undefined}
               isDragOver={dropId===pm.id&&dragId!==pm.id}
-              onClick={function(){setDetail(pm)}}/>;
-          }
-          return <PermitGroup key={entry.key} group={entry.items} users={users} viewMode={view} onSelect={setDetail}
-            manual={entry.manual} internalCode={entry.internalCode||null} onUnmerge={entry.manual?doUnmerge:undefined}
-            onDragStart={canMerge?function(e,pmId){e.dataTransfer.setData("permitId",pmId);sDragId(pmId);}:undefined}
-            onDragOver={canMerge&&dragId?function(e){e.preventDefault();}:undefined}
-            onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");var tgt=entry.items[0].id;if(src&&src!==tgt){sMergeConfirm({aId:src,bId:tgt});}sDragId(null);sDropId(null);}:undefined}
-            dragId={dragId}/>;
-        });
-      })()}
-    </div>;
-  }
-
-  return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
-    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
-      onUpdate={function(u){updatePermit(u);setDetail(u)}}
-      onSend={function(u){updatePermit(u);setDetail(null)}}
-      onDelete={function(id){deletePermit(id);setDetail(null)}}
-      onClose={function(){setDetail(null)}}/>}
-  </div>
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+              onClick={function(){setDetail
