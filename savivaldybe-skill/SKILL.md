@@ -31,17 +31,19 @@ Išsaugok šiuos laukus iš `value` objekto:
 - `location` — darbų vieta
 - `notifyEmail` — kam siųsti pranešimą
 
-Iš karto gauk ir prašymo failus:
+Iš karto gauk ir prašymo `savivaldybePreparation` duomenis bei failus:
 ```javascript
 fetch('/api/store/kl-permits').then(r=>r.json()).then(d=>{
   var p=(d.value||[]).find(x=>x.id==='{permitId}');
-  return JSON.stringify((p&&p.files||[]).map(f=>({name:f.name,url:f.url,filename:f.filename})));
+  var prep=p&&p.savivaldybePreparation||{};
+  var files=(p&&p.files||[]).map(f=>({name:f.name,url:f.url,filename:f.filename}));
+  return JSON.stringify({prep:prep, files:files});
 })
 ```
-Išsaugok failų sąrašą — prireiks 7 žingsnyje.
+Išsaugok `prep` (savivaldybePreparation) ir `files` — prireiks 7 žingsnyje PDF generavimui.
 
 Jei `kl-sav-task` nerastas arba `status` nėra "pending" — pranešk:
-> "Nerasta paraiška. Pirmiau Digpoint sistemoje spausk '🚀 Pateikti Savivaldybei automatiškai'."
+> "Nerasta paraiška. Pirmiau Digpoint sistemoje spausk '🚀 Pateikti'."
 
 **Adresas:** Iš `location` ištrauk gatvę ir namą:
 - Pvz. "Kranto g. 20, Kaunas" → gatvė = "Kranto g.", namas = "20"
@@ -85,29 +87,39 @@ if(link && link.href){ location.href = link.href; 'OK'; } else { 'NERASTA'; }
 
 Spausti ant **"Darbų vadovo duomenys:"** antraštės kad ją išskleistum.
 
-Užpildyti **visus** laukus (ne tik skirtingus):
+Užpildyti **visus** laukus:
 ```javascript
-function setInput(name, val){
-  var el=document.querySelector('input[name="'+name+'"],textarea[name="'+name+'"]');
-  if(!el||!val)return false;
+function setInput(sel, val){
+  var el=document.querySelector(sel);
+  if(!el||val===undefined||val===null)return false;
   el.value=val;
   el.dispatchEvent(new Event('input',{bubbles:true}));
   el.dispatchEvent(new Event('change',{bubbles:true}));
   return true;
 }
 var nameParts = '{manager}'.split(' ');
-var firstName = nameParts[0]||'';
-var lastName = nameParts.slice(1).join(' ')||'';
-setInput('dv_vardas', firstName);
-setInput('dv_pavarde', lastName);
-setInput('dv_tel', '{managerPhone}');
-setInput('dv_epastas', '{managerEmail}');
-// Bandyti alternatyvius el. pašto lauko vardus jei pirmas nepavyko:
-['dv_email','dv_el_pastas','email'].forEach(function(n){
-  setInput(n, '{managerEmail}');
+setInput('input[name="dv_vardas"]', nameParts[0]||'');
+setInput('input[name="dv_pavarde"]', nameParts.slice(1).join(' ')||'');
+setInput('input[name="dv_tel"]', '{managerPhone}');
+
+// El. paštas — bandome visus galimus laukų vardus, tada type="email"
+var emailVal = '{managerEmail}';
+var emailFilled = ['dv_epastas','dv_email','dv_el_pastas','el_pastas','email'].some(function(n){
+  return setInput('input[name="'+n+'"]', emailVal);
 });
-'Vadovo duomenys užpildyti';
+if(!emailFilled){
+  var emailEl = document.querySelector('input[type="email"]');
+  if(emailEl){
+    emailEl.value=emailVal;
+    emailEl.dispatchEvent(new Event('input',{bubbles:true}));
+    emailEl.dispatchEvent(new Event('change',{bubbles:true}));
+    emailFilled=true;
+  }
+}
+emailFilled ? 'El. paštas užpildytas' : 'PERSPEJIMAS: el. pasto laukas NERASTAS';
 ```
+
+Padaryti ekrano nuotrauką. Jei el. paštas neužpildytas — rasti lauką per `read_page` ir užpildyti su `form_input`.
 
 ## 5 žingsnis — Darbų duomenys
 
@@ -135,14 +147,45 @@ if(sel){
 }
 ```
 
+**Eismas — transporto ir keleivinio transporto klausimai:**
+
+Ieškoti select laukų su tekstu apie eismą ir nustatyti "Ne":
+```javascript
+var allSelects = Array.from(document.querySelectorAll('select'));
+var filled = [];
+allSelects.forEach(function(sel){
+  // Gauti artimiausią label tekstą
+  var labelText = '';
+  var el = sel;
+  while(el && !labelText.trim()){
+    var prev = el.previousElementSibling;
+    if(prev) labelText = prev.textContent||'';
+    el = el.parentElement;
+    if(el) labelText = labelText || (el.querySelector('label,p,div:first-child')||{}).textContent||'';
+  }
+  var lc = labelText.toLowerCase();
+  if(lc.includes('eismas')||lc.includes('transporto')||lc.includes('ribojamas')||lc.includes('nutraukiamas')){
+    var neOpt = Array.from(sel.options).find(function(o){
+      var ot = o.text.trim().toLowerCase();
+      return ot==='ne'||o.value==='ne'||o.value==='0'||o.value==='false'||o.value==='2';
+    });
+    if(neOpt){
+      sel.value=neOpt.value;
+      sel.dispatchEvent(new Event('change',{bubbles:true}));
+      filled.push((sel.name||sel.id||'?')+' = '+neOpt.text);
+    }
+  }
+});
+filled.length>0 ? 'Eismo laukai: '+filled.join('; ') : 'Eismo laukų nerasta automatiškai';
+```
+
+Padaryti ekrano nuotrauką. Jei eismo laukai neužpildyti — rasti juos per `read_page` ir užpildyti su `form_input` pasirenkant "Ne".
+
 ## 6 žingsnis — Darbų vieta (Gatvė, Namas, Seniūnija)
 
 Spausti ant **"Darbų pradžia"** skyriaus.
 
-Gatvės laukas yra autocomplete — reikia įvesti tekstą ir palaukti pasiūlymų:
-
 **6a — Įvesti gatvę:**
-Surask gatvės įvesties lauką ir įvesk gatvės pavadinimą. Jei yra `input` laukas su placeholder "Pasirinkite" arba name "gatve":
 ```javascript
 var gatveEl = document.querySelector('input[name="gatve"], input[placeholder*="atve"], input[placeholder*="asirinkite"]');
 if(gatveEl){
@@ -161,12 +204,10 @@ Ekrano nuotrauką ir surask pasirodžiusius pasiūlymus. Spausti ant atitinkanč
 Jei pasiūlymų nėra — bandyti su trumpesniu gatvės pavadinimu (pvz. vietoj "V. Krėvės pr." bandyti "Krėvės").
 
 **6c — Namas ir Seniūnija:**
-Po gatvės pasirinkimo gali atsirasti Namo ir Seniūnijos laukai. Užpildyti:
 ```javascript
-function setSelect(name, val){
+function setField(name, val){
   var el=document.querySelector('select[name="'+name+'"],input[name="'+name+'"]');
   if(!el)return false;
-  // Jei select — rasti artimiausią option
   if(el.tagName==='SELECT'){
     var opt=Array.from(el.options).find(o=>o.text.includes(val)||o.value===val);
     if(opt){el.value=opt.value;el.dispatchEvent(new Event('change',{bubbles:true}));return true;}
@@ -177,69 +218,90 @@ function setSelect(name, val){
   el.dispatchEvent(new Event('change',{bubbles:true}));
   return true;
 }
-setSelect('namas', '{namas}');
-// Seniūnija — automatiškai turėtų užsipildyti po gatvės pasirinkimo
+setField('namas', '{namas}');
 ```
 
-Jei laukai nerandami — padaryti ekrano nuotrauką ir pranešti vartotojui kokie laukai liko tušti.
-
-## 7 žingsnis — Prašymo priedas (failo įkėlimas)
+## 7 žingsnis — Prašymo priedas (sugeneruotas PDF)
 
 Spausti ant **"Prašymo priedai:"** antraštės kad ją išskleistum.
 
-Iš 1 žingsnio turimų failų pasirinkti tinkamą priedą — pirmenybė:
-1. Failas kurio pavadinime yra "projektas", "schema", "planas"
-2. Jei nėra — pirmasis PDF failas iš paraiškos
+### 7a — Sugeneruoti priedų PDF iš Digpoint
 
-Parsisiųsti failą iš Digpoint:
+Digpoint skirtuke vykdyk (naudodamas `prep` iš 1 žingsnio):
 ```javascript
-// Pasirinkto failo URL: http://10.2.1.115:3001{file.url}
+(async function(){
+  var prep = /* prep objektas iš 1 žingsnio */;
+  var extraFns = (prep.extraFiles||[]).filter(function(f){return f&&f.filename;}).map(function(f){
+    var pgs=prep.extraPages&&prep.extraPages[f.filename];
+    return pgs&&pgs.length>0 ? f.filename+'__pages:'+pgs.join(',') : f.filename;
+  });
+  var selWithPages = (prep.selectedFilenames||[]).map(function(fn){
+    var base=fn.split('__pages:')[0];
+    var pgs=prep.docPages&&prep.docPages[base];
+    return pgs&&pgs.length>0 ? base+'__pages:'+pgs.join(',') : fn;
+  });
+  if(!selWithPages.length && !extraFns.length) return 'TUŠČIA: nėra pasirinktų failų priedams';
+  var r = await fetch('/api/admin/merge-sav-priedai',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({permitId:prep.srcId||null, selectedFilenames:selWithPages, extraFilenames:extraFns, location:'{location}'})
+  });
+  var d = await r.json();
+  if(d.ok) return JSON.stringify({content:d.content, filename:d.filename, pages:d.pages});
+  return 'KLAIDA: '+(d.error||'nezinoma');
+})()
 ```
 
-Surasti failo įkėlimo lauką puslapyje:
-```javascript
-var fileInput = document.querySelector('input[type="file"]');
-fileInput ? 'Rastas: '+fileInput.name : 'Nerastas';
+Išsaugok `content` (base64) ir `filename`.
+
+### 7b — Išsaugoti PDF į diską
+
+Naudojant `mcp__workspace__bash`:
+```bash
+python3 -c "
+import base64, os
+content = 'BASE64_CONTENT_HERE'
+filename = 'FILENAME_HERE'
+path = '/sessions/laughing-hopeful-cray/mnt/outputs/' + filename
+with open(path, 'wb') as f:
+    f.write(base64.b64decode(content))
+print('Issaugota:', path, os.path.getsize(path), 'baitu')
+"
 ```
 
-Naudoti `file_upload` įrankį su failo `ref` iš `read_page` arba `find` — **ne** spausti ant mygtuko (atidarytų sisteminį dialogą).
+Išsaugok pilną kelią — prireiks 7c žingsnyje.
 
-Jei failų nėra arba įkėlimas nepavyksta — pranešti vartotojui ir tęsti be priedo.
+### 7c — Įkelti PDF į kasimai.kaunas.lt formą
+
+Kasimai skirtuke rasti failo input:
+```javascript
+var fi = document.querySelector('input[type="file"]');
+fi ? 'Rastas: name='+fi.name+' id='+fi.id : 'NERASTAS';
+```
+
+Naudoti `find` įrankį su query "file upload input" kad gautum `ref`, tada `file_upload` įrankį:
+- `paths`: kelias iš 7b
+- `ref`: failo input ref
+
+Jei `savivaldybePreparation` tuščias arba failų nėra — praleisti šį žingsnį ir pranešti vartotojui.
 
 ## 8 žingsnis — Išsiųsti pranešimą ir sustoti
 
 **NESAUGOTI** — vartotojas pats prisijungs ir patvirtins.
 
-Padaryti ekrano nuotrauką formos būklei užfiksuoti.
+Padaryti ekrano nuotrauką.
 
-Išsiųsti pranešimą per Digpoint (Digpoint skirtuke):
+Digpoint skirtuke išsiųsti pranešimą:
 ```javascript
 fetch('/api/admin/notify', {
   method: 'POST',
   headers: {'Content-Type':'application/json'},
   body: JSON.stringify({
     to: '{notifyEmail}',
-    subject: '✅ Savivaldybės forma paruošta — reikia prisijungti ir saugoti',
-    html: '<h2>🏛 Kauno m. sav. forma užpildyta</h2><p>Claude automatiškai užpildė kasimo leidimo prašymą kasimai.kaunas.lt.</p><h3>Užpildyta:</h3><ul><li><b>Darbų vadovas:</b> {manager}, {managerPhone}, {managerEmail}</li><li><b>Vieta:</b> {location}</li><li><b>Laikotarpis:</b> {startDate} – {endDate}</li></ul><h3>Reikia jūsų:</h3><ol><li>Atsidaryti kasimai.kaunas.lt naršyklėje</li><li>Prisijungti per e. valdžios vartus</li><li>Patikrinti žemėlapį ir ardomą dangą</li><li>Spausti <b>Saugoti</b></li></ol>'
+    subject: 'Savivaldybes forma paruosta — reikia prisijungti ir saugoti',
+    html: '<h2>Kauno m. sav. forma uzpildyta</h2><p>Claude automatiskai uzpilde kasimo leidimo praasyma kasimai.kaunas.lt.</p><ul><li><b>Darbu vadovas:</b> {manager}, {managerPhone}, {managerEmail}</li><li><b>Vieta:</b> {location}</li><li><b>Laikotarpis:</b> {startDate} – {endDate}</li></ul><p>Reikia: prisijungti per e. valdzios vartus ir spausti Saugoti.</p>'
   })
 }).then(r=>r.json())
-```
-
-Pranešti pokalbio lange:
-```
-✅ Forma paruošta — kasimai.kaunas.lt
-
-Užpildyta:
-• Darbų vadovas: {manager} {managerPhone} {managerEmail}
-• Vieta: {location}
-• Laikotarpis: {startDate} – {endDate}
-
-📧 Pranešimas išsiųstas → {notifyEmail}
-
-Reikia jūsų:
-1. Prisijungti prie kasimai.kaunas.lt per e. valdžios vartus
-2. Patikrinti žemėlapį, ardomą dangą, ir priedus
-3. Spausti "Saugoti"
 ```
 
 ## Klaidų atvejai
@@ -247,9 +309,11 @@ Reikia jūsų:
 | Situacija | Veiksmas |
 |-----------|----------|
 | `kl-sav-task` nerastas | Pranešti, sustoti |
-| Neprisijungta prie kasimai.kaunas.lt | Pranešti vartotojui, sustoti |
+| Neprisijungta prie kasimai.kaunas.lt | Pranešti, sustoti |
 | Prašymų sąrašas tuščias | Pranešti kad reikia ankstesnio prašymo |
 | `location` tuščias | Ištraukti iš PDF (1a žingsnis) |
-| Gatvės autocomplete neranda | Bandyti su trumpesniu pavadinimu, pranešti vartotojui |
-| Failo įkėlimas nepavyksta | Praleisti, pranešti vartotojui |
-| Laukas nerandamas | Praleisti, pranešti vartotojui |
+| El. pašto laukas nerandamas | Ieškoti `input[type="email"]`, tada `read_page` + `form_input` |
+| Eismo laukai nerandami | Screenshot, užpildyti rankiniu būdu per `form_input` |
+| Gatvės autocomplete neranda | Bandyti su trumpesniu pavadinimu |
+| `savivaldybePreparation` tuščias | Praleisti PDF įkėlimą, pranešti |
+| Failo įkėlimas nepavyksta | Praleisti, pranešti |
