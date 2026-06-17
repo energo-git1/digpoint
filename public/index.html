@@ -5751,6 +5751,7 @@ function Sidebar(p){
         <button onClick={p.onTheme} style={{flex:1,padding:"4px 0",borderRadius:6,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontSize:9,fontFamily:F,cursor:"pointer"}}>{p.theme==="dark"?"Sviesi":"Tamsi"}</button>
         <button onClick={p.onLogout} style={{flex:1,padding:"4px 0",borderRadius:6,border:"none",background:C.rdD,color:C.rd,fontSize:9,fontFamily:F,cursor:"pointer",fontWeight:600}}>Atsijungti</button>
       </div>
+      {p.onPreviewRole&&<div style={{marginTop:6}}><select value={p.previewRole||""} onChange={function(e){p.onPreviewRole(e.target.value||null);}} style={{width:"100%",padding:"4px 6px",borderRadius:6,border:"1px solid "+C.b1,background:C.s2,color:p.previewRole?C.yl:C.t3,fontFamily:F,fontSize:9,outline:"none",cursor:"pointer"}}><option value="">👁 Peržiūrėti kaip...</option><option value="orderer">Užsakovas</option><option value="dokumentacija">Dokumentacijos spec.</option></select></div>}
     </div>
   </div>
 }
@@ -6133,6 +6134,8 @@ function checkExpired(arr){
 
 function App(){
   var _user=useState(null);var user=_user[0],setUser=_user[1];
+  var _previewRole=useState(null);var previewRole=_previewRole[0],sPreviewRole=_previewRole[1];
+  var effectiveUser=previewRole&&user&&user.role==="admin"?Object.assign({},user,{role:previewRole}):user;
   var _view=useState("inbox");var view=_view[0],setView=_view[1];
   var _permits=useState([]);var permits=_permits[0],setPermits=_permits[1];
   var _users=useState([]);var users=_users[0],setUsers=_users[1];
@@ -6510,13 +6513,13 @@ function App(){
   else if(view==="permits"){
     // Leidimai: admin/dok mato visas, užsakovas — tik savo. Seniūnija org. nerodoma.
     function notSeniunija(p){return !(p.organizations||[]).includes('Seniūnija');}
-    if(user.role==="orderer") visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id&&notSeniunija(p)});
+    if(effectiveUser.role==="orderer") visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id&&notSeniunija(p)});
     else visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&notSeniunija(p)});
   }
   else if(view==="closed"){
     // Uždaryti: pateikta uždarymo info, uždarytas statusas, arba gautas leidimas
     function isGautas(p){return p.status==="Gautas leidimas"||p.status==="Gautas";}
-    if(user.role==="orderer") visible=permits.filter(function(p){return (p.closingSubmitted||p.status==="Uždarytas"||isGautas(p))&&p.createdBy===user.id});
+    if(effectiveUser.role==="orderer") visible=permits.filter(function(p){return (p.closingSubmitted||p.status==="Uždarytas"||isGautas(p))&&p.createdBy===user.id});
     else visible=permits.filter(function(p){return p.closingSubmitted||p.status==="Uždarytas"||isGautas(p);});
   }
   else if(view==="all") visible=permits.slice();
@@ -6533,15 +6536,15 @@ function App(){
   }
 
   var main=null;
-  if(view==="new"&&(user.role==="orderer"||user.role==="admin"||user.role==="dokumentacija")){
-    var cancelView=user.role==="orderer"?"mine":user.role==="dokumentacija"?"inbox":"inbox";
+  if(view==="new"&&(effectiveUser.role==="orderer"||effectiveUser.role==="admin"||effectiveUser.role==="dokumentacija")){
+    var cancelView=effectiveUser.role==="orderer"?"mine":effectiveUser.role==="dokumentacija"?"inbox":"inbox";
     main=<PermitForm key={prefill?JSON.stringify(prefill):"empty"} user={user} users={users} permits={permits} prefill={prefill}
       onSubmit={addPermit}
       onCancel={function(){setPrefill(null);setView(cancelView);}}
       onMore={function(clientData){setPrefill(clientData);setView("new");}}/>;
   }else if(view==="schedule"){
     // Leidimų grafike tik paraiškos su leidimu
-    var schedPermits=user.role==="orderer"
+    var schedPermits=effectiveUser.role==="orderer"
       ?permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id&&!(p.organizations||[]).includes('Seniūnija')})
       :permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&!(p.organizations||[]).includes('Seniūnija')});
     var schedProjCounts={all:schedPermits.length,NV:0,EK:0,INV:0};
@@ -6554,7 +6557,7 @@ function App(){
       <ScheduleView permits={schedPermits} users={users} onSelect={function(permit){setDetail(permit)}}/>
     </div>;
   }else if(view==="profile"){
-    var defView=user.role==="orderer"?"mine":"inbox";
+    var defView=effectiveUser.role==="orderer"?"mine":"inbox";
     main=<ProfilePage user={user} onUpdated={function(u){var upd=Object.assign({},user,u);setUser(upd);try{localStorage.setItem('kl-session',JSON.stringify(upd))}catch(e){}}} onCancel={function(){setView(defView)}}/>;
   }else if(view==="users"){
     main=<UserMgmt users={users} permits={permits} onAddUser={addUser} onAssignRole={assignRole} onDeleteUser={deleteUser} onUpdateContact={updateContact} onOpenPermit={function(id){var pm=permits.find(function(x){return x.id===id});if(pm){setDetail(pm);setView("all")}}}/>;
@@ -6572,7 +6575,7 @@ function App(){
             <option value="">Visos būsenos</option>
             {Object.keys(STATUS_MAP).map(function(s){return <option key={s} value={s}>{SL[s]||s}</option>})}
           </select>}
-          {view==="all"&&user.role==="admin"&&<Btn v="danger" sm onClick={function(){
+          {view==="all"&&effectiveUser.role==="admin"&&<Btn v="danger" sm onClick={function(){
             if(window.confirm("Ar tikrai istrinti VISAS "+permits.length+" paraiškas? Šio veiksmo atšaukti negalima."))
             {_clearIntent.current=true;clearPermits();}
           }}>Išvalyti visas</Btn>}
@@ -6672,14 +6675,18 @@ function App(){
     </div>;
   }
 
-  return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
-    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
-      onUpdate={function(u){updatePermit(u);setDetail(u)}}
-      onSend={function(u){updatePermit(u);setDetail(null)}}
-      onDelete={function(id){deletePermit(id);setDetail(null)}}
-      onClose={function(){setDetail(null)}}/>}
+  var rL={orderer:"Užsakovas",dokumentacija:"Dokumentacijos spec."};
+  return <div style={{display:"flex",flexDirection:"column",height:"100vh",background:C.bg,overflow:"hidden"}}>
+    {previewRole&&<div style={{background:"#B45309",color:"#fff",fontFamily:F,fontSize:11,fontWeight:700,padding:"6px 16px",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>👁 Peržiūros režimas: {rL[previewRole]||previewRole}<button onClick={function(){sPreviewRole(null);setView("inbox");}} style={{background:"rgba(255,255,255,0.2)",border:"none",color:"#fff",fontFamily:F,fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:4,cursor:"pointer",marginLeft:8}}>✕ Išeiti</button></div>}
+    <div style={{display:"flex",flex:1,overflow:"hidden"}}>
+      <Sidebar user={effectiveUser} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount} previewRole={user&&user.role==="admin"?previewRole:null} onPreviewRole={user&&user.role==="admin"?function(r){sPreviewRole(r);if(r)setView(r==="orderer"?"mine":"inbox");}:null}/>
+      <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
+      {detail&&<PermitDetail permit={detail} user={effectiveUser} users={users} surveyors={docsWorkers}
+        onUpdate={function(u){updatePermit(u);setDetail(u)}}
+        onSend={function(u){updatePermit(u);setDetail(null)}}
+        onDelete={function(id){deletePermit(id);setDetail(null)}}
+        onClose={function(){setDetail(null)}}/>}
+    </div>
   </div>
 }
 
