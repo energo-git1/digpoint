@@ -5825,7 +5825,31 @@ function SavPriedaiBlock(p){
   var permitSources=allPermits;
 
   useEffect(function(){
-    if(!srcId)return;
+    // Kai srcId nėra — rodyti dabartinės paraiškos failus kaip galimus priedus
+    if(!srcId){
+      sGet('kl-permits').then(function(v){
+        var cur=(v||[]).find(function(pm){return pm.id===p.permitId;});
+        if(!cur){sDocList([]);return;}
+        var docs=[];var added=new Set();
+        function addD(f,label){if(!f||!f.filename||added.has(f.filename))return;added.add(f.filename);docs.push({filename:f.filename,name:f.name||f.filename,label:label,url:f.url||('/uploads/'+f.filename)});}
+        (cur.files||[]).forEach(function(f){
+          if(!f.filename||!f.name)return;
+          var fn=f.name.toLowerCase();
+          if(fn.endsWith('.pdf')||fn.match(/\.(jpg|jpeg|png|docx|doc)$/))addD(f,'Paraiškos dok.');
+        });
+        sDocList(docs);
+        var prep=(cur.savivaldybePreparation)||{};
+        if(prep.selectedFilenames&&prep.selectedFilenames.length){
+          var sel={};prep.selectedFilenames.forEach(function(f){sel[f]=true;});sSelected(sel);
+        } else {
+          var sel={};docs.forEach(function(d){sel[d.filename]=false;});sSelected(sel);
+        }
+        if(prep.extraPages)sExtraPages(prep.extraPages);
+        if(prep.docPages)sDocPages(prep.docPages);
+        if(prep.extraFiles&&prep.extraFiles.length)sExtraFiles(prep.extraFiles);
+      }).catch(function(){sDocList([]);});
+      return;
+    }
     // Avariniai darbai — docList iš pačios paraiškos failų (beforeFiles, closeFiles, files[])
     if(p.workType==="avarinius"||p.workType==="avariniai"){
       sGet('kl-permits').then(function(v){
@@ -5886,9 +5910,6 @@ function SavPriedaiBlock(p){
       }).catch(function(){});
   },[srcId]);
 
-  if(!permitSources.length&&srcId===p.permitId)return <div style={{fontSize:10,color:C.t3,fontFamily:F,padding:"8px 0"}}>
-    Pasirinkite paraišką su gautais leidimais iš pirmiau esančio sąrašo — tada priedai bus surinkti automatiškai.
-  </div>;
 
   return <div style={{background:C.s2,borderRadius:8,border:"1px solid "+C.b1,padding:"12px 14px",marginBottom:10}}>
     <div style={{fontSize:10,fontWeight:700,color:C.t2,fontFamily:F,marginBottom:8}}>📂 Priedų paketas savivaldybei</div>
@@ -6654,4 +6675,6 @@ function App(){
   </div>
 }
 
-ReactDOM.createRoot(document.getEl
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
+</body>
+</html>
