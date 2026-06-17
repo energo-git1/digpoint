@@ -1873,7 +1873,6 @@ app.get('/api/admin/list-sav-priedai', (req, res) => {
 // ── Savivaldybės priedų merge (su pasirenkamais failais) ──────
 app.post('/api/admin/merge-sav-priedai', async (req, res) => {
   const { permitId, selectedFilenames, extraFilenames, location } = req.body || {};
-  if (!permitId) return res.status(400).json({ error: 'Trūksta permitId.' });
   const { PDFDocument } = require('pdf-lib');
   const fontkit = require('@pdf-lib/fontkit');
   try {
