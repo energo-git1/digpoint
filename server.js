@@ -55,6 +55,19 @@ const LDAP_SVC_PASS   = process.env.LDAP_SVC_PASS || '';
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
+// CORS — leidžiame kasimai.kaunas.lt pasiekti API ir /uploads
+app.use(function(req, res, next) {
+  const origin = req.headers.origin || '';
+  if (origin.includes('kasimai.kaunas.lt') || origin.includes('localhost')) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // Tampermonkey userscript — automatinis atnaujinimas
 app.get('/energolt-kasimo.user.js', (req, res) => {
   const fpath = path.join(__dirname, 'energolt-kasimo.user.js');
@@ -3486,17 +3499,4 @@ app.listen(PORT, () => {
       if (kept.length === before) return p;
       kept.forEach((f) => {});
       (p.files || []).filter((f) => ATMINTINE_RE.test(f.name || '')).forEach((f) => {
-        if (f.filename) { try { const fp = path.join(UPLOAD_DIR, f.filename); if (fs.existsSync(fp)) fs.unlinkSync(fp); } catch (_) {} }
-        removed++;
-      });
-      return { ...p, files: kept };
-    });
-    if (removed > 0) { dbSet('kl-permits', cleaned); console.log('[STARTUP] Atmintine duplicatai pasalinti: ' + removed); }
-  }, 5000);
-
-  // Projekto dokumentu valymas -- karta per para (po 1 min. nuo paleidimo)
-  setTimeout(() => {
-    cleanupOldProjectFiles();
-    setInterval(cleanupOldProjectFiles, 24 * 60 * 60 * 1000);
-  }, 60 * 1000);
-});
+        if (f.filename) { try { const fp = path.join(UPLOAD_DIR, f.fi

@@ -225,11 +225,12 @@ setField('namas', '{namas}');
 
 Spausti ant **"Prašymo priedai:"** antraštės kad ją išskleistum.
 
-### 7a — Sugeneruoti priedų PDF iš Digpoint
+Digpoint serveris turi CORS leidimą kasimai.kaunas.lt — galima fetch'inti tiesiai iš kasimai skirtuko.
 
-Digpoint skirtuke vykdyk (naudodamas `prep` iš 1 žingsnio):
+**Kasimai skirtuke** vykdyk (naudodamas `prep` iš 1 žingsnio ir `permitId`):
 ```javascript
 (async function(){
+  var DIGPOINT = 'http://10.2.1.115:3001';
   var prep = /* prep objektas iš 1 žingsnio */;
   var extraFns = (prep.extraFiles||[]).filter(function(f){return f&&f.filename;}).map(function(f){
     var pgs=prep.extraPages&&prep.extraPages[f.filename];
@@ -241,47 +242,29 @@ Digpoint skirtuke vykdyk (naudodamas `prep` iš 1 žingsnio):
     return pgs&&pgs.length>0 ? base+'__pages:'+pgs.join(',') : fn;
   });
   if(!selWithPages.length && !extraFns.length) return 'TUŠČIA: nėra pasirinktų failų priedams';
-  var r = await fetch('/api/admin/merge-sav-priedai',{
+  var r = await fetch(DIGPOINT+'/api/admin/merge-sav-priedai',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({permitId:prep.srcId||null, selectedFilenames:selWithPages, extraFilenames:extraFns, location:'{location}'})
   });
   var d = await r.json();
-  if(d.ok) return JSON.stringify({content:d.content, filename:d.filename, pages:d.pages});
-  return 'KLAIDA: '+(d.error||'nezinoma');
+  if(!d.ok) return 'KLAIDA: '+(d.error||'nezinoma');
+  // Sukurti File objektą iš base64 ir priskirti prie input
+  var binary = atob(d.content);
+  var bytes = new Uint8Array(binary.length);
+  for(var i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+  var file = new File([bytes], d.filename||'priedai_savivaldybei.pdf', {type:'application/pdf'});
+  var input = document.querySelector('input[type="file"]');
+  if(!input) return 'FILE INPUT NERASTAS';
+  var dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+  input.dispatchEvent(new Event('change',{bubbles:true}));
+  return 'OK: '+file.name+' '+Math.round(file.size/1024)+' KB įkeltas ('+d.pages+' psl.)';
 })()
 ```
 
-Išsaugok `content` (base64) ir `filename`.
-
-### 7b — Išsaugoti PDF į diską
-
-Naudojant `mcp__workspace__bash`:
-```bash
-python3 -c "
-import base64, os
-content = 'BASE64_CONTENT_HERE'
-filename = 'FILENAME_HERE'
-path = '/sessions/laughing-hopeful-cray/mnt/outputs/' + filename
-with open(path, 'wb') as f:
-    f.write(base64.b64decode(content))
-print('Issaugota:', path, os.path.getsize(path), 'baitu')
-"
-```
-
-Išsaugok pilną kelią — prireiks 7c žingsnyje.
-
-### 7c — Įkelti PDF į kasimai.kaunas.lt formą
-
-Kasimai skirtuke rasti failo input:
-```javascript
-var fi = document.querySelector('input[type="file"]');
-fi ? 'Rastas: name='+fi.name+' id='+fi.id : 'NERASTAS';
-```
-
-Naudoti `find` įrankį su query "file upload input" kad gautum `ref`, tada `file_upload` įrankį:
-- `paths`: kelias iš 7b
-- `ref`: failo input ref
+Patikrinti rezultatą — turi grąžinti `OK: priedai_xxx.pdf ... KB įkeltas`.
 
 Jei `savivaldybePreparation` tuščias arba failų nėra — praleisti šį žingsnį ir pranešti vartotojui.
 
