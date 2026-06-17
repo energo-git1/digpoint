@@ -5751,6 +5751,7 @@ function Sidebar(p){
         <button onClick={p.onTheme} style={{flex:1,padding:"4px 0",borderRadius:6,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontSize:9,fontFamily:F,cursor:"pointer"}}>{p.theme==="dark"?"Sviesi":"Tamsi"}</button>
         <button onClick={p.onLogout} style={{flex:1,padding:"4px 0",borderRadius:6,border:"none",background:C.rdD,color:C.rd,fontSize:9,fontFamily:F,cursor:"pointer",fontWeight:600}}>Atsijungti</button>
       </div>
+      {p.onPreviewRole&&p.user.role==="admin"&&<div style={{marginTop:6}}><select value={p.previewRole||""} onChange={function(e){p.onPreviewRole(e.target.value||null);}} style={{width:"100%",background:C.s2,border:"1px solid "+C.b1,borderRadius:6,color:C.t2,fontSize:9,fontFamily:F,padding:"3px 6px",cursor:"pointer"}}><option value="">👁 Peržiūrėti kaip...</option><option value="orderer">Užsakovas</option><option value="dokumentacija">Dokumentacijos spec.</option></select></div>}
     </div>
   </div>
 }
@@ -6141,6 +6142,7 @@ function App(){
   var _filter=useState("");var filter=_filter[0],setFilter=_filter[1];
   var _projFilter=useState("all");var projFilter=_projFilter[0],setProjFilter=_projFilter[1];
   var _prefill=useState(null);var prefill=_prefill[0],setPrefill=_prefill[1];
+  var _previewRole=useState(null);var previewRole=_previewRole[0],sPreviewRole=_previewRole[1];
   var _loaded=useState(false);var loaded=_loaded[0],sL=_loaded[1];
   // Rankinis objektų sujungimas
   var _dragId=useState(null);var dragId=_dragId[0],sDragId=_dragId[1];
@@ -6672,10 +6674,12 @@ function App(){
     </div>;
   }
 
+  var effectiveUser=previewRole&&user&&user.role==="admin"?Object.assign({},user,{role:previewRole}):user;
   return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount}/>
+    {previewRole&&<div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,background:"#b45309",color:"#fff",textAlign:"center",fontSize:11,fontFamily:"monospace",padding:"3px 0",pointerEvents:"none"}}>👁 Peržiūra kaip: {previewRole==="orderer"?"Užsakovas":"Dokumentacijos spec."}</div>}
+    <Sidebar user={user} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount} previewRole={previewRole} onPreviewRole={sPreviewRole}/>
     <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={user} users={users} surveyors={docsWorkers}
+    {detail&&<PermitDetail permit={detail} user={effectiveUser} users={users} surveyors={docsWorkers}
       onUpdate={function(u){updatePermit(u);setDetail(u)}}
       onSend={function(u){updatePermit(u);setDetail(null)}}
       onDelete={function(id){deletePermit(id);setDetail(null)}}
