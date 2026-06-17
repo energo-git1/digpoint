@@ -514,4 +514,11 @@
         if (err || !data || !data.value) { log('ESO: nera uzduociu'); return; }
         const tasks = (data.value || []).filter(t => isActiveTask(t));
         if (!tasks.length) { log('ESO: nera aktyviu pending uzduociu'); return; }
-        log(`E
+        log(`ESO: rasta ${tasks.length} aktyvi uzduotis`);
+        fillEsoForm(tasks[0]);
+      });
+    }
+    return;
+  }
+
+})();
