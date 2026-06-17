@@ -5761,7 +5761,7 @@ function Sidebar(p){
 // SAV PRIEDAI BLOCK — priedų paketo sudarymas savivaldybei
 // ═════════════════════════════════════════════════════════════
 function SavPriedaiBlock(p){
-  var _srcId=useState(p.permitId);var srcId=_srcId[0],sSrcId=_srcId[1];
+  var _srcId=useState(null);var srcId=_srcId[0],sSrcId=_srcId[1];
   var _docList=useState(null);var docList=_docList[0],sDocList=_docList[1];
   var _selected=useState({});var selected=_selected[0],sSelected=_selected[1];
   var _extraFiles=useState([]);var extraFiles=_extraFiles[0],sExtraFiles=_extraFiles[1];
@@ -5789,7 +5789,7 @@ function SavPriedaiBlock(p){
       var updated=permits.map(function(pm){
         if(pm.id!==p.permitId)return pm;
         return Object.assign({},pm,{savivaldybePreparation:{
-          srcId:newSrcId||srcId,selectedFilenames:selFiles,extraPages:newExtraPages||extraPages,docPages:docPages,extraFiles:extraFilesMeta,savedAt:fmtDate(new Date())
+          srcId:(newSrcId!==undefined?newSrcId:srcId)||null,selectedFilenames:selFiles,extraPages:newExtraPages||extraPages,docPages:docPages,extraFiles:extraFilesMeta,savedAt:fmtDate(new Date())
         }});
       });
       await sSet('kl-permits',updated);
@@ -5816,9 +5816,8 @@ function SavPriedaiBlock(p){
         var savedSrcId=prep.srcId||(currentPermit&&currentPermit.sourcePermitId)||null;
         if(savedSrcId&&sources.find(function(pm){return pm.id===savedSrcId;})){
           sSrcId(savedSrcId);
-        } else if(!sources.find(function(pm){return pm.id===p.permitId;})&&sources.length>0){
-          sSrcId(sources[0].id);
         }
+        // Jei nėra išsaugoto srcId — palikti null (nenurodo automatiškai)
       }
     }).catch(function(){});
   },[]);
@@ -6657,3 +6656,4 @@ function App(){
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
 </body>
 </html>
+                         

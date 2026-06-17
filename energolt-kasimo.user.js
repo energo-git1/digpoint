@@ -291,15 +291,16 @@
               const permits = (permitsData && permitsData.value) || [];
               const permit  = permits.find(pm => pm.id === t.permitId);
               const prep    = (permit && permit.savivaldybePreparation) || {};
-              const srcId   = prep.srcId || t.permitId;
-              const selFn   = prep.selectedFilenames || [];
+              const srcId   = prep.srcId || null;
+              // Jei objektas nepasirinktas — nesiųsti selectedFilenames, tik extraFiles
+              const selFn   = srcId ? (prep.selectedFilenames || []) : [];
               const extraFn = (prep.extraFiles || []).map(f => f.filename).filter(Boolean);
               const loc     = (permit && permit.location) || '';
               GM_xmlhttpRequest({
                 method: 'POST',
                 url: `${DIGPOINT}/api/admin/merge-sav-priedai`,
                 headers: { 'Content-Type': 'application/json' },
-                data: JSON.stringify({ permitId: srcId, selectedFilenames: selFn, extraFilenames: extraFn, location: loc }),
+                data: JSON.stringify({ permitId: srcId || t.permitId, selectedFilenames: selFn, extraFilenames: extraFn, location: loc }),
                 onload: (r) => {
                   try {
                     const d = JSON.parse(r.responseText);
@@ -513,11 +514,4 @@
         if (err || !data || !data.value) { log('ESO: nera uzduociu'); return; }
         const tasks = (data.value || []).filter(t => isActiveTask(t));
         if (!tasks.length) { log('ESO: nera aktyviu pending uzduociu'); return; }
-        log(`ESO: rasta ${tasks.length} aktyvi uzduotis`);
-        fillEsoForm(tasks[0]);
-      });
-    }
-    return;
-  }
-
-})();
+        log(`E
