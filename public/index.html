@@ -5896,8 +5896,9 @@ function SavPriedaiBlock(p){
     {/* Paraiška iš kurios imami dokumentai — tik planiniai */}
     {!(p.workType==="avarinius"||p.workType==="avariniai")&&permitSources.length>0&&<div style={{marginBottom:10}}>
       <label style={{fontSize:10,color:C.t3,fontFamily:F,display:"block",marginBottom:4}}>Dokumentų šaltinis (paraiška)</label>
-      <select value={srcId} onChange={function(e){var v=e.target.value;sSrcId(v);autoSave(v,selected,extraPages);}}
+      <select value={srcId||""} onChange={function(e){var v=e.target.value||null;sSrcId(v);autoSave(v,selected,extraPages);}}
         style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:11,outline:"none"}}>
+        <option value="">— Nėra (tik papildomi dokumentai) —</option>
         {permitSources.map(function(pm){
           var iCode=(pm.internalCode||'').trim();
           var label=(iCode||pm.investNo||pm.id.slice(-5).toUpperCase())+' — '+(pm.location||'').slice(0,40);
@@ -6653,6 +6654,4 @@ function App(){
   </div>
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+ReactDOM.createRoot(document.getEl
