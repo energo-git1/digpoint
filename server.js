@@ -3245,15 +3245,6 @@ app.post('/api/admin/deploy', (req, res) => {
   });
 });
 
-app.post('/api/admin/deploy-docpoint', (req, res) => {
-  const docpointDir = 'C:\\Users\\eimutis.simkus\\GitHub\\docpoint\\docpoint';
-  exec(`cd /d "${docpointDir}" && git pull && pm2 restart docpoint`, { timeout: 120000 }, (err, stdout, stderr) => {
-    res.json({ ok: !err, stdout, stderr, error: err ? err.message : null });
-    if (!err) console.log('[DEPLOY-DOCPOINT] git pull + pm2 restart OK');
-    else console.error('[DEPLOY-DOCPOINT] Klaida:', err.message);
-  });
-});
-
 // ── Savivaldybės leidimo PDF parsavimas ──────────────────────
 // Grąžina: { location, seniunijaName, startDate, endDate, permitValidFrom, permitValidUntil,
 //   workType, surfaces, description, manager, managerPhone, managerEmail, savLeidimosNr, savPrasymosKodas }
