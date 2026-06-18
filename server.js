@@ -3261,6 +3261,23 @@ app.post('/api/admin/deploy-docpoint', (req, res) => {
   });
 });
 
+app.post('/api/admin/write-docpoint-server', (req, res) => {
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  req.on('end', () => {
+    try {
+      require('fs').writeFileSync('/var/www/docpoint/server.js', body, 'utf8');
+      exec('pm2 restart docpoint', { timeout: 30000 }, (err, stdout, stderr) => {
+        res.json({ ok: !err, bytes: body.length, stdout, stderr, error: err ? err.message : null });
+        if (!err) console.log('[WRITE-DOCPOINT] OK, bytes:', body.length);
+        else console.error('[WRITE-DOCPOINT] pm2 klaida:', err.message);
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+});
+
 // ── Savivaldybės leidimo PDF parsavimas ──────────────────────
 // Grąžina: { location, seniunijaName, startDate, endDate, permitValidFrom, permitValidUntil,
 //   workType, surfaces, description, manager, managerPhone, managerEmail, savLeidimosNr, savPrasymosKodas }
