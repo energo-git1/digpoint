@@ -3254,6 +3254,12 @@ app.post('/api/admin/deploy-docpoint', (req, res) => {
   });
 });
 
+app.get('/api/admin/docpoint-logs', (req, res) => {
+  exec('pm2 logs docpoint --lines 50 --nostream --no-color 2>&1', { timeout: 15000 }, (err, stdout, stderr) => {
+    res.json({ logs: stdout + stderr });
+  });
+});
+
 // ── Savivaldybės leidimo PDF parsavimas ──────────────────────
 // Grąžina: { location, seniunijaName, startDate, endDate, permitValidFrom, permitValidUntil,
 //   workType, surfaces, description, manager, managerPhone, managerEmail, savLeidimosNr, savPrasymosKodas }
