@@ -3246,11 +3246,21 @@ app.post('/api/admin/deploy', (req, res) => {
 });
 
 app.post('/api/admin/deploy-docpoint', (req, res) => {
-  const docDir = 'C:\\Users\\eimutis.simkus\\GitHub\\docpoint\\docpoint';
-  exec(`cd /d "${docDir}" && git pull && pm2 restart docpoint`, { timeout: 120000 }, (err, stdout, stderr) => {
-    res.json({ ok: !err, stdout, stderr, error: err ? err.message : null });
-    if (!err) console.log('[DEPLOY-DOCPOINT] OK');
-    else console.error('[DEPLOY-DOCPOINT] Klaida:', err.message);
+  exec('pm2 jlist', { timeout: 10000 }, (err1, jlist) => {
+    let docDir = null;
+    try {
+      const procs = JSON.parse(jlist);
+      const dp = procs.find(p => p.name === 'docpoint');
+      if (dp) docDir = dp.pm2_env && (dp.pm2_env.pm_cwd || dp.pm2_env.cwd);
+    } catch (_) {}
+    if (!docDir) {
+      return res.json({ ok: false, error: 'docpoint nerastas pm2', jlist: (jlist||'').substring(0,300) });
+    }
+    exec(`cd "${docDir}" && git pull && pm2 restart docpoint`, { timeout: 120000 }, (err, stdout, stderr) => {
+      res.json({ ok: !err, stdout, stderr, error: err ? err.message : null, docDir });
+      if (!err) console.log('[DEPLOY-DOCPOINT] OK, dir:', docDir);
+      else console.error('[DEPLOY-DOCPOINT] Klaida:', err.message);
+    });
   });
 });
 
