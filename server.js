@@ -3214,6 +3214,13 @@ app.post('/api/generate-docx-pdf', (req, res) => {
   }
 });
 
+// DocPoint logs
+app.get('/api/admin/docpoint-logs', (req, res) => {
+  exec('pm2 logs docpoint --lines 50 --nostream --no-color 2>&1', { timeout: 15000 }, (err, stdout, stderr) => {
+    res.json({ logs: stdout + stderr });
+  });
+});
+
 // Fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -3251,12 +3258,6 @@ app.post('/api/admin/deploy-docpoint', (req, res) => {
     res.json({ ok: !err, stdout, stderr, error: err ? err.message : null, docDir });
     if (!err) console.log('[DEPLOY-DOCPOINT] OK');
     else console.error('[DEPLOY-DOCPOINT] Klaida:', err.message);
-  });
-});
-
-app.get('/api/admin/docpoint-logs', (req, res) => {
-  exec('pm2 logs docpoint --lines 50 --nostream --no-color 2>&1', { timeout: 15000 }, (err, stdout, stderr) => {
-    res.json({ logs: stdout + stderr });
   });
 });
 
