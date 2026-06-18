@@ -3245,7 +3245,7 @@ app.post('/api/admin/fix-permit-dates', (req, res) => {
 
 app.post('/api/admin/deploy', (req, res) => {
   const dir = __dirname;
-  exec(`cd ${dir} && git reset --hard && git pull && npm install --omit=dev && pm2 restart digpoint`, { timeout: 120000 }, (err, stdout, stderr) => {
+  exec(`cd "${dir}" && git fetch origin && git reset --hard origin/main && npm install --omit=dev && pm2 restart digpoint`, { timeout: 120000 }, (err, stdout, stderr) => {
     res.json({ ok: !err, stdout, stderr, error: err ? err.message : null });
     if (!err) console.log('[DEPLOY] OK');
     else console.error('[DEPLOY] Klaida:', err.message);
@@ -3254,7 +3254,7 @@ app.post('/api/admin/deploy', (req, res) => {
 
 app.post('/api/admin/deploy-docpoint', (req, res) => {
   const docDir = '/var/www/docpoint';
-  exec(`cd "${docDir}" && git reset --hard && git pull && npm install --omit=dev && pm2 restart docpoint`, { timeout: 180000 }, (err, stdout, stderr) => {
+  exec(`cd "${docDir}" && git fetch origin && git reset --hard origin/main && npm install --omit=dev && pm2 restart docpoint`, { timeout: 180000 }, (err, stdout, stderr) => {
     res.json({ ok: !err, stdout, stderr, error: err ? err.message : null, docDir });
     if (!err) console.log('[DEPLOY-DOCPOINT] OK');
     else console.error('[DEPLOY-DOCPOINT] Klaida:', err.message);
