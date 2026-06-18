@@ -21,15 +21,9 @@ git commit -m "v%VER%: deploy"
 echo [2/4] git push...
 git push
 
-echo [3/4] Triggering Digpoint deploy (git pull + pm2 restart)...
+echo [3/4] Triggering server deploy (git pull + pm2 restart)...
 curl -s -X POST http://10.2.1.115:3001/api/admin/deploy
 
-echo [4/4] Laukiame Digpoint restart (5 sek)...
-timeout /t 5 /nobreak >nul
-
-echo [4/4] Triggering DocPoint deploy (git pull + pm2 restart)...
-curl -s -X POST http://10.2.1.115:3001/api/admin/deploy-docpoint
-
 echo.
-echo Done! Reload both Digpoint and DocPoint tabs.
+echo Done! Reload the Digpoint tab to see v%VER%
 pause
