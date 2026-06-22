@@ -3254,7 +3254,7 @@ app.post('/api/admin/deploy', (req, res) => {
 
 app.post('/api/admin/deploy-docpoint', (req, res) => {
   const docDir = '/var/www/docpoint';
-  exec(`cd "${docDir}" && git remote set-url origin https://github.com/energo-git1/docpoint.git && git fetch origin && git reset --hard origin/main && npm install --omit=dev && pm2 restart docpoint`, { timeout: 180000 }, (err, stdout, stderr) => {
+  exec(`cd "${docDir}" && git remote set-url origin https://github.com/energo-git1/docpoint.git && git fetch origin && git reset --hard origin/master && npm install --omit=dev && pm2 delete docpoint 2>/dev/null; pm2 start /var/www/docpoint/server.js --name docpoint`, { timeout: 180000 }, (err, stdout, stderr) => {
     res.json({ ok: !err, stdout, stderr, error: err ? err.message : null, docDir });
     if (!err) console.log('[DEPLOY-DOCPOINT] OK');
     else console.error('[DEPLOY-DOCPOINT] Klaida:', err.message);
