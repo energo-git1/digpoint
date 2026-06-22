@@ -2189,7 +2189,7 @@ app.post('/api/admin/send-sav-completion', async (req, res) => {
   const subject     = `Pranešimas apie kasimo darbų pabaigą — ${location}`;
   const prasNrLine  = finalPrasNr ? `\n\nPrašymo Nr.: ${finalPrasNr}` : '';
   const bodyText    = (emailBody && emailBody.trim())
-    ? emailBody.trim() + SIGNATURE
+    ? emailBody.trim()
     : `Laba diena,\n\nDarbai baigti, pridedu gerbūvio nuotraukas.${prasNrLine}${SIGNATURE}`;
 
   const attachments = [];
