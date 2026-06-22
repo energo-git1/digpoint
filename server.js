@@ -13,7 +13,7 @@ const PizZip      = require('pizzip');
 const Docxtemplater = require('docxtemplater');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001;h
 
 // On Azure Linux App Service, /home is persistent storage
 // Locally, use the project directory
@@ -3254,7 +3254,7 @@ app.post('/api/admin/deploy', (req, res) => {
 
 app.post('/api/admin/deploy-docpoint', (req, res) => {
   const docDir = '/var/www/docpoint';
-  exec(`cd "${docDir}" && git remote set-url origin https://github.com/energo-git1/docpoint.git && git fetch origin && git reset --hard origin/main && npm install --omit=dev && pm2 restart docpoint`, { timeout: 180000 }, (err, stdout, stderr) => {
+  exec(`cd "${docDir}" && git remote set-url origin https://github.com/energo-git1/docpoint.git && git fetch origin && git reset --hard origin/main && npm install --omit=dev && pm2 delete docpoint; pm2 start /var/www/docpoint/server.js --name docpoint`, { timeout: 180000 }, (err, stdout, stderr) => {
     res.json({ ok: !err, stdout, stderr, error: err ? err.message : null, docDir });
     if (!err) console.log('[DEPLOY-DOCPOINT] OK');
     else console.error('[DEPLOY-DOCPOINT] Klaida:', err.message);
@@ -3267,7 +3267,7 @@ app.post('/api/admin/write-docpoint-server', (req, res) => {
   req.on('end', () => {
     try {
       require('fs').writeFileSync('/var/www/docpoint/server.js', body, 'utf8');
-      exec('pm2 restart docpoint', { timeout: 30000 }, (err, stdout, stderr) => {
+      exec('pm2 delete docpoint; pm2 start /var/www/docpoint/server.js --name docpoint', { timeout: 30000 }, (err, stdout, stderr) => {
         res.json({ ok: !err, bytes: body.length, stdout, stderr, error: err ? err.message : null });
         if (!err) console.log('[WRITE-DOCPOINT] OK, bytes:', body.length);
         else console.error('[WRITE-DOCPOINT] pm2 klaida:', err.message);
