@@ -1,6 +1,6 @@
 {
   "name": "kasimo-leidimai",
-  "version": "1.6.26",
+  "version": "1.6.27",
   "description": "Žemės kasimo leidimų užsakymų valdymo sistema",
   "main": "server.js",
   "scripts": {
@@ -18,6 +18,4 @@
     "docxtemplater": "^3.49.0",
     "pizzip": "^3.1.7",
     "pdf-lib": "^1.17.1",
-    "@pdf-lib/fontkit": "^1.1.1"
-  }
-}
+    "@pdf-lib/font

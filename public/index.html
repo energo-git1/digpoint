@@ -1754,6 +1754,42 @@ function SavivaldybeSubmitBtn(p){
       status:"pending"
     };
     await sSet('kl-sav-task',task);
+    try{
+      var permRes=await fetch('/api/store/kl-permits').then(function(r){return r.json();});
+      var perm=(permRes.value||[]).find(function(x){return x.id===o.id;});
+      var prep=(perm&&perm.savivaldybePreparation)||{};
+      var selFns=(prep.selectedFilenames||[]).map(function(fn){
+        var base=fn.split('__pages:')[0];
+        var pgs=prep.docPages&&prep.docPages[base];
+        return pgs&&pgs.length>0?base+'__pages:'+pgs.join(','):fn;
+      });
+      var extraFns=(prep.extraFiles||[]).filter(function(f){return f&&f.filename;}).map(function(f){
+        var pgs=prep.extraPages&&prep.extraPages[f.filename];
+        return pgs&&pgs.length>0?f.filename+'__pages:'+pgs.join(','):f.filename;
+      });
+      if(selFns.length>0||extraFns.length>0){
+        var mergeRes=await fetch('/api/admin/merge-sav-priedai',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({selectedFilenames:selFns,extraFilenames:extraFns,location:o.location||'priedai'})
+        });
+        var md=await mergeRes.json();
+        if(md.ok&&md.content){
+          var binary=atob(md.content);
+          var bytes=new Uint8Array(binary.length);
+          for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+          var blob=new Blob([bytes],{type:'application/pdf'});
+          var pdfName='priedai_savivaldybei_'+fmtDate(new Date())+'.pdf';
+          var fd=new FormData();
+          fd.append('file',blob,pdfName);
+          var upRes=await fetch('/api/upload',{method:'POST',body:fd});
+          var upData=await upRes.json();
+          if(upData.filename&&p.onUpdate){
+            var updPerm=Object.assign({},o,{files:(o.files||[]).concat([{id:upData.id,name:upData.name,filename:upData.filename,url:upData.url,size:upData.size}])});
+            p.onUpdate(updPerm);
+          }
+        }
+      }
+    }catch(e){console.warn('[SAV-PDF] Klaida issaugant priedo PDF:',e.message);}
     window.open(SAV_URL,'_blank');
     sSt("ready");
     if(p.onPateikta)p.onPateikta();
@@ -4012,11 +4048,11 @@ function PermitDetail(p){
       {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&o.status!=="Pateikta"&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Uždarytas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės pateikimas</div>
         <SavPriedaiBlock permitId={o.id} location={o.location} workType={o.workType}/>
-        <div style={{marginTop:10}}><SavivaldybeSubmitBtn permit={o} user={p.user} onPateikta={function(){sSt("Pateikta");p.onUpdate(Object.assign({},o,{status:"Pateikta",history:(o.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Pateikta savivaldybei"}])}));p.onClose();}}/></div>
+        <div style={{marginTop:10}}><SavivaldybeSubmitBtn permit={o} user={p.user} onUpdate={p.onUpdate} onPateikta={function(){sSt("Pateikta");p.onUpdate(Object.assign({},o,{status:"Pateikta",history:(o.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Pateikta savivaldybei"}])}));p.onClose();}}/></div>
       </div>}
 
       {/* Pranešimas savivaldybei apie darbų pabaigą */}
-      {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(o.status==="Gautas leidimas"||o.status==="Uždarytas")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+      {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(o.status==="Gautas leidimas"||o.status==="Uždarytas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Pranešimas savivaldybei apie darbų pabaigą</div>
         {savCompSent
           ?<div style={{background:"rgba(16,185,129,.1)",border:"1px solid #059669",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#059669",fontFamily:F,fontWeight:600}}>✅ Pranešimas savivaldybei (kasimo.darbai@kaunas.lt) išsiųstas {o.savCompletionSentAt||""}</div>
@@ -6597,96 +6633,4 @@ function App(){
         if(!a||!b)return null;
         var aLoc=a.location||a.teliaRouteTo||a.investNo||a.id.slice(-5).toUpperCase();
         var bLoc=b.location||b.teliaRouteTo||b.investNo||b.id.slice(-5).toUpperCase();
-        return <div onClick={function(){sMergeConfirm(null)}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div onClick={function(e){e.stopPropagation()}} style={{background:C.s1,border:"1px solid "+C.b1,borderRadius:14,padding:24,maxWidth:380,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,.3)"}}>
-            <div style={{fontSize:16,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:6}}>🔗 Sujungti objektus?</div>
-            <div style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:14}}>Šios dvi paraiškos bus rodomos kaip vienas objektas.</div>
-            <div style={{background:C.s2,borderRadius:8,padding:"8px 12px",marginBottom:6,border:"1px solid "+C.b1}}>
-              <div style={{fontSize:11,color:C.tx,fontFamily:F,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{aLoc}</div>
-              <div style={{fontSize:9,color:C.t3,fontFamily:F}}>{a.organization} · {a.status}</div>
-            </div>
-            <div style={{textAlign:"center",fontSize:10,color:C.t3,margin:"2px 0"}}>⬇</div>
-            <div style={{background:C.s2,borderRadius:8,padding:"8px 12px",marginBottom:16,border:"1px solid "+C.b1}}>
-              <div style={{fontSize:11,color:C.tx,fontFamily:F,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{bLoc}</div>
-              <div style={{fontSize:9,color:C.t3,fontFamily:F}}>{b.organization} · {b.status}</div>
-            </div>
-            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <Btn v="secondary" sm onClick={function(){sMergeConfirm(null)}}>Atšaukti</Btn>
-              <Btn sm onClick={function(){doMerge(mergeConfirm.aId,mergeConfirm.bId);sMergeConfirm(null);}}>🔗 Sujungti</Btn>
-            </div>
-          </div>
-        </div>;
-      })()}
-
-      {visible.length===0?<Empty icon="&#128077;" title="Paraiškų nėra."/>:(function(){
-        // Grupuojame pagal manualGroupId, tada pagal investNo
-        var grouped=[];
-        var keyMap={};
-        visible.forEach(function(pm){
-          var iCode=pm.internalCode&&pm.internalCode.trim();
-          var mgid=pm.manualGroupId&&pm.manualGroupId.trim();
-          var inv=pm.investNo&&pm.investNo.trim();
-          var key=iCode?('ic:'+iCode):mgid?('mg:'+mgid):(inv?('inv:'+inv):null);
-          if(key){
-            if(!keyMap[key]){
-              keyMap[key]=[];
-              var dispInv=iCode||inv||(mgid&&mgid.slice(-5).toUpperCase());
-              grouped.push({type:"group",key:key,inv:dispInv,items:keyMap[key],manual:!!mgid&&!iCode,internalCode:iCode||null});
-            }
-            keyMap[key].push(pm);
-          } else {
-            grouped.push({type:"single",permit:pm});
-          }
-        });
-        // Ar drag-and-drop aktyvus šiame view
-        var canMerge=view==="all"||view==="inbox"||view==="permits"||view==="submitted"||view==="mine";
-        return grouped.map(function(entry){
-          if(entry.type==="single"){
-            var pm=entry.permit;
-            return <PermitRow key={pm.id} permit={pm} users={users} viewMode={view}
-              draggable={canMerge}
-              onDragStart={canMerge?function(e){e.dataTransfer.setData("permitId",pm.id);sDragId(pm.id);}:undefined}
-              onDragOver={canMerge&&dragId&&dragId!==pm.id?function(e){e.preventDefault();sDropId(pm.id);}:undefined}
-              onDragLeave={canMerge?function(){if(dropId===pm.id)sDropId(null);}:undefined}
-              onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");if(src&&src!==pm.id){sMergeConfirm({aId:src,bId:pm.id});}sDragId(null);sDropId(null);}:undefined}
-              isDragOver={dropId===pm.id&&dragId!==pm.id}
-              onClick={function(){setDetail(pm)}}/>;
-          }
-          if(entry.items.length===1){
-            var pm=entry.items[0];
-            return <PermitRow key={pm.id} permit={pm} users={users} viewMode={view}
-              draggable={canMerge}
-              onDragStart={canMerge?function(e){e.dataTransfer.setData("permitId",pm.id);sDragId(pm.id);}:undefined}
-              onDragOver={canMerge&&dragId&&dragId!==pm.id?function(e){e.preventDefault();sDropId(pm.id);}:undefined}
-              onDragLeave={canMerge?function(){if(dropId===pm.id)sDropId(null);}:undefined}
-              onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");if(src&&src!==pm.id){sMergeConfirm({aId:src,bId:pm.id});}sDragId(null);sDropId(null);}:undefined}
-              isDragOver={dropId===pm.id&&dragId!==pm.id}
-              onClick={function(){setDetail(pm)}}/>;
-          }
-          return <PermitGroup key={entry.key} group={entry.items} users={users} viewMode={view} onSelect={setDetail}
-            manual={entry.manual} internalCode={entry.internalCode||null} onUnmerge={entry.manual?doUnmerge:undefined}
-            onDragStart={canMerge?function(e,pmId){e.dataTransfer.setData("permitId",pmId);sDragId(pmId);}:undefined}
-            onDragOver={canMerge&&dragId?function(e){e.preventDefault();}:undefined}
-            onDrop={canMerge?function(e){e.preventDefault();var src=e.dataTransfer.getData("permitId");var tgt=entry.items[0].id;if(src&&src!==tgt){sMergeConfirm({aId:src,bId:tgt});}sDragId(null);sDropId(null);}:undefined}
-            dragId={dragId}/>;
-        });
-      })()}
-    </div>;
-  }
-
-  var effectiveUser=previewRole&&user&&user.role==="admin"?Object.assign({},user,{role:previewRole}):user;
-  return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    {previewRole&&<div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,background:"#b45309",color:"#fff",textAlign:"center",fontSize:11,fontFamily:"monospace",padding:"3px 0",pointerEvents:"none"}}>👁 Peržiūra kaip: {previewRole==="orderer"?"Užsakovas":"Dokumentacijos spec."}</div>}
-    <Sidebar user={effectiveUser} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount} previewRole={previewRole} onPreviewRole={sPreviewRole}/>
-    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={effectiveUser} users={users} surveyors={docsWorkers}
-      onUpdate={function(u){updatePermit(u);setDetail(u)}}
-      onSend={function(u){updatePermit(u);setDetail(null)}}
-      onDelete={function(id){deletePermit(id);setDetail(null)}}
-      onClose={function(){setDetail(null)}}/>}
-  </div>
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+        return <div onClick={function(){sMergeConfirm(null)}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:9999,display:"flex",alignItems:"center",justify
