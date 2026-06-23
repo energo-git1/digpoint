@@ -640,7 +640,7 @@ function openPermitPdfInNewTab(permit){
   var pdf=(permit.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
   if(!pdf){alert("Paraiškoje nerastas PDF failas.");return;}
   // Jei yra serverio URL — atidarome tiesiogiai
-  if(pdf.url){window.open(pdf.url,'_blank');return;}
+  if(pdf.url){window.open(pdf.url+'#zoom=125','_blank');return;}
   // Fallback — iš data URL
   if(!pdf.data){alert("PDF failas nepasiekiamas.");return;}
   try{
@@ -650,7 +650,7 @@ function openPermitPdfInNewTab(permit){
     var u8=new Uint8Array(len);
     for(var i=0;i<len;i++)u8[i]=bin.charCodeAt(i);
     var blob=new Blob([u8],{type:'application/pdf'});
-    window.open(URL.createObjectURL(blob),'_blank');
+    window.open(URL.createObjectURL(blob)+'#zoom=125','_blank');
   }catch(e){alert("Nepavyko atidaryti PDF: "+e.message);}
 }
 
@@ -3182,7 +3182,7 @@ function PermitDetail(p){
             if(bytes){
               var bin=atob(bytes);var u8=new Uint8Array(bin.length);
               for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-              window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'})),'_blank');
+              window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');
             }
           }catch(e){alert("Klaida: "+e.message);}
           sPreviewTeliaBusy(false);
@@ -3320,7 +3320,7 @@ function PermitDetail(p){
             if(bytes){
               var bin=atob(bytes);var u8=new Uint8Array(bin.length);
               for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-              window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'})),'_blank');
+              window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');
             }
           }catch(e){alert("Klaida: "+e.message);}
           sPreviewKEBusy(false);
@@ -3458,7 +3458,7 @@ function PermitDetail(p){
             if(bytes){
               var bin=atob(bytes);var u8=new Uint8Array(bin.length);
               for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-              window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'})),'_blank');
+              window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');
             }
           }catch(e){alert("Klaida: "+e.message);}
           sPreviewTeliaInvBusy(false);
@@ -3623,7 +3623,7 @@ function PermitDetail(p){
             if(bytes){
               var bin=atob(bytes);var u8=new Uint8Array(bin.length);
               for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-              window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'})),'_blank');
+              window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');
             }
           }catch(e){alert("Klaida: "+e.message);}
           sPreviewLGBusy(false);
@@ -3690,7 +3690,7 @@ function PermitDetail(p){
                         var pdfGD=await pdfR.json();
                         if(pdfGD.error)throw new Error(pdfGD.error);
                         var pdfB=Uint8Array.from(atob(pdfGD.content),function(c){return c.charCodeAt(0);});
-                        window.open(URL.createObjectURL(new Blob([pdfB],{type:"application/pdf"})),"_blank");
+                        window.open(URL.createObjectURL(new Blob([pdfB],{type:"application/pdf"}))+"#zoom=125","_blank");
                       }catch(e2){alert("Klaida generuojant prašymą: "+e2.message);}
                       sPreviewLGDocBusy(false);
                     }}>{previewLGDocBusy?"...":"👁 Peržiūrėti prašymą"}</Btn>
@@ -3931,8 +3931,8 @@ function PermitDetail(p){
         }
         function openPermitPdf(key){
           var pf=permitPdfs[key];if(!pf)return;
-          if(pf.url){window.open(pf.url,'_blank');return;}
-          if(pf.data){var arr=pf.data.split(',');var bin=atob(arr[1]);var u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'})),'_blank');}
+          if(pf.url){window.open(pf.url+'#zoom=125','_blank');return;}
+          if(pf.data){var arr=pf.data.split(',');var bin=atob(arr[1]);var u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');}
         }
         return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
           <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Gauti leidimai</div>
@@ -4269,7 +4269,7 @@ function PermitDetail(p){
                 var u8=new Uint8Array(bin.length);
                 for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
                 var url=URL.createObjectURL(new Blob([u8],{type:'application/pdf'}));
-                window.open(url,'_blank');
+                window.open(url+'#zoom=125','_blank');
               }} style={{background:C.s2,color:C.t2,border:"1px solid "+C.b1}}>
                 👁 Peržiūrėti ({mergedPdf.pages} psl.)
               </Btn>}
@@ -4358,11 +4358,11 @@ function PermitRow(p){
   // PDF mygtukų generavimas (tik "Leidimai" lange)
   function openPdf(file){
     if(!file)return;
-    if(file.url){window.open(file.url,'_blank');return;}
+    if(file.url){window.open(file.url+'#zoom=125','_blank');return;}
     if(file.data){
       var arr=file.data.split(',');var bin=atob(arr[1]);var u8=new Uint8Array(bin.length);
       for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-      window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'})),'_blank');
+      window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');
     }
   }
   var orgs=o.organizations||[];
@@ -6120,7 +6120,7 @@ function SavPriedaiBlock(p){
         var bin=atob(priedai.content);
         var u8=new Uint8Array(bin.length);
         for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-        window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'})),'_blank');
+        window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');
       }} style={{background:C.s2,color:C.t2,border:"1px solid "+C.b1,fontSize:10}}>
         👁 Peržiūrėti ({priedai.pages} psl.)
       </Btn>}
