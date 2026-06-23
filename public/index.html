@@ -2554,7 +2554,7 @@ function PdfPagePickerModal(p){
         for(var pg=1;pg<=pdf.numPages;pg++){
           if(cancelled)return;
           var page=await pdf.getPage(pg);
-          var vp=page.getViewport({scale:0.9});
+          var vp=page.getViewport({scale:1.8});
           var canvas=document.createElement('canvas');
           canvas.width=vp.width;canvas.height=vp.height;
           await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
@@ -2589,7 +2589,7 @@ function PdfPagePickerModal(p){
       <div style={{flex:1,overflowY:"auto",padding:14}}>
         {loading&&<div style={{textAlign:"center",padding:40,color:C.t2,fontFamily:F,fontSize:13}}>Kraunamos miniatiūros...</div>}
         {err&&<div style={{color:C.rd,fontFamily:F,fontSize:12,padding:20}}>{err}</div>}
-        {!loading&&!err&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14}}>
+        {!loading&&!err&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:14}}>
           {pages.map(function(pg){
             var isSel=sel.indexOf(pg.num)!==-1;
             return <div key={pg.num} onClick={function(){togglePage(pg.num);}}
