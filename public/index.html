@@ -5787,7 +5787,7 @@ function Sidebar(p){
         <button onClick={p.onTheme} style={{flex:1,padding:"4px 0",borderRadius:6,border:"1px solid "+C.b1,background:C.s2,color:C.t2,fontSize:9,fontFamily:F,cursor:"pointer"}}>{p.theme==="dark"?"Sviesi":"Tamsi"}</button>
         <button onClick={p.onLogout} style={{flex:1,padding:"4px 0",borderRadius:6,border:"none",background:C.rdD,color:C.rd,fontSize:9,fontFamily:F,cursor:"pointer",fontWeight:600}}>Atsijungti</button>
       </div>
-      {p.onPreviewRole&&p.user.role==="admin"&&<div style={{marginTop:6}}><select value={p.previewRole||""} onChange={function(e){p.onPreviewRole(e.target.value||null);}} style={{width:"100%",background:C.s2,border:"1px solid "+C.b1,borderRadius:6,color:C.t2,fontSize:9,fontFamily:F,padding:"3px 6px",cursor:"pointer"}}><option value="">👁 Peržiūrėti kaip...</option><option value="orderer">Užsakovas</option><option value="dokumentacija">Dokumentacijos spec.</option></select></div>}
+      {p.onPreviewRole&&(p.user.role==="admin"||p.previewRole)&&<div style={{marginTop:6}}><select value={p.previewRole||""} onChange={function(e){p.onPreviewRole(e.target.value||null);}} style={{width:"100%",background:C.s2,border:"1px solid "+C.b1,borderRadius:6,color:C.t2,fontSize:9,fontFamily:F,padding:"3px 6px",cursor:"pointer"}}><option value="">👁 Peržiūrėti kaip...</option><option value="orderer">Užsakovas</option><option value="dokumentacija">Dokumentacijos spec.</option></select></div>}
     </div>
   </div>
 }
