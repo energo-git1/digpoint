@@ -1883,6 +1883,128 @@ app.get('/api/admin/list-sav-priedai', (req, res) => {
   res.json({ ok: true, docs });
 });
 
+// ── Savivaldybių prašymo generavimas ─────────────────────────
+const SAV_PRASYMAS_MUNIC = {
+  'Anykščiai': { full: 'Anykščių rajono savivaldybės administracija', seniūnas: true, email: 'daiva.gasiuniene@anyksciai.lt', contact: 'Daiva Gasiūnienė (Architektūros ir urbanistikos sk.)' },
+  'Biržai':    { full: 'Biržų rajono savivaldybės administracija', seniūnas: true, email: 'saulius.lapenas@birzai.lt', contact: 'Saulius Lapėnas (mieste) / Rimantas Šikšnys (rajone)' },
+  'Jonava':    { full: 'Jonavos rajono savivaldybės administracija', seniūnas: false, email: 'renatas.celutka@jonava.lt', contact: 'Renatas Čelutka (Vyriausiasis inžinierius)' },
+  'Joniškis':  { full: 'Joniškio rajono savivaldybės administracija', seniūnas: true, email: 'renatas.celutka@joniskis.lt', contact: '' },
+  'Kupiškis':  { full: 'Kupiškio rajono savivaldybės administracija', seniūnas: false, email: 'mazvydas.salkauskas@kupiskis.lt', contact: 'Mažvydas Šalkauskas (Infrastruktūros skyrius)' },
+  'Molėtai':   { full: 'Molėtų rajono savivaldybės administracija', seniūnas: true, email: 'rimvydas.pranskus@moletai.lt', contact: 'Rimvydas Pranskus', extraDocs: ['Garantinis raštas'] },
+  'Pakruojis': { full: 'Pakruojo rajono savivaldybės administracija', seniūnas: true, email: 'savivaldybe@pakruojis.lt', contact: 'Atitinkamos seniūnijos seniūnas' },
+  'Panevėžys': { full: 'Panevėžio miesto savivaldybės administracija', seniūnas: false, email: 'ukis@panevezys.lt', contact: 'Miesto infrastruktūros skyrius' },
+  'Pasvalys':  { full: 'Pasvalio rajono savivaldybės administracija', seniūnas: false, email: 'rastine@pasvalys.lt', contact: 'Vyriausiasis inžinierius' },
+  'Radviliškis':{ full: 'Radviliškio rajono savivaldybės administracija', seniūnas: true, email: 'valdas.miliauskas@radviliskis.lt', contact: 'Valdas Miliauskas (Vyriausiasis inžinierius komunaliniam ūkiui)' },
+  'Raseiniai': { full: 'Raseinių rajono savivaldybės administracija', seniūnas: true, email: 'gintas.brazas@raseiniai.lt', contact: 'Gintas Brazas' },
+  'Rokiškis':  { full: 'Rokiškio rajono savivaldybės administracija', seniūnas: true, email: 'a.krasauskas@rokiskis.lt', contact: 'Arūnas Krasauskas (Miesto seniūnas)', extraDocs: ['Derinimo aktas'] },
+  'Šakiai':    { full: 'Šakių rajono savivaldybės administracija', seniūnas: true, email: 'lina.rugiene@sakiai.lt', contact: 'Lina Rugienė' },
+  'Šiauliai':  { full: 'Šiaulių miesto savivaldybės administracija', seniūnas: false, email: 'jurga.bogusyte@siauliai.lt', contact: 'Jurga Bogusytė (Infrastruktūros poskyris)', extraDocs: ['Darbų priėmimo–perdavimo aktas (po darbų)'] },
+  'Vilkaviškis':{ full: 'Vilkaviškio rajono savivaldybės administracija', seniūnas: false, email: 'savivaldybe@vilkaviskis.lt', contact: '' },
+  'Zarasai':   { full: 'Zarasų rajono savivaldybės administracija', seniūnas: true, email: 'petras.kavolis@zarasai.lt', contact: 'Petras Kavolys' },
+  'Pagėgiai':  { full: 'Pagėgių savivaldybės administracija', seniūnas: true, email: 'i.kentriene@pagegiai.lt', contact: 'Irena Kentrienė (Pagėgių seniūnė, tel. +370 441 57294)' },
+  'Jurbarkas':  { full: 'Jurbarko rajono savivaldybės administracija', seniūnas: true, email: 'jurbarkas@jurbarkas.lt', contact: 'Romualdas Kuras (Jurbarko miesto seniūnas, tel. +370 447 55700)' },
+};
+
+app.post('/api/admin/generate-sav-prasymas', (req, res) => {
+  const { permitId, savivaldybe } = req.body || {};
+  const permits = dbGet('kl-permits') || [];
+  const permit = permits.find(p => p.id === permitId);
+  if (!permit) return res.status(404).json({ error: 'Paraiška nerasta' });
+  const munic = SAV_PRASYMAS_MUNIC[savivaldybe];
+  if (!munic) return res.status(400).json({ error: 'Nežinoma savivaldybė: ' + savivaldybe });
+
+  const today = new Date().toLocaleDateString('lt-LT');
+  const recipient = munic.seniūnas
+    ? `${munic.full.replace('administracija', '').trim()}\nSeniūnui`
+    : munic.full;
+
+  const extraDocsList = (munic.extraDocs || []).map((d, i) =>
+    `<li>${i + 4}. ${d}</li>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<style>
+  @media print { @page { margin: 20mm 25mm; } }
+  body { font-family: "Times New Roman", serif; font-size: 12pt; line-height: 1.5; color: #000; max-width: 700px; margin: 0 auto; padding: 20px; }
+  .header-right { text-align: right; margin-bottom: 30px; }
+  .header-right p { margin: 2px 0; }
+  .title { text-align: center; font-weight: bold; font-size: 14pt; margin: 30px 0 20px; text-transform: uppercase; }
+  .subtitle { text-align: center; margin-bottom: 25px; }
+  .section { margin-bottom: 12px; }
+  .label { font-weight: bold; }
+  .field { display: inline-block; min-width: 200px; border-bottom: 1px solid #000; margin-left: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  td { padding: 4px 8px; vertical-align: top; }
+  td:first-child { width: 40%; font-weight: bold; }
+  .attachments { margin-top: 20px; }
+  .attachments h4 { margin-bottom: 6px; }
+  .sign-section { margin-top: 40px; display: flex; justify-content: space-between; }
+  .sign-block { width: 45%; }
+  .sign-line { border-bottom: 1px solid #000; margin-top: 40px; }
+  .note { font-size: 10pt; color: #555; margin-top: 30px; font-style: italic; }
+  .recipient { white-space: pre-line; }
+</style>
+</head>
+<body>
+
+<div class="header-right">
+  <p><strong>EnergoLT, UAB</strong></p>
+  <p>Įmonės kodas: 304958851</p>
+  <p>Studentų g. 47, Kaunas</p>
+  <p>Tel.: +370 37 123456</p>
+  <p>El. p.: uzklausos@energolt.eu</p>
+  <p>&nbsp;</p>
+  <p class="recipient">${recipient}</p>
+  <p>&nbsp;</p>
+  <p>${today}</p>
+</div>
+
+<div class="title">PRAŠYMAS</div>
+<div class="subtitle">išduoti leidimą atlikti kasinėjimo darbus</div>
+
+<table>
+  <tr><td>Darbų vieta:</td><td><strong>${permit.location || '—'}</strong></td></tr>
+  <tr><td>Darbų pradžia:</td><td>${permit.startDate || '—'}</td></tr>
+  <tr><td>Darbų pabaiga:</td><td>${permit.endDate || '—'}</td></tr>
+  <tr><td>Darbų pobūdis:</td><td>${permit.description || permit.workType || 'Požeminių komunikacijų tiesimas / remontas'}</td></tr>
+  <tr><td>Atsakingas darbų vadovas:</td><td>${permit.managerName || permit.manager || '—'}</td></tr>
+  <tr><td>Vadovo tel.:</td><td>${permit.managerPhone || '—'}</td></tr>
+  ${permit.investNo ? `<tr><td>Investicinis numeris:</td><td>${permit.investNo}</td></tr>` : ''}
+</table>
+
+<div class="attachments">
+  <h4>Priedai:</h4>
+  <ol>
+    <li>Suderintas projektas / darbų organizavimo projektas</li>
+    <li>Inžinerinių tinklų valdančių institucijų sutikimai (ESO, Telia ir kt.)</li>
+    <li>Žemės darbų vykdymo schema</li>
+    ${extraDocsList}
+  </ol>
+</div>
+
+<div class="sign-section">
+  <div class="sign-block">
+    <p><strong>Direktorius</strong></p>
+    <div class="sign-line"></div>
+    <p style="font-size:10pt; margin-top:4px;">(parašas)</p>
+  </div>
+  <div class="sign-block" style="text-align:right;">
+    <p>&nbsp;</p>
+    <div class="sign-line"></div>
+    <p style="font-size:10pt; margin-top:4px;">(vardas, pavardė)</p>
+  </div>
+</div>
+
+<p class="note">Generuota automatiškai iš Digpoint sistemos. Prieš siunčiant patikrinkite duomenis.</p>
+
+</body>
+</html>`;
+
+  res.json({ html: Buffer.from(html).toString('base64'), filename: `prasymas_${savivaldybe}_${permit.location || permit.id}.html` });
+});
+
 // ── Savivaldybės priedų merge (su pasirenkamais failais) ──────
 app.post('/api/admin/merge-sav-priedai', async (req, res) => {
   const { permitId, selectedFilenames, extraFilenames, location } = req.body || {};
