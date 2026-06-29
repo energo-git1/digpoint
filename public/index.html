@@ -2660,28 +2660,22 @@ function PermitDetail(p){
       }
     }
   },[o.id]);
-  // Telia — pasirinkti puslapiai (vienas bendras PDF priedas)
+  // Telia — pasirinkti puslapiai per failą
   var _initSrcs=((o.pendingEmail||{}).attachmentSources||[]);
-  var _initTeliaPgs=(function(){
-    var all=[];
-    _initSrcs.forEach(function(s){all=all.concat(getAttachmentPages(s));});
-    return all.filter(function(v,i,a){return a.indexOf(v)===i;}).sort(function(a,b){return a-b;});
-  })();
-  var _teliaSel=useState(_initTeliaPgs);var teliaSel=_teliaSel[0],sTeliaSel=_teliaSel[1];
-  var _showTeliaPicker=useState(false);var showTeliaPicker=_showTeliaPicker[0],sShowTeliaPicker=_showTeliaPicker[1];
+  var _teliaAllPdfs=(o.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i);});
+  var _initTeliaMap=(function(){var m={};_teliaAllPdfs.forEach(function(f){m[f.name]=[];});_initSrcs.forEach(function(s){if(s.sourceFileName){if(!m[s.sourceFileName])m[s.sourceFileName]=[];m[s.sourceFileName]=m[s.sourceFileName].concat(getAttachmentPages(s)).filter(function(v,i,a){return a.indexOf(v)===i;}).sort(function(a,b){return a-b;});}});return m;})();
+  var _teliaSelMap=useState(_initTeliaMap);var teliaSelMap=_teliaSelMap[0],sTeliaSelMap=_teliaSelMap[1];
+  var _teliaPickerFile=useState(null);var teliaPickerFile=_teliaPickerFile[0],sTeliaPickerFile=_teliaPickerFile[1];
   var _previewTeliaBusy=useState(false);var previewTeliaBusy=_previewTeliaBusy[0],sPreviewTeliaBusy=_previewTeliaBusy[1];
   // Rankinio trasos redagavimo įvestys
   var _trFromIn=useState(o.teliaRouteFrom||"");var trFromIn=_trFromIn[0],sTrFromIn=_trFromIn[1];
   var _trToIn=useState(o.teliaRouteTo||"");var trToIn=_trToIn[0],sTrToIn=_trToIn[1];
-  // Kauno energija — pasirinkti puslapiai (vienas bendras PDF priedas)
+  // Kauno energija — pasirinkti puslapiai per failą
   var _initKESrcs=((o.pendingKauoenergijaEmail||{}).attachmentSources||[]);
-  var _initKEPgs=(function(){
-    var all=[];
-    _initKESrcs.forEach(function(s){all=all.concat(getAttachmentPages(s));});
-    return all.filter(function(v,i,a){return a.indexOf(v)===i;}).sort(function(a,b){return a-b;});
-  })();
-  var _keSel=useState(_initKEPgs);var keSel=_keSel[0],sKESel=_keSel[1];
-  var _showKEPicker=useState(false);var showKEPicker=_showKEPicker[0],sShowKEPicker=_showKEPicker[1];
+  var _keAllPdfs=(o.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i);});
+  var _initKEMap=(function(){var m={};_keAllPdfs.forEach(function(f){m[f.name]=[];});_initKESrcs.forEach(function(s){if(s.sourceFileName){if(!m[s.sourceFileName])m[s.sourceFileName]=[];m[s.sourceFileName]=m[s.sourceFileName].concat(getAttachmentPages(s)).filter(function(v,i,a){return a.indexOf(v)===i;}).sort(function(a,b){return a-b;});}});return m;})();
+  var _keSelMap=useState(_initKEMap);var keSelMap=_keSelMap[0],sKESelMap=_keSelMap[1];
+  var _kePickerFile=useState(null);var kePickerFile=_kePickerFile[0],sKEPickerFile=_kePickerFile[1];
   var _previewKEBusy=useState(false);var previewKEBusy=_previewKEBusy[0],sPreviewKEBusy=_previewKEBusy[1];
   var _keAprvSt=useState("");var keAprvSt=_keAprvSt[0],sKEAprvSt=_keAprvSt[1];
   var _keAprvBusy=useState(false);var keAprvBusy=_keAprvBusy[0],sKEAprvBusy=_keAprvBusy[1];
@@ -2690,15 +2684,12 @@ function PermitDetail(p){
   // Kauno energija — rankinio trasos redagavimo įvestys
   var _keFromIn=useState(o.teliaRouteFrom||"");var keFromIn=_keFromIn[0],sKEFromIn=_keFromIn[1];
   var _keToIn=useState(o.teliaRouteTo||"");var keToIn=_keToIn[0],sKEToIn=_keToIn[1];
-  // Telia investiciniai — pasirinkti puslapiai
+  // Telia investiciniai — pasirinkti puslapiai per failą
   var _initTeliaInvSrcs=((o.pendingTeliaInvEmail||{}).attachmentSources||[]);
-  var _initTeliaInvPgs=(function(){
-    var all=[];
-    _initTeliaInvSrcs.forEach(function(s){all=all.concat(getAttachmentPages(s));});
-    return all.filter(function(v,i,a){return a.indexOf(v)===i;}).sort(function(a,b){return a-b;});
-  })();
-  var _teliaInvSel=useState(_initTeliaInvPgs);var teliaInvSel=_teliaInvSel[0],sTeliaInvSel=_teliaInvSel[1];
-  var _showTeliaInvPicker=useState(false);var showTeliaInvPicker=_showTeliaInvPicker[0],sShowTeliaInvPicker=_showTeliaInvPicker[1];
+  var _teliaInvAllPdfs=(o.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i);});
+  var _initTeliaInvMap=(function(){var m={};_teliaInvAllPdfs.forEach(function(f){m[f.name]=[];});_initTeliaInvSrcs.forEach(function(s){if(s.sourceFileName){if(!m[s.sourceFileName])m[s.sourceFileName]=[];m[s.sourceFileName]=m[s.sourceFileName].concat(getAttachmentPages(s)).filter(function(v,i,a){return a.indexOf(v)===i;}).sort(function(a,b){return a-b;});}});return m;})();
+  var _teliaInvSelMap=useState(_initTeliaInvMap);var teliaInvSelMap=_teliaInvSelMap[0],sTeliaInvSelMap=_teliaInvSelMap[1];
+  var _teliaInvPickerFile=useState(null);var teliaInvPickerFile=_teliaInvPickerFile[0],sTeliaInvPickerFile=_teliaInvPickerFile[1];
   var _previewTeliaInvBusy=useState(false);var previewTeliaInvBusy=_previewTeliaInvBusy[0],sPreviewTeliaInvBusy=_previewTeliaInvBusy[1];
   var _teliaInvAprvSt=useState("");var teliaInvAprvSt=_teliaInvAprvSt[0],sTeliaInvAprvSt=_teliaInvAprvSt[1];
   var _teliaInvAprvBusy=useState(false);var teliaInvAprvBusy=_teliaInvAprvBusy[0],sTeliaInvAprvBusy=_teliaInvAprvBusy[1];
@@ -2707,13 +2698,10 @@ function PermitDetail(p){
   var _teliaInvEmailIn=useState(o.teliaInvEmail||"");var teliaInvEmailIn=_teliaInvEmailIn[0],sTeliaInvEmailIn=_teliaInvEmailIn[1];
   // LitGrid — pasirinkti puslapiai
   var _initLGSrcs=((o.pendingLitgridEmail||{}).attachmentSources||[]).filter(function(s){return s.type!=="library"});
-  var _initLGPgs=(function(){
-    var all=[];
-    _initLGSrcs.forEach(function(s){all=all.concat(getAttachmentPages(s));});
-    return all.filter(function(v,i,a){return a.indexOf(v)===i;}).sort(function(a,b){return a-b;});
-  })();
-  var _lgSel=useState(_initLGPgs);var lgSel=_lgSel[0],sLGSel=_lgSel[1];
-  var _showLGPicker=useState(false);var showLGPicker=_showLGPicker[0],sShowLGPicker=_showLGPicker[1];
+  var _lgAllPdfs=(o.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i);});
+  var _initLGMap=(function(){var m={};_lgAllPdfs.forEach(function(f){m[f.name]=[];});_initLGSrcs.forEach(function(s){if(s.sourceFileName){if(!m[s.sourceFileName])m[s.sourceFileName]=[];m[s.sourceFileName]=m[s.sourceFileName].concat(getAttachmentPages(s)).filter(function(v,i,a){return a.indexOf(v)===i;}).sort(function(a,b){return a-b;});}});return m;})();
+  var _lgSelMap=useState(_initLGMap);var lgSelMap=_lgSelMap[0],sLGSelMap=_lgSelMap[1];
+  var _lgPickerFile=useState(null);var lgPickerFile=_lgPickerFile[0],sLGPickerFile=_lgPickerFile[1];
   var _previewLGBusy=useState(false);var previewLGBusy=_previewLGBusy[0],sPreviewLGBusy=_previewLGBusy[1];
   var _previewLGDocBusy=useState(false);var previewLGDocBusy=_previewLGDocBusy[0],sPreviewLGDocBusy=_previewLGDocBusy[1];
   var _lgAprvSt=useState("");var lgAprvSt=_lgAprvSt[0],sLGAprvSt=_lgAprvSt[1];
@@ -2745,11 +2733,9 @@ function PermitDetail(p){
     sLGAprvBusy(true);sLGAprvSt("Siunčiama...");
     try{
       var addr=(lgAddrIn||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-      var fname=(addr?addr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-      var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
       var existingLibSrcs=(lg.attachmentSources||[]).filter(function(s){return s.type==="library";});
-      var pdfSrcs=lgSel.length>0?[{filename:fname,sourceFileName:pdfFile?pdfFile.name:"",pageNumbers:lgSel}]:
-        (lg.attachmentSources||[]).filter(function(s){return s.type!=="library";});
+      var selPdfSrcs=_lgAllPdfs.filter(function(pf){return (lgSelMap[pf.name]||[]).length>0;}).map(function(pf,i){return {filename:(addr?addr+" kasimo leidimui":"kasimo leidimui")+(i>0?"_"+(i+1):"")+".pdf",sourceFileName:pf.name,pageNumbers:lgSelMap[pf.name]||[]};});
+      var pdfSrcs=selPdfSrcs.length>0?selPdfSrcs:(lg.attachmentSources||[]).filter(function(s){return s.type!=="library";});
       var finalSrc=existingLibSrcs.concat(pdfSrcs);
       var _lgWithAddr=lgAddrIn?Object.assign({},lg,{addr:lgAddrIn}):lg;
       var permitToSend=Object.assign({},o,{location:addr||o.location,teliaRouteTo:addr||o.teliaRouteTo,litgridDerinimData:lgDerinimData||o.litgridDerinimData||"",pendingLitgridEmail:Object.assign({},_lgWithAddr,{attachmentSources:finalSrc,to:to,editedBodyText:(lgBodyDirty&&lgBodyIn)?lgBodyIn:null})});
@@ -2852,35 +2838,32 @@ function PermitDetail(p){
     }
     u.closeFiles=cFiles;u.lbcFiles=lbcFiles;u.beforeFiles=beforeFiles;
     // Išsaugome pasirinktus PDF puslapius į attachmentSources
-    var _pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
     var _cleanAddr=function(s){return (s||"").replace(/[^a-zA-Z0-9À-ɏ\s.,\-]/g,"").trim();};
-    if(u.pendingEmail&&teliaSel.length>0){
+    if(u.pendingEmail){
       var _ta=_cleanAddr(o.teliaRouteTo||o.location||"");
-      var _tf=(_ta?_ta+" kasimo leidimui":"kasimo leidimui")+".pdf";
-      u.pendingEmail=Object.assign({},u.pendingEmail,{attachmentSources:[{filename:_tf,sourceFileName:_pdfFile?_pdfFile.name:"",pageNumbers:teliaSel}]});
+      var _tSrcs=_teliaAllPdfs.filter(function(pf){return (teliaSelMap[pf.name]||[]).length>0;}).map(function(pf,i){return {filename:(_ta?_ta+" kasimo leidimui":"kasimo leidimui")+(i>0?"_"+(i+1):"")+".pdf",sourceFileName:pf.name,pageNumbers:teliaSelMap[pf.name]||[]};});
+      if(_tSrcs.length>0)u.pendingEmail=Object.assign({},u.pendingEmail,{attachmentSources:_tSrcs});
     }
-    if(u.pendingKauoenergijaEmail&&keSel.length>0){
+    if(u.pendingKauoenergijaEmail){
       var _ka=_cleanAddr(o.teliaRouteTo||o.location||"");
-      var _kf=(_ka?_ka+" kasimo leidimui":"kasimo leidimui")+".pdf";
-      u.pendingKauoenergijaEmail=Object.assign({},u.pendingKauoenergijaEmail,{attachmentSources:[{filename:_kf,sourceFileName:_pdfFile?_pdfFile.name:"",pageNumbers:keSel}]});
+      var _kSrcs=_keAllPdfs.filter(function(pf){return (keSelMap[pf.name]||[]).length>0;}).map(function(pf,i){return {filename:(_ka?_ka+" kasimo leidimui":"kasimo leidimui")+(i>0?"_"+(i+1):"")+".pdf",sourceFileName:pf.name,pageNumbers:keSelMap[pf.name]||[]};});
+      if(_kSrcs.length>0)u.pendingKauoenergijaEmail=Object.assign({},u.pendingKauoenergijaEmail,{attachmentSources:_kSrcs});
     }
-    if(u.pendingTeliaInvEmail&&teliaInvSel.length>0){
+    if(u.pendingTeliaInvEmail){
       var _ia=_cleanAddr(o.teliaRouteTo||o.location||"");
-      var _if=(_ia?_ia+" kasimo leidimui":"kasimo leidimui")+".pdf";
+      var _iSrcs=_teliaInvAllPdfs.filter(function(pf){return (teliaInvSelMap[pf.name]||[]).length>0;}).map(function(pf,i){return {filename:(_ia?_ia+" kasimo leidimui":"kasimo leidimui")+(i>0?"_"+(i+1):"")+".pdf",sourceFileName:pf.name,pageNumbers:teliaInvSelMap[pf.name]||[]};});
       var _invEmail=(teliaInvEmailIn||"").trim()||u.pendingTeliaInvEmail.to;
-      u.pendingTeliaInvEmail=Object.assign({},u.pendingTeliaInvEmail,{attachmentSources:[{filename:_if,sourceFileName:_pdfFile?_pdfFile.name:"",pageNumbers:teliaInvSel}],to:_invEmail});
-      if(_invEmail)u.teliaInvEmail=_invEmail;
+      var _iPatch={};
+      if(_iSrcs.length>0)_iPatch.attachmentSources=_iSrcs;
+      if(_invEmail){_iPatch.to=_invEmail;u.teliaInvEmail=_invEmail;}
+      if(Object.keys(_iPatch).length>0)u.pendingTeliaInvEmail=Object.assign({},u.pendingTeliaInvEmail,_iPatch);
     }
     if(u.pendingLitgridEmail){
       var _lgEmail=(lgEmailIn||"").trim()||u.pendingLitgridEmail.to;
       var _lgPatch={to:_lgEmail};
       if(lgBodyDirty&&lgBodyIn)_lgPatch.editedBodyText=lgBodyIn;
-      if(lgSel.length>0){
-        var _la=_cleanAddr(o.location||"");
-        var _lf=(_la?_la+" kasimo leidimui":"kasimo leidimui")+".pdf";
-        var existingLibSrcs=(u.pendingLitgridEmail.attachmentSources||[]).filter(function(s){return s.type==="library";});
-        _lgPatch.attachmentSources=existingLibSrcs.concat([{filename:_lf,sourceFileName:_pdfFile?_pdfFile.name:"",pageNumbers:lgSel}]);
-      }
+      var _lSrcs=_lgAllPdfs.filter(function(pf){return (lgSelMap[pf.name]||[]).length>0;}).map(function(pf,i){var _la=_cleanAddr(o.location||"");return {filename:(_la?_la+" kasimo leidimui":"kasimo leidimui")+(i>0?"_"+(i+1):"")+".pdf",sourceFileName:pf.name,pageNumbers:lgSelMap[pf.name]||[]};});
+      if(_lSrcs.length>0){var _libSrcs=(u.pendingLitgridEmail.attachmentSources||[]).filter(function(s){return s.type==="library";});_lgPatch.attachmentSources=_libSrcs.concat(_lSrcs);}
       u.pendingLitgridEmail=Object.assign({},u.pendingLitgridEmail,_lgPatch);
     }
     p.onUpdate(u); // Tik išsaugo, neuždaro
@@ -2973,91 +2956,23 @@ function PermitDetail(p){
         </div>
       </div>
 
-      {/* PDF puslapių parinkimo popup — Telia */}
-      {showTeliaPicker&&(function(){
-        var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-        return <PdfPagePickerModal
-          pdfFile={pdfFile||null}
-          pdfData={pdfFile?pdfFile.data:null}
-          selected={teliaSel}
-          onConfirm={function(sel){
-            sTeliaSel(sel);
-            var srcFileName=pdfFile?pdfFile.name:"";
-            var addr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-            var fname=(addr?addr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-            var newSources=sel.length>0?[{filename:fname,sourceFileName:srcFileName,pageNumbers:sel}]:[];
-            var newWarn=(o.pendingEmail||{}).warnings||[];
-            if(sel.length>0)newWarn=newWarn.filter(function(w){return !/Projekto\s+brezinio\s+puslapis|Telia\s+derinimo\s+puslapis/i.test(w);});
-            var updatedPE=Object.assign({},o.pendingEmail||{},{attachmentSources:newSources,warnings:newWarn});
-            p.onUpdate(Object.assign({},o,{pendingEmail:updatedPE}));
-            sShowTeliaPicker(false);
-          }}
-          onClose={function(){sShowTeliaPicker(false);}}/>;
-      })()}
-
-      {/* PDF puslapių parinkimo popup — KE */}
-      {showKEPicker&&(function(){
-        var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-        return <PdfPagePickerModal
-          pdfFile={pdfFile||null}
-          pdfData={pdfFile?pdfFile.data:null}
-          selected={keSel}
-          onConfirm={function(sel){
-            sKESel(sel);
-            var srcFileName=pdfFile?pdfFile.name:"";
-            var addr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-            var fname=(addr?addr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-            var newSources=sel.length>0?[{filename:fname,sourceFileName:srcFileName,pageNumbers:sel}]:[];
-            var ke=o.pendingKauoenergijaEmail||{};
-            var newWarn=(ke.warnings||[]).filter(function(w){return sel.length>0?!/Projekto\s+brezinio\s+puslapis|Kauno\s+energija\s+derinimo\s+puslapis/i.test(w):true;});
-            p.onUpdate(Object.assign({},o,{pendingKauoenergijaEmail:Object.assign({},ke,{attachmentSources:newSources,warnings:newWarn})}));
-            sShowKEPicker(false);
-          }}
-          onClose={function(){sShowKEPicker(false);}}/>;
-      })()}
-
-      {/* PDF puslapių parinkimo popup — Telia investiciniai */}
-      {showTeliaInvPicker&&(function(){
-        var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-        return <PdfPagePickerModal
-          pdfFile={pdfFile||null}
-          pdfData={pdfFile?pdfFile.data:null}
-          selected={teliaInvSel}
-          onConfirm={function(sel){
-            sTeliaInvSel(sel);
-            var srcFileName=pdfFile?pdfFile.name:"";
-            var addr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-            var fname=(addr?addr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-            var newSources=sel.length>0?[{filename:fname,sourceFileName:srcFileName,pageNumbers:sel}]:[];
-            var inv=o.pendingTeliaInvEmail||{};
-            var newWarn=(inv.warnings||[]).filter(function(w){return sel.length>0?!/Projekto\s+brezinio\s+puslapis|Telia\s+derinimo\s+puslapis/i.test(w):true;});
-            p.onUpdate(Object.assign({},o,{pendingTeliaInvEmail:Object.assign({},inv,{attachmentSources:newSources,warnings:newWarn})}));
-            sShowTeliaInvPicker(false);
-          }}
-          onClose={function(){sShowTeliaInvPicker(false);}}/>;
-      })()}
-
-      {/* PDF puslapių parinkimo popup — LitGrid */}
-      {showLGPicker&&(function(){
-        var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-        return <PdfPagePickerModal
-          pdfFile={pdfFile||null}
-          pdfData={pdfFile?pdfFile.data:null}
-          selected={lgSel}
-          onConfirm={function(sel){
-            sLGSel(sel);
-            var srcFileName=pdfFile?pdfFile.name:"";
-            var addr=(o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-            var fname=(addr?addr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-            var newSources=sel.length>0?[{filename:fname,sourceFileName:srcFileName,pageNumbers:sel}]:[];
-            var lg=o.pendingLitgridEmail||{};
-            var existingLibSrcs=(lg.attachmentSources||[]).filter(function(s){return s.type==="library";});
-            var newWarn=(lg.warnings||[]).filter(function(w){return sel.length>0?!/Projekto\s+brezinio|LitGrid\s+derinimo/i.test(w):true;});
-            p.onUpdate(Object.assign({},o,{pendingLitgridEmail:Object.assign({},lg,{attachmentSources:existingLibSrcs.concat(newSources),warnings:newWarn})}));
-            sShowLGPicker(false);
-          }}
-          onClose={function(){sShowLGPicker(false);}}/>;
-      })()}
+      {/* PDF puslapių parinkimo modalas — bendras visiems, atidaromas per xxxPickerFile */}
+      {teliaPickerFile&&<PdfPagePickerModal pdfFile={teliaPickerFile} pdfData={teliaPickerFile.data||null}
+        selected={teliaSelMap[teliaPickerFile.name]||[]}
+        onConfirm={function(sel){sTeliaSelMap(function(prev){return Object.assign({},prev,{[teliaPickerFile.name]:sel});});sTeliaPickerFile(null);}}
+        onClose={function(){sTeliaPickerFile(null);}}/>}
+      {kePickerFile&&<PdfPagePickerModal pdfFile={kePickerFile} pdfData={kePickerFile.data||null}
+        selected={keSelMap[kePickerFile.name]||[]}
+        onConfirm={function(sel){sKESelMap(function(prev){return Object.assign({},prev,{[kePickerFile.name]:sel});});sKEPickerFile(null);}}
+        onClose={function(){sKEPickerFile(null);}}/>}
+      {teliaInvPickerFile&&<PdfPagePickerModal pdfFile={teliaInvPickerFile} pdfData={teliaInvPickerFile.data||null}
+        selected={teliaInvSelMap[teliaInvPickerFile.name]||[]}
+        onConfirm={function(sel){sTeliaInvSelMap(function(prev){return Object.assign({},prev,{[teliaInvPickerFile.name]:sel});});sTeliaInvPickerFile(null);}}
+        onClose={function(){sTeliaInvPickerFile(null);}}/>}
+      {lgPickerFile&&<PdfPagePickerModal pdfFile={lgPickerFile} pdfData={lgPickerFile.data||null}
+        selected={lgSelMap[lgPickerFile.name]||[]}
+        onConfirm={function(sel){sLGSelMap(function(prev){return Object.assign({},prev,{[lgPickerFile.name]:sel});});sLGPickerFile(null);}}
+        onClose={function(){sLGPickerFile(null);}}/>}
 
       {/* Telia review/patvirtinimo blokas */}
       {/* Susiskleidusi Telia juostelė kai atmesta */}
@@ -3081,10 +2996,6 @@ function PermitDetail(p){
       {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&!o.pendingEmail.cancelled&&(function(){
         var pe=o.pendingEmail||{};
         var hasWarn=Array.isArray(pe.warnings)&&pe.warnings.length>0;
-        var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-        // Siunčiamas priedas — vienas PDF su visais pasirinktais puslapiais
-        var attSrc=(pe.attachmentSources||[])[0];
-        var attPages=attSrc?getAttachmentPages(attSrc):[];
         async function regenerate(){
           if(aprvBusy)return;
           sAprvBusy(true);sAprvSt("Atnaujinamas laiško turinys...");
@@ -3100,32 +3011,31 @@ function PermitDetail(p){
           }catch(e){sAprvSt("✗ Klaida: "+e.message);}
           sAprvBusy(false);
         }
+        var _teliaHasSel=_teliaAllPdfs.some(function(pf){return (teliaSelMap[pf.name]||[]).length>0;});
         async function previewSending(){
-          if(previewTeliaBusy||teliaSel.length===0||!pdfFile)return;
+          if(previewTeliaBusy||!_teliaHasSel)return;
+          var firstPf=_teliaAllPdfs.find(function(pf){return (teliaSelMap[pf.name]||[]).length>0;});
+          if(!firstPf)return;
           sPreviewTeliaBusy(true);
           try{
-            var dataUrl=await getPdfDataUrl(pdfFile);
+            var dataUrl=await getPdfDataUrl(firstPf);
             if(!dataUrl){alert("PDF failas nepasiekiamas.");sPreviewTeliaBusy(false);return;}
-            var bytes=await extractPagesToNewPdf(dataUrl,teliaSel);
-            if(bytes){
-              var bin=atob(bytes);var u8=new Uint8Array(bin.length);
-              for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-              window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');
-            }
+            var bytes=await extractPagesToNewPdf(dataUrl,teliaSelMap[firstPf.name]||[]);
+            if(bytes){var bin=atob(bytes);var u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');}
           }catch(e){alert("Klaida: "+e.message);}
           sPreviewTeliaBusy(false);
         }
         async function approve(){
           if(aprvBusy)return;
-          if(teliaSel.length===0){alert("Pasirinkite bent vieną puslapį priedui.");return;}
+          var addr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
+          var finalSrc=_teliaAllPdfs.filter(function(pf){return (teliaSelMap[pf.name]||[]).length>0;}).map(function(pf,i){return {filename:(addr?addr+" kasimo leidimui":"kasimo leidimui")+(i>0?"_"+(i+1):"")+".pdf",sourceFileName:pf.name,pageNumbers:teliaSelMap[pf.name]||[]};});
+          if(finalSrc.length===0){alert("Pasirinkite bent vieną puslapį bent vienam failui.");return;}
           sAprvBusy(true);sAprvSt("Siunčiama...");
           try{
-            var addr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-            var fname=(addr?addr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-            var finalSrc=[{filename:fname,sourceFileName:pdfFile?pdfFile.name:"",pageNumbers:teliaSel}];
             var permitToSend=Object.assign({},o,{pendingEmail:Object.assign({},pe,{attachmentSources:finalSrc})});
             var attCount=await approveAndSendTelia(permitToSend);
-            var updated=Object.assign({},o,{pendingEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia laiškas issiustas ("+(p.user.name||"-")+", "+teliaSel.length+" psl.)"}])});
+            var totalPsl=finalSrc.reduce(function(s,f){return s+f.pageNumbers.length;},0);
+            var updated=Object.assign({},o,{pendingEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia laiškas issiustas ("+(p.user.name||"-")+", "+totalPsl+" psl.)"}])});
             var anyPendingT=updated.pendingKauoenergijaEmail||updated.pendingTeliaInvEmail||updated.pendingLitgridEmail;
             if(!anyPendingT){updated.status="Pateikta";updated.history=updated.history.concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Visi laiškai institucijoms išsiusti"}]);}
             p.onSend(updated);
@@ -3151,16 +3061,17 @@ function PermitDetail(p){
               </div>}
               {/* Priedo pasirinkimas */}
               <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid "+C.b1}}>
-                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Priedas</div>
-                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
-                  <Btn v="secondary" sm onClick={function(){sShowTeliaPicker(true);}}>🗂 Pasirinkti puslapius</Btn>
-                  <Btn v="secondary" sm onClick={previewSending} disabled={previewTeliaBusy||teliaSel.length===0}>{previewTeliaBusy?"...":"👁 Peržiūrėti siunčiamą PDF"}</Btn>
+                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Priedai</div>
+                {_teliaAllPdfs.map(function(pf){var selPages=teliaSelMap[pf.name]||[];return <div key={pf.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <span style={{fontSize:11,color:C.t2,fontFamily:F,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📄 {pf.name}</span>
+                  <Btn v="secondary" sm onClick={function(){sTeliaPickerFile(pf);}}>🗂 Puslapiai</Btn>
+                  {selPages.length>0?<span style={{fontSize:10,color:C.gn,fontFamily:FM,background:C.gnD,padding:"2px 6px",borderRadius:4}}>✓ {selPages.join(",")} psl.</span>:<span style={{fontSize:10,color:C.rd,fontFamily:F}}>Nepasirinkta</span>}
+                </div>;})}
+                {_teliaAllPdfs.length===0&&<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Nėra PDF failų paraiškoje!</div>}
+                <div style={{marginTop:6}}>
+                  <Btn v="secondary" sm onClick={previewSending} disabled={previewTeliaBusy||!_teliaHasSel}>{previewTeliaBusy?"...":"👁 Peržiūrėti pirmą PDF"}</Btn>
+                  {!_teliaHasSel&&<span style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600,marginLeft:8}}>⚠️ Nepasirinkta nė vieno puslapio!</span>}
                 </div>
-                {teliaSel.length>0
-                  ?<div style={{fontSize:11,color:C.gn,fontFamily:FM,padding:"4px 8px",background:C.gnD,borderRadius:6,display:"inline-block"}}>
-                    ✓ Pasirinkta: {teliaSel.join(", ")} psl. — bus sujungta į vieną PDF
-                  </div>
-                  :<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Puslapiai nepasirinkti!</div>}
               </div>
               {/* Trasos koregavimas */}
               <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid "+C.b1}}>
@@ -3222,7 +3133,7 @@ function PermitDetail(p){
       {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail&&!o.pendingKauoenergijaEmail.cancelled&&(function(){
         var ke=o.pendingKauoenergijaEmail||{};
         var hasWarn=Array.isArray(ke.warnings)&&ke.warnings.length>0;
-        var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+        var _keHasSel=_keAllPdfs.some(function(pf){return (keSelMap[pf.name]||[]).length>0;});
         async function regenerateKE(){
           if(keAprvBusy)return;
           sKEAprvBusy(true);sKEAprvSt("Atnaujinamas laiško turinys...");
@@ -3239,31 +3150,29 @@ function PermitDetail(p){
           sKEAprvBusy(false);
         }
         async function previewKESending(){
-          if(previewKEBusy||keSel.length===0||!pdfFile)return;
+          if(previewKEBusy||!_keHasSel)return;
+          var firstPf=_keAllPdfs.find(function(pf){return (keSelMap[pf.name]||[]).length>0;});
+          if(!firstPf)return;
           sPreviewKEBusy(true);
           try{
-            var dataUrl=await getPdfDataUrl(pdfFile);
+            var dataUrl=await getPdfDataUrl(firstPf);
             if(!dataUrl){alert("PDF failas nepasiekiamas.");sPreviewKEBusy(false);return;}
-            var bytes=await extractPagesToNewPdf(dataUrl,keSel);
-            if(bytes){
-              var bin=atob(bytes);var u8=new Uint8Array(bin.length);
-              for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-              window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');
-            }
+            var bytes=await extractPagesToNewPdf(dataUrl,keSelMap[firstPf.name]||[]);
+            if(bytes){var bin=atob(bytes);var u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');}
           }catch(e){alert("Klaida: "+e.message);}
           sPreviewKEBusy(false);
         }
         async function approveKE(){
           if(keAprvBusy)return;
-          if(keSel.length===0){alert("Pasirinkite bent vieną puslapį priedui.");return;}
+          var addr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
+          var finalSrc=_keAllPdfs.filter(function(pf){return (keSelMap[pf.name]||[]).length>0;}).map(function(pf,i){return {filename:(addr?addr+" kasimo leidimui":"kasimo leidimui")+(i>0?"_"+(i+1):"")+".pdf",sourceFileName:pf.name,pageNumbers:keSelMap[pf.name]||[]};});
+          if(finalSrc.length===0){alert("Pasirinkite bent vieną puslapį bent vienam failui.");return;}
           sKEAprvBusy(true);sKEAprvSt("Siunčiama...");
           try{
-            var addr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-            var fname=(addr?addr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-            var finalSrc=[{filename:fname,sourceFileName:pdfFile?pdfFile.name:"",pageNumbers:keSel}];
             var permitToSend=Object.assign({},o,{pendingKauoenergijaEmail:Object.assign({},ke,{attachmentSources:finalSrc})});
             var attCount=await approveAndSendKauoenergija(permitToSend);
-            var updated=Object.assign({},o,{pendingKauoenergijaEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Kauno energija laiškas issiustas ("+(p.user.name||"-")+", "+keSel.length+" psl.)"}])});
+            var totalPsl=finalSrc.reduce(function(s,f){return s+f.pageNumbers.length;},0);
+            var updated=Object.assign({},o,{pendingKauoenergijaEmail:null,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Kauno energija laiškas issiustas ("+(p.user.name||"-")+", "+totalPsl+" psl.)"}])});
             var anyPendingKE=updated.pendingEmail||updated.pendingTeliaInvEmail||updated.pendingLitgridEmail;
             if(!anyPendingKE){updated.status="Pateikta";updated.history=updated.history.concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Visi laiškai institucijoms išsiusti"}]);}
             p.onSend(updated);
@@ -3289,16 +3198,17 @@ function PermitDetail(p){
               </div>}
               {/* Priedo pasirinkimas */}
               <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid "+C.b1}}>
-                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Priedas</div>
-                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
-                  <Btn v="secondary" sm onClick={function(){sShowKEPicker(true);}}>🗂 Pasirinkti puslapius</Btn>
-                  <Btn v="secondary" sm onClick={previewKESending} disabled={previewKEBusy||keSel.length===0}>{previewKEBusy?"...":"👁 Peržiūrėti siunčiamą PDF"}</Btn>
+                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Priedai</div>
+                {_keAllPdfs.map(function(pf){var selPages=keSelMap[pf.name]||[];return <div key={pf.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <span style={{fontSize:11,color:C.t2,fontFamily:F,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📄 {pf.name}</span>
+                  <Btn v="secondary" sm onClick={function(){sKEPickerFile(pf);}}>🗂 Puslapiai</Btn>
+                  {selPages.length>0?<span style={{fontSize:10,color:C.gn,fontFamily:FM,background:C.gnD,padding:"2px 6px",borderRadius:4}}>✓ {selPages.join(",")} psl.</span>:<span style={{fontSize:10,color:C.rd,fontFamily:F}}>Nepasirinkta</span>}
+                </div>;})}
+                {_keAllPdfs.length===0&&<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Nėra PDF failų paraiškoje!</div>}
+                <div style={{marginTop:6}}>
+                  <Btn v="secondary" sm onClick={previewKESending} disabled={previewKEBusy||!_keHasSel}>{previewKEBusy?"...":"👁 Peržiūrėti pirmą PDF"}</Btn>
+                  {!_keHasSel&&<span style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600,marginLeft:8}}>⚠️ Nepasirinkta nė vieno puslapio!</span>}
                 </div>
-                {keSel.length>0
-                  ?<div style={{fontSize:11,color:C.gn,fontFamily:FM,padding:"4px 8px",background:C.gnD,borderRadius:6,display:"inline-block"}}>
-                    ✓ Pasirinkta: {keSel.join(", ")} psl. — bus sujungta į vieną PDF
-                  </div>
-                  :<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Puslapiai nepasirinkti!</div>}
               </div>
               {/* Trasos koregavimas */}
               <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid "+C.b1}}>
@@ -3360,7 +3270,7 @@ function PermitDetail(p){
       {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, investiciniai")!==-1&&o.pendingTeliaInvEmail&&!o.pendingTeliaInvEmail.cancelled&&(function(){
         var inv=o.pendingTeliaInvEmail||{};
         var hasWarn=Array.isArray(inv.warnings)&&inv.warnings.length>0;
-        var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+        var _teliaInvHasSel=_teliaInvAllPdfs.some(function(pf){return (teliaInvSelMap[pf.name]||[]).length>0;});
         async function regenerateTeliaInv(){
           if(teliaInvAprvBusy)return;
           sTeliaInvAprvBusy(true);sTeliaInvAprvSt("Atnaujinamas laiško turinys...");
@@ -3377,34 +3287,32 @@ function PermitDetail(p){
           sTeliaInvAprvBusy(false);
         }
         async function previewTeliaInvSending(){
-          if(previewTeliaInvBusy||teliaInvSel.length===0||!pdfFile)return;
+          if(previewTeliaInvBusy||!_teliaInvHasSel)return;
+          var firstPf=_teliaInvAllPdfs.find(function(pf){return (teliaInvSelMap[pf.name]||[]).length>0;});
+          if(!firstPf)return;
           sPreviewTeliaInvBusy(true);
           try{
-            var dataUrl=await getPdfDataUrl(pdfFile);
+            var dataUrl=await getPdfDataUrl(firstPf);
             if(!dataUrl){alert("PDF failas nepasiekiamas.");sPreviewTeliaInvBusy(false);return;}
-            var bytes=await extractPagesToNewPdf(dataUrl,teliaInvSel);
-            if(bytes){
-              var bin=atob(bytes);var u8=new Uint8Array(bin.length);
-              for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-              window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');
-            }
+            var bytes=await extractPagesToNewPdf(dataUrl,teliaInvSelMap[firstPf.name]||[]);
+            if(bytes){var bin=atob(bytes);var u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');}
           }catch(e){alert("Klaida: "+e.message);}
           sPreviewTeliaInvBusy(false);
         }
         async function approveTeliaInv(){
           if(teliaInvAprvBusy)return;
-          if(teliaInvSel.length===0){alert("Pasirinkite bent vieną puslapį priedui.");return;}
           if(!(inv.to||(teliaInvEmailIn||"").trim())){alert("Įveskite gavėjo el. pašto adresą.");return;}
+          var addr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
+          var finalSrc=_teliaInvAllPdfs.filter(function(pf){return (teliaInvSelMap[pf.name]||[]).length>0;}).map(function(pf,i){return {filename:(addr?addr+" kasimo leidimui":"kasimo leidimui")+(i>0?"_"+(i+1):"")+".pdf",sourceFileName:pf.name,pageNumbers:teliaInvSelMap[pf.name]||[]};});
+          if(finalSrc.length===0){alert("Pasirinkite bent vieną puslapį bent vienam failui.");return;}
           sTeliaInvAprvBusy(true);sTeliaInvAprvSt("Siunčiama...");
           try{
-            var addr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-            var fname=(addr?addr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-            var finalSrc=[{filename:fname,sourceFileName:pdfFile?pdfFile.name:"",pageNumbers:teliaInvSel}];
             var emailVal=(teliaInvEmailIn||"").trim()||inv.to;
             var updatedInv=Object.assign({},inv,{attachmentSources:finalSrc,to:emailVal});
             var permitToSend=Object.assign({},o,{pendingTeliaInvEmail:updatedInv,teliaInvEmail:emailVal});
             var attCount=await approveAndSendTeliaInv(permitToSend);
-            var updated=Object.assign({},o,{pendingTeliaInvEmail:null,teliaInvEmail:emailVal,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia Inv laiškas išsiųstas ("+(p.user.name||"-")+", "+teliaInvSel.length+" psl.)"}])});
+            var totalPsl=finalSrc.reduce(function(s,f){return s+f.pageNumbers.length;},0);
+            var updated=Object.assign({},o,{pendingTeliaInvEmail:null,teliaInvEmail:emailVal,history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia Inv laiškas išsiųstas ("+(p.user.name||"-")+", "+totalPsl+" psl.)"}])});
             if(!updated.pendingEmail&&!updated.pendingKauoenergijaEmail){updated.status="Pateikta";updated.history=updated.history.concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Visi laiškai institucijoms išsiusti"}]);}
             p.onSend(updated);
           }catch(e){sTeliaInvAprvSt("✗ Klaida: "+e.message);sTeliaInvAprvBusy(false);}
@@ -3463,16 +3371,17 @@ function PermitDetail(p){
               </div>}
               {/* Priedo pasirinkimas */}
               <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid "+C.b1}}>
-                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Priedas</div>
-                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
-                  <Btn v="secondary" sm onClick={function(){sShowTeliaInvPicker(true);}}>🗂 Pasirinkti puslapius</Btn>
-                  <Btn v="secondary" sm onClick={previewTeliaInvSending} disabled={previewTeliaInvBusy||teliaInvSel.length===0}>{previewTeliaInvBusy?"...":"👁 Peržiūrėti siunčiamą PDF"}</Btn>
+                <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Priedai</div>
+                {_teliaInvAllPdfs.map(function(pf){var selPages=teliaInvSelMap[pf.name]||[];return <div key={pf.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <span style={{fontSize:11,color:C.t2,fontFamily:F,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📄 {pf.name}</span>
+                  <Btn v="secondary" sm onClick={function(){sTeliaInvPickerFile(pf);}}>🗂 Puslapiai</Btn>
+                  {selPages.length>0?<span style={{fontSize:10,color:C.gn,fontFamily:FM,background:C.gnD,padding:"2px 6px",borderRadius:4}}>✓ {selPages.join(",")} psl.</span>:<span style={{fontSize:10,color:C.rd,fontFamily:F}}>Nepasirinkta</span>}
+                </div>;})}
+                {_teliaInvAllPdfs.length===0&&<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Nėra PDF failų paraiškoje!</div>}
+                <div style={{marginTop:6}}>
+                  <Btn v="secondary" sm onClick={previewTeliaInvSending} disabled={previewTeliaInvBusy||!_teliaInvHasSel}>{previewTeliaInvBusy?"...":"👁 Peržiūrėti pirmą PDF"}</Btn>
+                  {!_teliaInvHasSel&&<span style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600,marginLeft:8}}>⚠️ Nepasirinkta nė vieno puslapio!</span>}
                 </div>
-                {teliaInvSel.length>0
-                  ?<div style={{fontSize:11,color:C.gn,fontFamily:FM,padding:"4px 8px",background:C.gnD,borderRadius:6,display:"inline-block"}}>
-                    ✓ Pasirinkta: {teliaInvSel.join(", ")} psl. — bus sujungta į vieną PDF
-                  </div>
-                  :<div style={{fontSize:11,color:C.rd,fontFamily:F,fontWeight:600}}>⚠️ Puslapiai nepasirinkti!</div>}
               </div>
               {/* Trasos koregavimas */}
               <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid "+C.b1}}>
@@ -3524,8 +3433,8 @@ function PermitDetail(p){
       {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("LitGrid")!==-1&&o.pendingLitgridEmail&&!o.pendingLitgridEmail.cancelled&&(function(){
         var lg=o.pendingLitgridEmail||{};
         var hasWarn=Array.isArray(lg.warnings)&&lg.warnings.length>0;
-        var pdfFile=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
         var libSrc=(lg.attachmentSources||[]).find(function(s){return s.type==="library";});
+        var _lgHasSel=_lgAllPdfs.some(function(pf){return (lgSelMap[pf.name]||[]).length>0;});
         async function regenerateLG(){
           if(lgAprvBusy)return;
           sLGAprvBusy(true);sLGAprvSt("Atnaujinamas laiško turinys...");
@@ -3542,17 +3451,15 @@ function PermitDetail(p){
           sLGAprvBusy(false);
         }
         async function previewLGSending(){
-          if(previewLGBusy||lgSel.length===0||!pdfFile)return;
+          if(previewLGBusy||!_lgHasSel)return;
+          var firstPf=_lgAllPdfs.find(function(pf){return (lgSelMap[pf.name]||[]).length>0;});
+          if(!firstPf)return;
           sPreviewLGBusy(true);
           try{
-            var dataUrl=await getPdfDataUrl(pdfFile);
+            var dataUrl=await getPdfDataUrl(firstPf);
             if(!dataUrl){alert("PDF failas nepasiekiamas.");sPreviewLGBusy(false);return;}
-            var bytes=await extractPagesToNewPdf(dataUrl,lgSel);
-            if(bytes){
-              var bin=atob(bytes);var u8=new Uint8Array(bin.length);
-              for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-              window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');
-            }
+            var bytes=await extractPagesToNewPdf(dataUrl,lgSelMap[firstPf.name]||[]);
+            if(bytes){var bin=atob(bytes);var u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');}
           }catch(e){alert("Klaida: "+e.message);}
           sPreviewLGBusy(false);
         }
@@ -3628,15 +3535,15 @@ function PermitDetail(p){
               {/* Projekto PDF puslapiai */}
               <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid "+C.b1}}>
                 <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Projekto PDF priedai</div>
-                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
-                  <Btn v="secondary" sm onClick={function(){sShowLGPicker(true);}}>🗂 Pasirinkti puslapius</Btn>
-                  <Btn v="secondary" sm onClick={previewLGSending} disabled={previewLGBusy||lgSel.length===0}>{previewLGBusy?"...":"👁 Peržiūrėti siunčiamą PDF"}</Btn>
-                </div>
-                {lgSel.length>0
-                  ?<div style={{fontSize:11,color:C.gn,fontFamily:FM,padding:"4px 8px",background:C.gnD,borderRadius:6,display:"inline-block"}}>
-                    ✓ Pasirinkta: {lgSel.join(", ")} psl. — bus sujungta į vieną PDF
-                  </div>
-                  :<div style={{fontSize:11,color:C.t2,fontFamily:F}}>Puslapiai nepasirinkti (brėžinys+derinimas bus nustatyta automatiškai)</div>}
+                {_lgAllPdfs.map(function(pf){var selPages=lgSelMap[pf.name]||[];return <div key={pf.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <span style={{fontSize:11,color:C.t2,fontFamily:F,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📄 {pf.name}</span>
+                  <Btn v="secondary" sm onClick={function(){sLGPickerFile(pf);}}>🗂 Puslapiai</Btn>
+                  {selPages.length>0?<span style={{fontSize:10,color:C.gn,fontFamily:FM,background:C.gnD,padding:"2px 6px",borderRadius:4}}>✓ {selPages.join(",")} psl.</span>:<span style={{fontSize:10,color:C.t2,fontFamily:F}}>Nepasirinkta</span>}
+                </div>;})}
+                {_lgAllPdfs.length>0&&<div style={{marginTop:6}}>
+                  <Btn v="secondary" sm onClick={previewLGSending} disabled={previewLGBusy||!_lgHasSel}>{previewLGBusy?"...":"👁 Peržiūrėti pirmą PDF"}</Btn>
+                  {!_lgHasSel&&<span style={{fontSize:11,color:C.t2,fontFamily:F,marginLeft:8}}>Nepasirinkta (bus nustatyta automatiškai)</span>}
+                </div>}
               </div>
               {/* Laiško turinys — preview arba redagavimas */}
               {(function(){
@@ -3761,9 +3668,8 @@ function PermitDetail(p){
               if(o.pendingEmail&&!o.pendingEmail.cancelled){
                 try{
                   var teliaAddr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-                  var teliaFname=(teliaAddr?teliaAddr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-                  var pdfFileTelia=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-                  var teliaFinalSrc=[{filename:teliaFname,sourceFileName:pdfFileTelia?pdfFileTelia.name:"",pageNumbers:teliaSel}];
+                  var teliaFinalSrc=_teliaAllPdfs.filter(function(pf){return (teliaSelMap[pf.name]||[]).length>0;}).map(function(pf,i){return {filename:(teliaAddr?teliaAddr+" kasimo leidimui":"kasimo leidimui")+(i>0?"_"+(i+1):"")+".pdf",sourceFileName:pf.name,pageNumbers:teliaSelMap[pf.name]||[]};});
+                  if(teliaFinalSrc.length===0){anyError=true;alert("Telia: pasirinkite bent vieną puslapį bent vienam failui.");sendAllBusyRef.current=false;sSendAllBusy(false);return;}
                   var teliaToSend=Object.assign({},o,{pendingEmail:Object.assign({},o.pendingEmail,{attachmentSources:teliaFinalSrc})});
                   await approveAndSendTelia(teliaToSend);
                 }catch(e){anyError=true;alert("Telia siuntimo klaida: "+e.message);}
@@ -3771,9 +3677,8 @@ function PermitDetail(p){
               if(o.pendingTeliaInvEmail&&!o.pendingTeliaInvEmail.cancelled){
                 try{
                   var invAddr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-                  var invFname=(invAddr?invAddr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-                  var pdfFileTeliaInv=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-                  var invFinalSrc=[{filename:invFname,sourceFileName:pdfFileTeliaInv?pdfFileTeliaInv.name:"",pageNumbers:teliaInvSel}];
+                  var invFinalSrc=_teliaInvAllPdfs.filter(function(pf){return (teliaInvSelMap[pf.name]||[]).length>0;}).map(function(pf,i){return {filename:(invAddr?invAddr+" kasimo leidimui":"kasimo leidimui")+(i>0?"_"+(i+1):"")+".pdf",sourceFileName:pf.name,pageNumbers:teliaInvSelMap[pf.name]||[]};});
+                  if(invFinalSrc.length===0){anyError=true;alert("Telia Inv: pasirinkite bent vieną puslapį bent vienam failui.");sendAllBusyRef.current=false;sSendAllBusy(false);return;}
                   var invEmailVal=(teliaInvEmailIn||"").trim()||o.pendingTeliaInvEmail.to;
                   var invToSend=Object.assign({},o,{pendingTeliaInvEmail:Object.assign({},o.pendingTeliaInvEmail,{attachmentSources:invFinalSrc,to:invEmailVal}),teliaInvEmail:invEmailVal});
                   await approveAndSendTeliaInv(invToSend);
@@ -3782,9 +3687,8 @@ function PermitDetail(p){
               if(o.pendingKauoenergijaEmail&&!o.pendingKauoenergijaEmail.cancelled){
                 try{
                   var keAddr=(o.teliaRouteTo||o.location||"").replace(/[^a-zA-Z0-9ĄČĘĖĮŠŲŪŽąčęėįšųūž\s.,\-]/g,"").trim();
-                  var keFname=(keAddr?keAddr+" kasimo leidimui":"kasimo leidimui")+".pdf";
-                  var pdfFileKE=(o.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-                  var keFinalSrc=[{filename:keFname,sourceFileName:pdfFileKE?pdfFileKE.name:"",pageNumbers:keSel}];
+                  var keFinalSrc=_keAllPdfs.filter(function(pf){return (keSelMap[pf.name]||[]).length>0;}).map(function(pf,i){return {filename:(keAddr?keAddr+" kasimo leidimui":"kasimo leidimui")+(i>0?"_"+(i+1):"")+".pdf",sourceFileName:pf.name,pageNumbers:keSelMap[pf.name]||[]};});
+                  if(keFinalSrc.length===0){anyError=true;alert("Kauno energija: pasirinkite bent vieną puslapį bent vienam failui.");sendAllBusyRef.current=false;sSendAllBusy(false);return;}
                   var keToSend=Object.assign({},o,{pendingKauoenergijaEmail:Object.assign({},o.pendingKauoenergijaEmail,{attachmentSources:keFinalSrc})});
                   await approveAndSendKauoenergija(keToSend);
                 }catch(e){anyError=true;alert("KE siuntimo klaida: "+e.message);}
@@ -6681,3 +6585,4 @@ function App(){
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
 </body>
 </html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
