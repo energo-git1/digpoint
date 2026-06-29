@@ -4352,7 +4352,7 @@ function PermitRow(p){
   var isPermits=p.viewMode==="permits";
   var rowBg=C.s2;var rowBorder=C.b1;var rowBorderW="1px";
   if(o.status==="Nebegalioja"){rowBg=C.rdD;rowBorder=C.rd;rowBorderW="1.5px";}
-  else if(o.status==="Gautas leidimas"||o.status==="Gautas"){rowBg=C.gnD;rowBorder=C.gn;rowBorderW="1.5px";}
+  else if(o.status==="Gautas leidimas"||o.status==="Gautas"||o.status==="Uždarytas"||o.savCompletionSentAt){rowBg=C.gnD;rowBorder=C.gn;rowBorderW="1.5px";}
   else if(o.status==="Gautas dalinai"||o.status==="Laukia patvirtinimo leidimo"){rowBg=C.ylD;rowBorder=C.yl;rowBorderW="1.5px";}
 
   // PDF mygtukų generavimas (tik "Leidimai" lange)
