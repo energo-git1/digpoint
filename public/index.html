@@ -1303,47 +1303,6 @@ function PermitForm(p){
     }catch(e){console.error("Pateikimo klaida:",e);}
     sSubmitting(false);
   }
-  // Masinis pateikimas — kiekvienam PDF atskira paraiška
-  async function submitBatch(){
-    var pdfFiles=files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i);});
-    if(pdfFiles.length<2||!ok||submitting)return;
-    sSubmitting(true);
-    try{
-      var orgLabel=orgs.join(", ");
-      for(var i=0;i<pdfFiles.length;i++){
-        var pf=pdfFiles[i];
-        var pInvNo=invNo, pProjNo=projNo, pLoc=esoLoc, pTrFrom=trFrom, pTrTo=trTo;
-        // Ištraukiame duomenis iš kiekvieno PDF atskirai
-        if(pf.data){
-          try{
-            var text=await extractPdfText(pf.data);
-            if(text){
-              var fi=parseInvestNo(text);if(fi)pInvNo=fi;
-              var fp=parseProjectNo(text);if(fp)pProjNo=fp;
-              var fl=parseLocation(text);if(fl)pLoc=fl;
-              var fr=parseTeliaRoute(text);
-              if(fr){pTrFrom=fr.from;pTrTo=fr.to;}
-            }
-          }catch(e){}
-        }
-        var pLoc2=isTelia?(pTrFrom&&pTrTo?pTrFrom+" - "+pTrTo:""):isESO?pLoc:hasSav?pLoc:"";
-        await p.onSubmit({id:uid(),manager:mgr,managerPhone:ph,email:em,location:pLoc2,
-          organization:orgLabel,organizations:orgs,
-          startDate:start,endDate:end,
-          teliaStartDate:isAnyTelia?teliaStart:null,teliaEndDate:isAnyTelia?teliaEnd:null,
-          keStartDate:isKE?keStart:null,keEndDate:isKE?keEnd:null,
-          litgridStartDate:isLG?lgStart:null,litgridEndDate:isLG?lgEnd:null,
-          description:desc,files:[pf],projectNo:pProjNo,
-          investNo:pInvNo,teliaRouteFrom:pTrFrom,teliaRouteTo:pTrTo,
-          workType:hasSav?workType:null,savDarbaiTipas:hasSav?savDarbaiTipas:null,
-          sourcePermitId:hasSav&&srcPermitId?srcPermitId:null,
-          createdBy:p.user.id,status:"Laukiama tvirtinimo",assignedTo:null,
-          createdAt:fmtDate(new Date()),history:[{status:"Laukiama tvirtinimo",date:fmtDate(new Date())}]});
-      }
-    }catch(e){console.error("Masinis pateikimas klaida:",e);}
-    sSubmitting(false);
-  }
-  var batchPdfs=files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i);});
   return <div style={{maxWidth:560}}>
     <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:4}}>Nauja kasimo leidimo paraiska</h2>
     <p style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:20}}>Uzpildykite forma ir pateikite dokumentacijai.</p>
@@ -1522,9 +1481,6 @@ function PermitForm(p){
       {p.onCancel&&<Btn v="secondary" onClick={p.onCancel} disabled={submitting}>Atsaukti</Btn>}
       {p.onMore&&<Btn v="secondary" onClick={submitAndMore} disabled={!ok||submitting} title="Pateikti ir sukurti papildomą paraišką tam pačiam užsakovui">
         📋 Papildoma
-      </Btn>}
-      {batchPdfs.length>=2&&<Btn v="secondary" onClick={submitBatch} disabled={!ok||submitting} title={"Kiekvienam PDF sukurti atskirą paraišką ("+batchPdfs.length+" vnt.)"}>
-        🗂️ Po paraišką ({batchPdfs.length})
       </Btn>}
       <Btn onClick={submit} disabled={!ok||submitting}>{submitting?"Siunčiama...":"Pateikti paraiskas"}</Btn>
     </div>
@@ -1952,9 +1908,13 @@ async function preparePendingTeliaEmail(permit){
   var attachmentSources=[];
   var warnings=[];
   var detectionInfo=null;
-  var pdfFile=(permit.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-  var pdfData=pdfFile?await getPdfDataUrl(pdfFile):null;
-  if(pdfFile&&pdfData){
+  var pdfFiles=(permit.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+  var drawingFound=false,teliaFound=false;
+  for(var _pfi=0;_pfi<pdfFiles.length;_pfi++){
+  var pdfFile=pdfFiles[_pfi];
+  var pdfData=await getPdfDataUrl(pdfFile);
+  if(!pdfData)continue;
+  {
     try{
       var pageTexts=await extractPdfTextByPage(pdfData);
       // 🆕 2-as sluoksnis: jei trasa nebuvo aptikta formoje (pirmi 5 psl.),
@@ -1983,27 +1943,17 @@ async function preparePendingTeliaEmail(permit){
         teliaApproverName:teliaName,
         usedMethod:teliaName?"vardo-pagrįstas":"raktažodžių"
       };
-      var teliaPage=findTeliaApprovalPage(pageTexts);
-      var drawingPage=findProjectDrawingPage(pageTexts);
-      if(drawingPage){
-        attachmentSources.push({filename:"projekto_brezinys.pdf",sourceFileName:pdfFile.name,pageNumbers:[drawingPage]});
-      }else{
-        warnings.push("Projekto brėžinio puslapis PDF'e nerastas — adminas turi nurodyti rankiniu būdu");
-      }
-      if(teliaPage){
-        attachmentSources.push({filename:"telia_derinimas.pdf",sourceFileName:pdfFile.name,pageNumbers:[teliaPage]});
-      }else{
-        if(teliaName){
-          warnings.push("Telia derinimo puslapis PDF'e nerastas — pritarimų lentelėje rastas derintojas: "+teliaName);
-        }else{
-          warnings.push("Telia derinimo puslapis PDF'e nerastas (pritarimų lentelė taip pat neaptikta)");
-        }
-      }
+      if(!drawingFound){var drawingPage=findProjectDrawingPage(pageTexts);if(drawingPage){attachmentSources.push({filename:"projekto_brezinys.pdf",sourceFileName:pdfFile.name,pageNumbers:[drawingPage]});drawingFound=true;}}
+      if(!teliaFound){var teliaPage=findTeliaApprovalPage(pageTexts);if(teliaPage){attachmentSources.push({filename:"telia_derinimas.pdf",sourceFileName:pdfFile.name,pageNumbers:[teliaPage]});teliaFound=true;}}
+      if(drawingFound&&teliaFound)break;
     }catch(e){
-      warnings.push("PDF skaitymo klaida: "+e.message);
+      warnings.push("PDF skaitymo klaida ("+pdfFile.name+"): "+e.message);
     }
-  }else{
-    warnings.push("Paraiškoje nepridetas projekto PDF failas");
+  }} // end loop
+  if(pdfFiles.length===0){warnings.push("Paraiškoje nepridetas projekto PDF failas");}
+  else{
+    if(!drawingFound)warnings.push("Projekto brėžinio puslapis PDF'e nerastas — adminas turi nurodyti rankiniu būdu");
+    if(!teliaFound){var _tName=(detectionInfo||{}).teliaApproverName;if(_tName){warnings.push("Telia derinimo puslapis PDF'e nerastas — pritarimų lentelėje rastas derintojas: "+_tName);}else{warnings.push("Telia derinimo puslapis PDF'e nerastas (pritarimų lentelė taip pat neaptikta)");}}
   }
   if(!permit.teliaRouteFrom||!permit.teliaRouteTo){
     warnings.push("Trasa nenurodyta");
@@ -2026,9 +1976,13 @@ async function preparePendingTeliaInvEmail(permit){
   var warnings=[];
   var detectionInfo=null;
   var detectedMunicipality=null;
-  var pdfFile=(permit.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-  var pdfData=pdfFile?await getPdfDataUrl(pdfFile):null;
-  if(pdfFile&&pdfData){
+  var pdfFiles=(permit.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+  var drawingFound=false,teliaFound=false;
+  for(var _pfi2=0;_pfi2<pdfFiles.length;_pfi2++){
+  var pdfFile=pdfFiles[_pfi2];
+  var pdfData=await getPdfDataUrl(pdfFile);
+  if(!pdfData)continue;
+  {
     try{
       var pageTexts=await extractPdfTextByPage(pdfData);
       var fullText=pageTexts.join("\n");
@@ -2057,27 +2011,17 @@ async function preparePendingTeliaInvEmail(permit){
         usedMethod:teliaName?"vardo-pagrįstas":"raktažodžių",
         detectedMunicipality:detectedMunicipality
       };
-      var teliaPage=findTeliaApprovalPage(pageTexts);
-      var drawingPage=findProjectDrawingPage(pageTexts);
-      if(drawingPage){
-        attachmentSources.push({filename:"projekto_brezinys.pdf",sourceFileName:pdfFile.name,pageNumbers:[drawingPage]});
-      }else{
-        warnings.push("Projekto brėžinio puslapis PDF'e nerastas — adminas turi nurodyti rankiniu būdu");
-      }
-      if(teliaPage){
-        attachmentSources.push({filename:"telia_derinimas.pdf",sourceFileName:pdfFile.name,pageNumbers:[teliaPage]});
-      }else{
-        if(teliaName){
-          warnings.push("Telia derinimo puslapis PDF'e nerastas — pritarimų lentelėje rastas derintojas: "+teliaName);
-        }else{
-          warnings.push("Telia derinimo puslapis PDF'e nerastas");
-        }
-      }
+      if(!drawingFound){var drawingPage=findProjectDrawingPage(pageTexts);if(drawingPage){attachmentSources.push({filename:"projekto_brezinys.pdf",sourceFileName:pdfFile.name,pageNumbers:[drawingPage]});drawingFound=true;}}
+      if(!teliaFound){var teliaPage=findTeliaApprovalPage(pageTexts);if(teliaPage){attachmentSources.push({filename:"telia_derinimas.pdf",sourceFileName:pdfFile.name,pageNumbers:[teliaPage]});teliaFound=true;}}
+      if(drawingFound&&teliaFound)break;
     }catch(e){
-      warnings.push("PDF skaitymo klaida: "+e.message);
+      warnings.push("PDF skaitymo klaida ("+pdfFile.name+"): "+e.message);
     }
-  }else{
-    warnings.push("Paraiškoje nepridėtas projekto PDF failas");
+  }} // end loop
+  if(pdfFiles.length===0){warnings.push("Paraiškoje nepridėtas projekto PDF failas");}
+  else{
+    if(!drawingFound)warnings.push("Projekto brėžinio puslapis PDF'e nerastas — adminas turi nurodyti rankiniu būdu");
+    if(!teliaFound){var _tName2=(detectionInfo||{}).teliaApproverName;if(_tName2){warnings.push("Telia derinimo puslapis PDF'e nerastas — pritarimų lentelėje rastas derintojas: "+_tName2);}else{warnings.push("Telia derinimo puslapis PDF'e nerastas");}}
   }
   if(!permit.teliaRouteFrom||!permit.teliaRouteTo){
     warnings.push("Trasa nenurodyta");
@@ -2172,9 +2116,12 @@ async function preparePendingKauoenergijaEmail(permit, pageTexts){
   var attachmentSources=[];
   var warnings=[];
   var detectionInfo=null;
-  var pdfFile=(permit.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-  if(!pageTexts && pdfFile){
-    try{ var _pd=await getPdfDataUrl(pdfFile); if(_pd)pageTexts=await extractPdfTextByPage(_pd); }catch(e){}
+  var pdfFiles=(permit.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+  var pdfFile=pdfFiles[0]||null;
+  if(!pageTexts){
+    for(var _kei=0;_kei<pdfFiles.length;_kei++){
+      try{var _kpd=await getPdfDataUrl(pdfFiles[_kei]);if(_kpd){pageTexts=await extractPdfTextByPage(_kpd);pdfFile=pdfFiles[_kei];break;}}catch(e){}
+    }
   }
   if(pageTexts && pageTexts.length>0){
     // Investicinis/projekto nr. — bandom rasti pilnu PDF tekstu, jei dar nenustatytas
@@ -2211,7 +2158,7 @@ async function preparePendingKauoenergijaEmail(permit, pageTexts){
       }
     }
   }else{
-    warnings.push("Paraiškoje nepridetas projekto PDF failas");
+    if(pdfFiles.length===0)warnings.push("Paraiškoje nepridetas projekto PDF failas");
   }
   var addr=permit.teliaRouteTo||permit.location||'';
   return {
@@ -2263,9 +2210,12 @@ function findLitgridApprovalPage(pageTexts){
 async function preparePendingLitgridEmail(permit, pageTexts){
   var attachmentSources=[];
   var warnings=[];
-  var pdfFile=(permit.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-  if(!pageTexts&&pdfFile){
-    try{var _pd=await getPdfDataUrl(pdfFile);if(_pd)pageTexts=await extractPdfTextByPage(_pd);}catch(e){}
+  var pdfFiles=(permit.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i)});
+  var pdfFile=pdfFiles[0]||null;
+  if(!pageTexts){
+    for(var _lgi=0;_lgi<pdfFiles.length;_lgi++){
+      try{var _lgpd=await getPdfDataUrl(pdfFiles[_lgi]);if(_lgpd){pageTexts=await extractPdfTextByPage(_lgpd);pdfFile=pdfFiles[_lgi];break;}}catch(e){}
+    }
   }
   // 1) LitGrid prašymas iš šablonų bibliotekos
   try{
