@@ -10,7 +10,6 @@ const nodemailer = require('nodemailer');
 const { ImapFlow } = require('imapflow');
 const pdfParse    = require('pdf-parse');
 const PizZip      = require('pizzip');
-const Docxtemplater = require('docxtemplater');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -578,25 +577,6 @@ app.post('/api/notify/email', async (req, res) => {
   }
 });
 
-// ── Įspėjimas kai sistema aptinka leidimą bet negali pridėti PDF ──
-app.post('/api/notify/permit-pdf-missing', async (req, res) => {
-  const { permitNo, institution, location } = req.body || {};
-  if (!permitNo) return res.status(400).json({ error: 'Trūksta duomenų.' });
-  try {
-    const subject = `Nepavyko automatiškai atpažinti leidimo — reikalingas rankinis įkėlimas`;
-    const html = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;font-size:13px;color:#1F2937;padding:20px">
-      <p>Sistema aptiko gautą laišką iš <strong>${institution||'institucijos'}</strong>, tačiau nepavyko automatiškai atpažinti leidimo dokumento paraiškoje <strong>#${permitNo}</strong>${location?' ('+location+')':''}.</p>
-      <p>Paraiška lieka <strong>„Pateikta"</strong> statusu.</p>
-      <p>Reikalingas rankinis leidimo PDF įkėlimas sistemoje.</p>
-    </body></html>`;
-    const info = await sendAndSave({ from: MAIL_FROM_INTERNAL, to: 'uzklausos@energolt.eu', subject, html });
-    console.log(`  📨 Permit PDF missing warning → uzklausos | #${permitNo} | ${info.messageId}`);
-    res.json({ ok: true });
-  } catch (e) {
-    console.error(`  ❌ Permit PDF missing warning klaida: ${e.message}`);
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // ── ESO paraiškos pateikimo patvirtinimas užsakovui ───────────
 app.post('/api/notify/eso-submitted', async (req, res) => {
@@ -1969,7 +1949,7 @@ app.post('/api/admin/generate-sav-prasymas', (req, res) => {
   <tr><td>Darbų pradžia:</td><td>${permit.startDate || '—'}</td></tr>
   <tr><td>Darbų pabaiga:</td><td>${permit.endDate || '—'}</td></tr>
   <tr><td>Darbų pobūdis:</td><td>${permit.description || permit.workType || 'Požeminių komunikacijų tiesimas / remontas'}</td></tr>
-  <tr><td>Atsakingas darbų vadovas:</td><td>${permit.managerName || permit.manager || '—'}</td></tr>
+  <tr><td>Atsakingas darbų vadovas:</td><td>${permit.manager || '—'}</td></tr>
   <tr><td>Vadovo tel.:</td><td>${permit.managerPhone || '—'}</td></tr>
   ${permit.investNo ? `<tr><td>Investicinis numeris:</td><td>${permit.investNo}</td></tr>` : ''}
 </table>
@@ -2956,34 +2936,6 @@ app.post('/api/fill-pdf-template', async (req, res) => {
 // Priima: { docUrl, data: { data, adresas, projekto_nr, darbu_vadovas, tel, nuo, iki } }
 // Grąžina: { content (base64), filename, mimeType }
 // Ištaiso Word padalintus {{tag}} per kelis XML <w:r> elementus
-function fixDocxSplitTags(zipFile) {
-  const xmlFiles = Object.keys(zipFile.files).filter(f =>
-    /word\/(document|header\d*|footer\d*|numbering)\.xml$/i.test(f)
-  );
-  xmlFiles.forEach(fn => {
-    try {
-      let xml = zipFile.files[fn].asText();
-      for (let pass = 0; pass < 8; pass++) {
-        const before = xml;
-        // Suranda pirmąjį <w:t> su atvirais {{ ir jungią su kitu <w:t>
-        xml = xml.replace(
-          /<w:t([^>]*)>([^<]*\{[^<]*)<\/w:t><\/w:r>(?:<w:proofErr[^>]*\/>)*(?:<w:bookmarkStart[^>]*\/>)*(?:<w:bookmarkEnd[^>]*\/>)*<w:r(?:\s[^>]*)?>(?:<w:rPr>[\s\S]*?<\/w:rPr>)?<w:t([^>]*)>([^<]*)<\/w:t>/g,
-          function(m, a1, t1, a2, t2) {
-            // Jungiam tik jei t1 turi neuždarytų {{ (daugiau {{ nei }})
-            var opens = (t1.match(/\{\{/g) || []).length;
-            var closes = (t1.match(/\}\}/g) || []).length;
-            if (opens > closes) return '<w:t' + a1 + '>' + t1 + t2 + '</w:t>';
-            // Arba t1 baigiasi { (padalintas vienas simbolis)
-            if (t1.slice(-1) === '{') return '<w:t' + a1 + '>' + t1 + t2 + '</w:t>';
-            return m;
-          }
-        );
-        if (xml === before) break;
-      }
-      zipFile.file(fn, xml);
-    } catch (_) {}
-  });
-}
 
 // ── LitGrid PDF generavimas nuo nulio (be šablono) ─────────────
 let _cachedFontBytes = null;
@@ -3336,13 +3288,6 @@ app.post('/api/generate-docx-pdf', (req, res) => {
   }
 });
 
-// DocPoint logs
-app.get('/api/admin/docpoint-logs', (req, res) => {
-  exec('pm2 logs docpoint --lines 50 --nostream --no-color 2>&1', { timeout: 15000 }, (err, stdout, stderr) => {
-    res.json({ logs: stdout + stderr });
-  });
-});
-
 // Fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -3374,31 +3319,6 @@ app.post('/api/admin/deploy', (req, res) => {
   });
 });
 
-app.post('/api/admin/deploy-docpoint', (req, res) => {
-  const docDir = '/var/www/docpoint';
-  exec(`cd "${docDir}" && git remote set-url origin https://github.com/energo-git1/docpoint.git && git fetch origin && git reset --hard origin/master && npm install --omit=dev && pm2 delete docpoint 2>/dev/null; pm2 start /var/www/docpoint/server.js --name docpoint`, { timeout: 180000 }, (err, stdout, stderr) => {
-    res.json({ ok: !err, stdout, stderr, error: err ? err.message : null, docDir });
-    if (!err) console.log('[DEPLOY-DOCPOINT] OK');
-    else console.error('[DEPLOY-DOCPOINT] Klaida:', err.message);
-  });
-});
-
-app.post('/api/admin/write-docpoint-server', (req, res) => {
-  let body = '';
-  req.on('data', chunk => { body += chunk; });
-  req.on('end', () => {
-    try {
-      require('fs').writeFileSync('/var/www/docpoint/server.js', body, 'utf8');
-      exec('pm2 restart docpoint', { timeout: 30000 }, (err, stdout, stderr) => {
-        res.json({ ok: !err, bytes: body.length, stdout, stderr, error: err ? err.message : null });
-        if (!err) console.log('[WRITE-DOCPOINT] OK, bytes:', body.length);
-        else console.error('[WRITE-DOCPOINT] pm2 klaida:', err.message);
-      });
-    } catch (e) {
-      res.status(500).json({ ok: false, error: e.message });
-    }
-  });
-});
 
 // ── Savivaldybės leidimo PDF parsavimas ──────────────────────
 // Grąžina: { location, seniunijaName, startDate, endDate, permitValidFrom, permitValidUntil,
@@ -3652,7 +3572,6 @@ app.listen(PORT, () => {
       const before = (p.files || []).length;
       const kept = (p.files || []).filter((f) => !ATMINTINE_RE.test(f.name || ''));
       if (kept.length === before) return p;
-      kept.forEach((f) => {});
       (p.files || []).filter((f) => ATMINTINE_RE.test(f.name || '')).forEach((f) => {
         if (f.filename) { try { const fp = path.join(UPLOAD_DIR, f.filename); if (fs.existsSync(fp)) fs.unlinkSync(fp); } catch (_) {} }
         removed++;

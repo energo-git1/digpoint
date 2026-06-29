@@ -605,12 +605,6 @@ function parsePageNumbers(str){
   return pages.filter(function(p){if(seen[p])return false;seen[p]=true;return true}).sort(function(a,b){return a-b});
 }
 
-// Formatuoja puslapių masyvą į "27, 28, 29" string'ą
-function formatPageNumbers(pages){
-  if(!Array.isArray(pages))return "";
-  return pages.join(", ");
-}
-
 // Atgalinis suderinamumas — palaikom tiek pageNumbers (naujas), tiek pageNumber (senas)
 function getAttachmentPages(src){
   if(src&&Array.isArray(src.pageNumbers))return src.pageNumbers;
@@ -633,25 +627,6 @@ async function getPdfDataUrl(file){
     }catch(e){return null;}
   }
   return null;
-}
-
-// Atidaro paraiškos PDF naujame naršyklės skirtuke — admin gali peržiūrėti.
-function openPermitPdfInNewTab(permit){
-  var pdf=(permit.files||[]).find(function(f){return f.name&&f.name.match(/\.pdf$/i)});
-  if(!pdf){alert("Paraiškoje nerastas PDF failas.");return;}
-  // Jei yra serverio URL — atidarome tiesiogiai
-  if(pdf.url){window.open(pdf.url+'#zoom=125','_blank');return;}
-  // Fallback — iš data URL
-  if(!pdf.data){alert("PDF failas nepasiekiamas.");return;}
-  try{
-    var arr=pdf.data.split(',');
-    var bin=atob(arr[1]);
-    var len=bin.length;
-    var u8=new Uint8Array(len);
-    for(var i=0;i<len;i++)u8[i]=bin.charCodeAt(i);
-    var blob=new Blob([u8],{type:'application/pdf'});
-    window.open(URL.createObjectURL(blob)+'#zoom=125','_blank');
-  }catch(e){alert("Nepavyko atidaryti PDF: "+e.message);}
 }
 
 function parseLocation(text){
