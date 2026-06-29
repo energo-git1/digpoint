@@ -9,7 +9,6 @@ const multer = require('multer');
 const nodemailer = require('nodemailer');
 const { ImapFlow } = require('imapflow');
 const pdfParse    = require('pdf-parse');
-const PizZip      = require('pizzip');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -3218,72 +3217,6 @@ app.post('/api/generate-litgrid-pdf', async (req, res) => {
     res.json({ content: pdfBuf.toString('base64'), filename: 'Litgrid_prašymas kasimo darbams.pdf', mimeType: 'application/pdf' });
   } catch (e) {
     console.error('[generate-litgrid-pdf] Klaida:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.post('/api/generate-docx-pdf', (req, res) => {
-  try {
-    const { docUrl, data } = req.body || {};
-    if (!docUrl) return res.status(400).json({ error: 'Trūksta docUrl' });
-
-    // Failo kelias — URL decode + tik uploads aplanke
-    const rawBasename = path.basename(docUrl.replace(/\?.*$/, ''));
-    const basename = (() => { try { return decodeURIComponent(rawBasename); } catch(_) { return rawBasename; } })();
-    const docxPath = path.join(UPLOAD_DIR, basename);
-    const docxPathRaw = path.join(UPLOAD_DIR, rawBasename);
-    const resolvedPath = fs.existsSync(docxPath) ? docxPath : fs.existsSync(docxPathRaw) ? docxPathRaw : null;
-    if (!resolvedPath)
-      return res.status(404).json({ error: `Failas nerastas: ${basename}` });
-
-    // Užpildyti kintamuosius — paprastas string replace (patikimiau nei docxtemplater)
-    const content = fs.readFileSync(resolvedPath, 'binary');
-    const zip = new PizZip(content);
-
-    // Procesina document.xml + header/footer failus
-    const xmlTargets = Object.keys(zip.files).filter(f =>
-      /^word\/(document|header\d*|footer\d*)\.xml$/i.test(f)
-    );
-    xmlTargets.forEach(xmlFile => {
-      try {
-        let xml = zip.files[xmlFile].asText();
-        // Kiekvieną kintamąjį pakeičiame reikšme
-        Object.keys(data || {}).forEach(key => {
-          xml = xml.split(`{{${key}}}`).join(data[key] != null ? String(data[key]) : '');
-        });
-        // Likusius neužpildytus tagus — išvalome
-        xml = xml.replace(/\{\{[^{}]+\}\}/g, '');
-        zip.file(xmlFile, xml);
-      } catch (_) {}
-    });
-
-    const filledBuf = zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
-
-    // Bandome konvertuoti į PDF per LibreOffice
-    let pdfBuf = null;
-    try {
-      const tmpDocx = path.join(os.tmpdir(), `kl_${Date.now()}.docx`);
-      fs.writeFileSync(tmpDocx, filledBuf);
-      // LibreOffice: Linux — libreoffice, Windows — soffice
-      const sofficeBin = process.platform === 'win32' ? 'soffice' : 'libreoffice';
-      execSync(`${sofficeBin} --headless --convert-to pdf --outdir "${os.tmpdir()}" "${tmpDocx}"`, { timeout: 30000 });
-      const pdfPath = tmpDocx.replace(/\.docx$/, '.pdf');
-      if (fs.existsSync(pdfPath)) {
-        pdfBuf = fs.readFileSync(pdfPath);
-        try { fs.unlinkSync(pdfPath); } catch (_) {}
-      }
-      try { fs.unlinkSync(tmpDocx); } catch (_) {}
-    } catch (loErr) {
-      console.log('[DOCX→PDF] LibreOffice nepasiekiama — siunčiama DOCX:', loErr.message.slice(0, 80));
-    }
-
-    if (pdfBuf) {
-      res.json({ content: pdfBuf.toString('base64'), filename: basename.replace(/\.docx$/i, '.pdf'), mimeType: 'application/pdf' });
-    } else {
-      res.json({ content: filledBuf.toString('base64'), filename: basename, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    }
-  } catch (e) {
-    console.error('[DOCX→PDF] Klaida:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
