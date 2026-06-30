@@ -3726,7 +3726,13 @@ function PermitDetail(p){
       {(isA||isD)&&(st==="Gautas leidimas"||o.status==="Pateikta"||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Uždarytas"||o.status==="Nebegalioja"||o.status==="Laukia patvirtinimo leidimo")&&(function(){
         var ORG_PDF_MAP={"Kauno miesto savivaldybe":{key:"sav",color:"#1D4ED8"},"Telia, Kaunas":{key:"telia",color:"#1D4ED8"},"Telia, investiciniai":{key:"telia_inv",color:"#1D4ED8"},"Kauno energija":{key:"ke",color:"#C2410C"},"Kauno vandenys":{key:"vandenys",color:"#0369A1"},"AB ESO":{key:"eso",color:"#FF6B2B"},"LitGrid":{key:"litgrid",color:"#047857"}};
         var orgsList=o.organizations&&o.organizations.length>0?o.organizations:(o.organization?[o.organization]:[]);
-        var orgsWithPermit=orgsList.filter(function(org){return !!ORG_PDF_MAP[org];});
+        var _cancelledEmailMap={"Telia, Kaunas":o.pendingEmail,"Telia, investiciniai":o.pendingTeliaInvEmail,"Kauno energija":o.pendingKauoenergijaEmail,"LitGrid":o.pendingLitgridEmail};
+        var orgsWithPermit=orgsList.filter(function(org){
+          if(!ORG_PDF_MAP[org])return false;
+          var emailObj=_cancelledEmailMap[org];
+          if(emailObj&&emailObj.cancelled){var k=ORG_PDF_MAP[org].key;return !!(permitPdfs[k]&&permitPdfs[k].name);}
+          return true;
+        });
         if(orgsWithPermit.length===0)return null;
         function handlePdfUpload(key,f){
           if(!f.name||!f.name.match(/\.pdf$/i)){alert("Tik PDF failai.");return;}
@@ -3778,6 +3784,12 @@ function PermitDetail(p){
           if(pf.url){window.open(pf.url+'#zoom=125','_blank');return;}
           if(pf.data){var arr=pf.data.split(',');var bin=atob(arr[1]);var u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');}
         }
+        function downloadPermitPdf(key){
+          var pf=permitPdfs[key];if(!pf)return;
+          var a=document.createElement('a');a.download=pf.name||(key+'.pdf');
+          if(pf.url){a.href=pf.url;a.click();return;}
+          if(pf.data){a.href=pf.data;a.click();}
+        }
         return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
           <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Gauti leidimai</div>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -3793,6 +3805,7 @@ function PermitDetail(p){
                   ?<div style={{flex:1,display:"flex",alignItems:"center",gap:6}}>
                     <span style={{fontSize:11,color:C.gn,fontFamily:FM,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>✓ {pf.name}</span>
                     <Btn v="secondary" sm onClick={function(){openPermitPdf(key);}}>Atidaryti</Btn>
+                    <Btn v="secondary" sm onClick={function(){downloadPermitPdf(key);}}>⬇</Btn>
                     <Btn v="danger" sm onClick={function(){var u=Object.assign({},permitPdfs);delete u[key];sPermitPdfs(u);p.onUpdate(Object.assign({},o,{permitPdfs:u}));}}>✕</Btn>
                   </div>
                   :<label style={{flex:1,cursor:"pointer"}}
@@ -4248,11 +4261,15 @@ function PermitRow(p){
       "AB ESO":         {key:"eso",      label:"ESO",  color:"#B45309", bg:"#FFFBEB", border:"#FDE68A"},
       "LitGrid":        {key:"litgrid",  label:"LitGrid", color:"#047857", bg:"#ECFDF5", border:"#A7F3D0"},
     };
+    var ORG_CANCEL_EMAIL={"Telia, Kaunas":o.pendingEmail,"Telia, investiciniai":o.pendingTeliaInvEmail,"Kauno energija":o.pendingKauoenergijaEmail,"LitGrid":o.pendingLitgridEmail};
     orgs.forEach(function(org){
       var meta=ORG_ROW_META[org];
       if(!meta)return;
       var key=meta.key;
       var permitFile=(o.permitPdfs||{})[key];
+      // Slėpti atšauktą instituciją jei dar nėra gauto leidimo PDF
+      var emailObj=ORG_CANCEL_EMAIL[org];
+      if(emailObj&&emailObj.cancelled&&!permitFile)return;
       var label=meta.label;
       var color=meta.color;
       var bg=meta.bg;
@@ -6582,18 +6599,4 @@ function App(){
   }
 
   var effectiveUser=previewRole&&user&&user.role==="admin"?Object.assign({},user,{role:previewRole}):user;
-  return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    {previewRole&&<div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,background:"#b45309",color:"#fff",textAlign:"center",fontSize:11,fontFamily:"monospace",padding:"3px 0",pointerEvents:"none"}}>👁 Peržiūra kaip: {previewRole==="orderer"?"Užsakovas":"Dokumentacijos spec."}</div>}
-    <Sidebar user={effectiveUser} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount} previewRole={previewRole} onPreviewRole={sPreviewRole}/>
-    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={effectiveUser} users={users} surveyors={docsWorkers}
-      onUpdate={function(u){updatePermit(u);setDetail(u)}}
-      onSend={function(u){updatePermit(u);setDetail(null)}}
-      onDelete={function(id){deletePermit(id);setDetail(null)}}
-      onClose={function(){setDetail(null)}}/>}
-  </div>
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+  return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}
