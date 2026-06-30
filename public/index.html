@@ -3098,7 +3098,7 @@ function PermitDetail(p){
             {aprvSt&&<div style={{fontSize:11,color:aprvSt.startsWith("✗")?C.rd:aprvSt.startsWith("✓")?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:aprvSt.startsWith("✗")?C.rdD:aprvSt.startsWith("✓")?C.gnD:C.acD,borderRadius:6}}>{aprvSt}</div>}
             <div style={{display:"flex",gap:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
               <Btn v="secondary" sm onClick={regenerate} disabled={aprvBusy}>🔄 Atnaujinti</Btn>
-              {o.pendingKauoenergijaEmail&&<Btn v="danger" sm disabled={aprvBusy} onClick={function(){
+              <Btn v="danger" sm disabled={aprvBusy} onClick={function(){
                 var priezastis=window.prompt("Atmetimo priežastis (Telia):","Inžinerinių komunikacijų trasoje nėra");
                 if(priezastis===null)return;
                 var cancelledEmail=Object.assign({},o.pendingEmail,{cancelled:true,cancelNote:priezastis||""});
@@ -3107,7 +3107,7 @@ function PermitDetail(p){
                   history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia atmesta: "+(priezastis||"-")+" ("+(p.user.name||"-")+")"}])
                 });
                 p.onUpdate(updated);sAprvSt("✓ Telia atmesta.");
-              }}>✗ Atmesti Telia</Btn>}
+              }}>✗ Atmesti Telia</Btn>
             </div>
           </div>
         </div>;
@@ -6587,3 +6587,4 @@ function App(){
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
 </body>
 </html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
