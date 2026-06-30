@@ -3474,6 +3474,77 @@ function cleanupOldProjectFiles() {
   }
 }
 
+
+// ── Leidimų galiojimo įspėjimai ─────────────────────────────
+function workingDaysUntil(dateStr) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const target = new Date(dateStr); target.setHours(0,0,0,0);
+  if (target <= today) return 0;
+  let count = 0;
+  const d = new Date(today);
+  while (d < target) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count;
+}
+
+function calendarDaysUntil(dateStr) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const target = new Date(dateStr); target.setHours(0,0,0,0);
+  return Math.round((target - today) / 86400000);
+}
+
+async function checkExpiringPermits() {
+  const TERMINAL = ['Nebegalioja','Uždarytas','Atmestas'];
+  const todayStr = new Date().toISOString().slice(0,10);
+  const permits = dbGet('kl-permits') || [];
+  let warned = 0;
+  const updated = permits.map((pm) => {
+    if (!pm.permitValidUntil) return pm;
+    if (TERMINAL.includes(pm.status)) return pm;
+    if ((pm.expiryWarningSentAt || '').slice(0,10) === todayStr) return pm;
+
+    const isSav = (pm.organizations||[]).includes('Kauno miesto savivaldybe') && pm.permitValidUntil;
+    let shouldWarn = false;
+
+    if (isSav) {
+      if (pm.savCompletionSentAt) return pm;
+      const wdays = workingDaysUntil(pm.permitValidUntil);
+      if (wdays >= 1 && wdays <= 2) shouldWarn = true;
+    } else {
+      const cdays = calendarDaysUntil(pm.permitValidUntil);
+      if (cdays >= 0 && cdays <= 7) shouldWarn = true;
+    }
+
+    if (!shouldWarn) return pm;
+
+    const recipient = pm.managerEmail || pm.email;
+    if (!recipient) return pm;
+
+    const addr = pm.location || pm.teliaRouteTo || pm.teliaRouteFrom || pm.id;
+    const label = isSav ? 'Savivaldybės leidimas' : 'Leidimas';
+    const wLeft = isSav ? workingDaysUntil(pm.permitValidUntil) + ' d.d.' : calendarDaysUntil(pm.permitValidUntil) + ' d.';
+    const subject = `[Digpoint] ${label} baigia galioti — ${addr}`;
+    const html = `<p>Sveiki,</p>
+<p>Primename, kad leidimas objektui <strong>${addr}</strong> baigia galioti <strong>${pm.permitValidUntil}</strong> (liko ${wLeft}).</p>
+${isSav ? '<p>Jei darbai baigti — reikia išsiųsti pranešimą apie darbų pabaigą savivaldybei.</p>' : '<p>Jei reikia pratęsti — susisiekite su atitinkama institucija.</p>'}
+<p style="color:#888;font-size:12px">Digpoint automatinis pranešimas</p>`;
+
+    sendAndSave({ from: MAIL_FROM_INTERNAL, to: recipient, subject, html }).catch((e) => {
+      console.error('[EXPIRY] Laiško siuntimo klaida:', e.message);
+    });
+
+    console.log(`[EXPIRY] Įspėjimas išsiųstas: ${addr} → ${recipient} (baigiasi ${pm.permitValidUntil})`);
+    warned++;
+    return { ...pm, expiryWarningSentAt: new Date().toISOString() };
+  });
+
+  if (warned > 0) dbSet('kl-permits', updated);
+  return warned;
+}
+
 app.listen(PORT, () => {
   console.log('Kasimo leidimai veikia: http://localhost:' + PORT);
   console.log('DB: ' + DB_FILE);
@@ -3519,4 +3590,17 @@ app.listen(PORT, () => {
     cleanupOldProjectFiles();
     setInterval(cleanupOldProjectFiles, 24 * 60 * 60 * 1000);
   }, 60 * 1000);
+
+  // Leidimų galiojimo įspėjimai — tikrinama kas parą 8:00
+  (function scheduleExpiryCheck() {
+    const now = new Date();
+    const next8 = new Date(now); next8.setHours(8,0,0,0);
+    if (next8 <= now) next8.setDate(next8.getDate() + 1);
+    setTimeout(() => {
+      checkExpiringPermits().then((n) => { if (n > 0) console.log('[EXPIRY] Išsiųsti ' + n + ' įspėjimai.'); });
+      setInterval(() => {
+        checkExpiringPermits().then((n) => { if (n > 0) console.log('[EXPIRY] Išsiųsti ' + n + ' įspėjimai.'); });
+      }, 24 * 60 * 60 * 1000);
+    }, next8 - now);
+  })();
 });

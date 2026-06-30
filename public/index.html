@@ -4304,6 +4304,19 @@ function PermitRow(p){
   if(!isPermits&&cr)subParts.push(cr.name);
   var subLine=subParts.join(" · ");
 
+  // Hover tooltip duomenys
+  var ORG_SHORT_ROW={"AB ESO":"ESO","Telia, Kaunas":"Telia","Telia, investiciniai":"Telia Inv.","Kauno energija":"KE","Kauno vandenys":"KV","Kauno miesto savivaldybe":"SAV","LitGrid":"LG"};
+  var ORG_CANCEL_EMAIL2={"Telia, Kaunas":o.pendingEmail,"Telia, investiciniai":o.pendingTeliaInvEmail,"Kauno energija":o.pendingKauoenergijaEmail,"LitGrid":o.pendingLitgridEmail};
+  var ORG_PDF_KEY2={"Telia, Kaunas":"telia","Telia, investiciniai":"telia_inv","Kauno energija":"ke","Kauno vandenys":"vandenys","AB ESO":"eso","LitGrid":"litgrid","Kauno miesto savivaldybe":"sav"};
+  var tooltipOrgs=(o.organizations||[]).filter(function(org){
+    var emailObj=ORG_CANCEL_EMAIL2[org];
+    if(emailObj&&emailObj.cancelled){var k=ORG_PDF_KEY2[org];return !!((o.permitPdfs||{})[k]);} return true;
+  });
+  var lastHistory=o.history&&o.history.length>0?o.history[o.history.length-1]:null;
+  var validUntil=o.permitValidUntil||"";
+  var daysLeft=validUntil?(Math.round((new Date(validUntil)-new Date())/(1000*86400))):null;
+  var validWarn=daysLeft!==null&&daysLeft<=7;
+
   var isDrop=p.isDragOver;
   return <div
     draggable={p.draggable||false}
@@ -4312,7 +4325,7 @@ function PermitRow(p){
     onDragLeave={p.onDragLeave||undefined}
     onDrop={p.onDrop||undefined}
     onClick={p.onClick} onMouseEnter={function(){sH(true)}} onMouseLeave={function(){sH(false)}}
-    style={{padding:"10px 14px",
+    style={{position:"relative",padding:"10px 14px",
       background:isDrop?C.acD:(h?C.s3:rowBg),
       border:isDrop?"2px dashed "+C.ac:(rowBorderW+" solid "+(h?C.b2:rowBorder)),
       borderRadius:10,cursor:p.draggable?"grab":"pointer",transition:"all .15s",marginBottom:4,
@@ -4329,6 +4342,31 @@ function PermitRow(p){
       {pdfBtns}
       <StatusBadge status={o.status}/>
     </div>
+    {h&&!isPermits&&tooltipOrgs.length>0&&<div onClick={function(e){e.stopPropagation();}}
+      style={{position:"absolute",top:"100%",right:0,zIndex:99,width:260,background:C.s2,border:"1px solid "+C.b2,borderRadius:8,padding:"10px 12px",boxShadow:"0 4px 16px rgba(0,0,0,.12)",marginTop:4}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.tx,fontFamily:F,marginBottom:6}}>{addrLine||o.organization}</div>
+      <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"3px 10px",fontSize:10,fontFamily:F,marginBottom:8}}>
+        {o.projectNo&&<><span style={{color:C.t2}}>Projektas</span><span style={{color:C.tx}}>{o.projectNo}</span></>}
+        {o.createdAt&&<><span style={{color:C.t2}}>Sukurta</span><span style={{color:C.tx}}>{(o.createdAt||"").slice(0,10)}</span></>}
+        {validUntil&&<><span style={{color:C.t2}}>Galioja iki</span><span style={{color:validWarn?C.rd:C.tx,fontWeight:validWarn?700:400}}>{validUntil}{validWarn?" (liko "+daysLeft+"d.)":""}</span></>}
+        {cr&&<><span style={{color:C.t2}}>Darbuotojas</span><span style={{color:C.tx}}>{cr.name}</span></>}
+      </div>
+      <div style={{borderTop:"1px solid "+C.b1,paddingTop:6,marginBottom:6}}>
+        <div style={{fontSize:9,fontWeight:700,color:C.t3,fontFamily:F,textTransform:"uppercase",letterSpacing:.8,marginBottom:4}}>Institucijos</div>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+          {tooltipOrgs.map(function(org){
+            var short=ORG_SHORT_ROW[org]||org;
+            var key=ORG_PDF_KEY2[org];
+            var hasPdf=key&&(o.permitPdfs||{})[key];
+            return <span key={org} style={{fontSize:10,fontFamily:F,padding:"1px 6px",borderRadius:4,
+              background:hasPdf?C.gnD:C.ylD,
+              color:hasPdf?C.gn:C.yl,
+              border:"0.5px solid "+(hasPdf?C.gn:C.yl)}}>{hasPdf?"✓":"⏳"} {short}</span>;
+          })}
+        </div>
+      </div>
+      {lastHistory&&<div style={{fontSize:10,color:C.t2,fontFamily:F,fontStyle:"italic",borderTop:"1px solid "+C.b1,paddingTop:5}}>{lastHistory.date} · {lastHistory.note}</div>}
+    </div>}
   </div>
 }
 // ═════════════════════════════════════════════════════════════
