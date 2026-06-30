@@ -3441,7 +3441,8 @@ function PermitDetail(p){
           sLGAprvBusy(true);sLGAprvSt("Atnaujinamas laiško turinys...");
           try{
             var pageTextsLG=null;
-            if(pdfFile){try{var _pdLG=await getPdfDataUrl(pdfFile);if(_pdLG)pageTextsLG=await extractPdfTextByPage(_pdLG);}catch(_){}}
+            var _lgFirstPdf=_lgAllPdfs[0]||null;
+            if(_lgFirstPdf){try{var _pdLG=await getPdfDataUrl(_lgFirstPdf);if(_pdLG)pageTextsLG=await extractPdfTextByPage(_pdLG);}catch(_){}}
             var _oWithAddr=lgAddrIn?(Object.assign({},o,{location:lgAddrIn,teliaRouteTo:lgAddrIn})):o;
             var newLG=await preparePendingLitgridEmail(_oWithAddr,pageTextsLG);
             newLG=Object.assign({},newLG,{to:(lgEmailIn||"").trim()||newLG.to,addr:lgAddrIn||""});
@@ -6586,3 +6587,4 @@ function App(){
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
 </body>
 </html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
