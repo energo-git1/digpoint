@@ -3235,7 +3235,7 @@ function PermitDetail(p){
             {keAprvSt&&<div style={{fontSize:11,color:keAprvSt.startsWith("✗")?C.rd:keAprvSt.startsWith("✓")?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:keAprvSt.startsWith("✗")?C.rdD:keAprvSt.startsWith("✓")?C.gnD:C.acD,borderRadius:6}}>{keAprvSt}</div>}
             <div style={{display:"flex",gap:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
               <Btn v="secondary" sm onClick={regenerateKE} disabled={keAprvBusy}>🔄 Atnaujinti</Btn>
-              {o.pendingEmail&&<Btn v="danger" sm disabled={keAprvBusy} onClick={function(){
+              <Btn v="danger" sm disabled={keAprvBusy} onClick={function(){
                 var priezastis=window.prompt("Atmetimo priežastis (Kauno energija):","Inžinerinių komunikacijų trasoje nėra");
                 if(priezastis===null)return;
                 var cancelledKE=Object.assign({},o.pendingKauoenergijaEmail,{cancelled:true,cancelNote:priezastis||""});
@@ -3244,7 +3244,7 @@ function PermitDetail(p){
                   history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"KE atmesta: "+(priezastis||"-")+" ("+(p.user.name||"-")+")"}])
                 });
                 p.onUpdate(updated);sKEAprvSt("✓ KE atmesta.");
-              }}>✗ Atmesti KE</Btn>}
+              }}>✗ Atmesti KE</Btn>
             </div>
           </div>
         </div>;
@@ -3408,6 +3408,16 @@ function PermitDetail(p){
             {teliaInvAprvSt&&<div style={{fontSize:11,color:teliaInvAprvSt.startsWith("✗")?C.rd:teliaInvAprvSt.startsWith("✓")?C.gn:C.ac,fontFamily:F,marginBottom:10,padding:"6px 10px",background:teliaInvAprvSt.startsWith("✗")?C.rdD:teliaInvAprvSt.startsWith("✓")?C.gnD:C.acD,borderRadius:6}}>{teliaInvAprvSt}</div>}
             <div style={{display:"flex",gap:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
               <Btn v="secondary" sm onClick={regenerateTeliaInv} disabled={teliaInvAprvBusy}>🔄 Atnaujinti</Btn>
+              <Btn v="danger" sm disabled={teliaInvAprvBusy} onClick={function(){
+                var priezastis=window.prompt("Atmetimo priežastis (Telia, investiciniai):","Inžinerinių komunikacijų trasoje nėra");
+                if(priezastis===null)return;
+                var cancelledInv=Object.assign({},o.pendingTeliaInvEmail,{cancelled:true,cancelNote:priezastis||""});
+                var updated=Object.assign({},o,{
+                  pendingTeliaInvEmail:cancelledInv,
+                  history:(o.history||[]).concat([{status:o.status,date:fmtDate(new Date()),note:"Telia Inv atmesta: "+(priezastis||"-")+" ("+(p.user.name||"-")+")"}])
+                });
+                p.onUpdate(updated);sTeliaInvAprvSt("✓ Telia Inv atmesta.");
+              }}>✗ Atmesti Telia Inv</Btn>
             </div>
           </div>
         </div>;
@@ -6586,4 +6596,4 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
 </body>
-</html>
+</h
