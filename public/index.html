@@ -1773,14 +1773,20 @@ function fmtDateLT(d){
 // Ieško "VIETA/ LOCATION" arba "VIETA LOCATION" lentelės celės reikšmės
 function parseLocationFromDrawing(text){
   if(!text)return null;
+  var addrRe=/([A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž\-]+(?:\s+[A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž\-]+)*\s+(?:g|al|pr|skg|tv|pl|kel|kl|tak|sk|gtv)\.\s*\d+[A-Za-z0-9\-\/]*(?:,\s*[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž\-]+(?:\s+[a-ząčęėįšųūž\-]+)*)?)/;
   // "VIETA/ LOCATION" arba "VIETA LOCATION" po kurio eina vietos tekstas
-  var m=text.match(/VIETA[\/\s]+LOCATION\s+([A-ZĄČĘĖĮŠŲŪŽ][^\n\r]{3,80})/i);
+  var m=text.match(/VIETA[\/\s]+LOCATION\s+([A-ZĄČĘĖĮŠŲŪŽ][^\n\r]{3,200})/i);
   if(m&&m[1]){
-    var v=m[1].trim().replace(/\s{2,}/g,' ');
-    // Pjauname ties sekančia didžiąja antraštės dalimi (pvz. "PROJEKTO DALIES")
-    var cut=v.search(/\b[A-ZĄČĘĖĮŠŲŪŽ]{4,}\s+[A-ZĄČĘĖĮŠŲŪŽ]{4,}/);
-    if(cut>3)v=v.substring(0,cut).trim();
-    if(v.length>3)return v;
+    var raw=m[1].trim().replace(/\s{2,}/g,' ');
+    // 1) Gatvės adreso šablonas tiesiogiai
+    var am=raw.match(addrRe);
+    if(am&&am[1]&&am[1].length>3)return am[1].replace(/,?\s*[A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž\.]+\s+(?:r|m)\.?\s*sav\.?/gi,'').replace(/,\s*$/,'').trim();
+    // 2) Pjauname ties sekančiu ALL_CAPS bloku
+    var cut=raw.search(/\b[A-ZĄČĘĖĮŠŲŪŽ]{4,}\s+[A-ZĄČĘĖĮŠŲŪŽ]{4,}/);
+    if(cut>3)raw=raw.substring(0,cut).trim();
+    // 3) Pašaliname ALL_CAPS fragmentus
+    raw=raw.replace(/\b[A-ZĄČĘĖĮŠŲŪŽ][A-ZĄČĘĖĮŠŲŪŽ\s]{3,}(?=[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž]|\d)/g,'').replace(/\s{2,}/g,' ').trim();
+    if(raw.length>3)return raw;
   }
   return null;
 }
