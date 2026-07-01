@@ -3784,11 +3784,22 @@ function PermitDetail(p){
           if(pf.url){window.open(pf.url+'#zoom=125','_blank');return;}
           if(pf.data){var arr=pf.data.split(',');var bin=atob(arr[1]);var u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);window.open(URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))+'#zoom=125','_blank');}
         }
-        function downloadPermitPdf(key){
+        async function downloadPermitPdf(key){
           var pf=permitPdfs[key];if(!pf)return;
-          var a=document.createElement('a');a.download=pf.name||(key+'.pdf');
-          if(pf.url){a.href=pf.url;a.click();return;}
-          if(pf.data){a.href=pf.data;a.click();}
+          var filename=pf.name||(key+'.pdf');
+          try{
+            var blob;
+            if(pf.url){blob=await fetch(pf.url).then(function(r){return r.blob();});}
+            else if(pf.data){var arr=pf.data.split(',');var bin=atob(arr[1]);var u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);blob=new Blob([u8],{type:'application/pdf'});}
+            else return;
+            if(window.showSaveFilePicker){
+              var fh=await window.showSaveFilePicker({suggestedName:filename,types:[{description:'PDF failas',accept:{'application/pdf':['.pdf']}}]});
+              var w=await fh.createWritable();await w.write(blob);await w.close();
+            }else{
+              var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download=filename;a.click();
+              setTimeout(function(){URL.revokeObjectURL(url);},1000);
+            }
+          }catch(e){if(e.name!=='AbortError')alert('Išsaugojimo klaida: '+e.message);}
         }
         return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
           <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Gauti leidimai</div>
