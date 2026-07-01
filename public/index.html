@@ -1228,7 +1228,7 @@ function PermitForm(p){
   var hasSav=orgs.indexOf("Kauno miesto savivaldybe")!==-1;
   var savOk=isESO||!hasSav||(start&&end&&end>=start);
   var workTypeOk=!hasSav||!!workType; // Savivaldybė: darbų tipas privalomas
-  var ok=mgr&&ph&&em&&orgs.length>0&&teliaOk&&keOk&&lgOk&&savOk&&workTypeOk;
+  var ok=mgr&&ph&&em&&!!municipality;
   function toggleOrg(o){
     var wasSelected=orgs.indexOf(o)!==-1;
     sOrgs(function(prev){var idx=prev.indexOf(o);return idx===-1?prev.concat([o]):prev.filter(function(x){return x!==o});});
@@ -1348,7 +1348,7 @@ function PermitForm(p){
     </div>
     <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>
-        Institucija <span style={{color:C.rd}}>*</span>
+        Rajonas / savivaldybė <span style={{color:C.rd}}>*</span>
       </div>
       {/* Savivaldybės pasirinkimas */}
       <div style={{position:"relative",marginBottom:municipality?12:0}}>
@@ -1368,134 +1368,17 @@ function PermitForm(p){
           })}
         </div>}
       </div>
-      {/* Paraiškos pagal savivaldybę */}
-      {municipality&&<div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-        {(MUN_ORGS[municipality]||[]).map(function(o){var sel=orgs.indexOf(o)!==-1;var lbl=ORG_DISPLAY[o]||o;return <label key={o} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 12px",borderRadius:8,border:"1.5px solid "+(sel?C.ac:C.b1),background:sel?C.acD:C.bg,cursor:"pointer",fontSize:12,color:sel?C.ac:C.tx,fontFamily:F,fontWeight:sel?700:400,transition:"all .15s",userSelect:"none"}}>
-          <input type="checkbox" checked={sel} onChange={function(){toggleOrg(o)}} style={{accentColor:C.ac,margin:0,width:13,height:13}}/>
-          {lbl}
-        </label>;})}
-      </div>}
-      {municipality&&orgs.length===0&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:8}}>Pasirinkite bent viena institucija.</div>}
-      {!municipality&&<div style={{fontSize:11,color:C.t3,fontFamily:F,marginTop:4}}>Pirmiausia pasirinkite savivaldybę.</div>}
+
     </div>
-    {/* Savivaldybė: darbų tipas + objekto parinkimas */}
-    {hasSav&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
-      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės paraiška</div>
-      {/* Darbų tipas */}
-      <div style={{marginBottom:12}}>
-        <div style={{fontSize:11,fontWeight:600,color:C.t2,marginBottom:6,fontFamily:F}}>Darbų tipas <span style={{color:C.rd}}>*</span></div>
-        <div style={{display:"flex",gap:8}}>
-          {[{v:"planiniai",label:"📋 Planiniai darbai"},{v:"avariniai",label:"⚡ Avariniai darbai"}].map(function(opt){
-            var sel=workType===opt.v;
-            return <label key={opt.v} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:8,border:"1.5px solid "+(sel?C.ac:C.b1),background:sel?C.acD:C.bg,cursor:"pointer",fontSize:12,color:sel?C.ac:C.tx,fontFamily:F,fontWeight:sel?700:400,transition:"all .15s",userSelect:"none"}}>
-              <input type="radio" checked={sel} onChange={function(){sWorkType(opt.v);}} style={{accentColor:C.ac,margin:0,width:13,height:13}}/>
-              {opt.label}
-            </label>;
-          })}
-        </div>
-        {!workType&&<div style={{fontSize:10,color:C.rd,fontFamily:F,marginTop:6}}>Pasirinkite darbų tipą.</div>}
-      </div>
-      {/* Planuojami darbai — kategorija savivaldybės formai */}
-      {hasSav&&<div style={{marginBottom:12}}>
-        <div style={{fontSize:11,fontWeight:600,color:C.t2,marginBottom:6,fontFamily:F}}>Planuojami darbai <span style={{fontSize:10,color:C.t3,fontWeight:400}}>(savivaldybės forma)</span></div>
-        <select value={savDarbaiTipas} onChange={function(e){sSavDarbaiTipas(e.target.value);}}
-          style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid "+C.b1,background:C.bg,color:C.tx,fontFamily:F,fontSize:13,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
-          {[["38","Elektros tinklų įrengimas"],["36","Elektros kabelio remontas"],["37","Elektros tinklų iškėlimas"],
-            ["50","Transformatorinės keitimas"],["49","Ryšių tinklų įrengimas"],["35","Dujotiekio tinklų įrengimas"],
-            ["34","Dujotiekio tinklų rekonstrukcija"],["6","Vandentiekio, lietaus nuotekų tinklų įrengimas"],
-            ["43","Lauko nuotekų tinklų įrengimas"],["42","Lauko nuotekų tinklų rekonstrukcija"],
-            ["39","Gatvės rekonstravimas"],["40","Gatvės įrengimas"],["41","Gerbūvio tvarkymo darbai"],
-            ["47","Pėsčiųjų ir dviračių tako įrengimas"],["7","Kasinėjimo darbai stoginių įrengimui"]].map(function(o){
-            return <option key={o[0]} value={o[0]}>{o[1]}</option>;
-          })}
-        </select>
-      </div>}
-      {/* Objekto parinkimas iš esamų paraiškų — tik planiniai darbai */}
-      {workType==="planiniai"&&permitSources.length>0&&<div>
-        <div style={{fontSize:11,fontWeight:600,color:C.t2,marginBottom:6,fontFamily:F}}>Objektas <span style={{fontSize:10,color:C.t3,fontWeight:400}}>(pasirinkti iš gautų leidimų)</span></div>
-        <select value={srcPermitId} onChange={function(e){selectSourcePermit(e.target.value);}}
-          style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid "+C.b1,background:C.bg,color:srcPermitId?C.tx:C.t3,fontFamily:F,fontSize:13,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
-          <option value="">— pasirinkti objektą —</option>
-          {(function(){
-            // Grupuoti pagal internalCode, tada manualGroupId, tada investNo
-            var groupMap={};
-            var groupOrder=[];
-            permitSources.forEach(function(x){
-              var iCode=(x.internalCode||'').trim();
-              var mgid=(x.manualGroupId||'').trim();
-              var inv=(x.investNo||'').trim();
-              var key=iCode?('ic:'+iCode):mgid?('mg:'+mgid):(inv?('inv:'+inv):('id:'+x.id));
-              if(!groupMap[key]){groupMap[key]={key,code:iCode||mgid||inv||x.id.slice(-5).toUpperCase(),permits:[],location:'',status:''};groupOrder.push(key);}
-              groupMap[key].permits.push(x);
-              if(!groupMap[key].location&&x.location)groupMap[key].location=x.location;
-              if(!groupMap[key].status)groupMap[key].status=x.status;
-            });
-            return groupOrder.map(function(key){
-              var g=groupMap[key];
-              var repId=g.permits[0].id;
-              var loc=(g.location||'').slice(0,60);
-              var label=g.code+(loc?' — '+loc:'')+(g.status?' ('+g.status+')':'');
-              return <option key={key} value={repId}>{label}</option>;
-            });
-          })()}
-        </select>
-        {srcPermitId&&<div style={{marginTop:6,padding:"6px 10px",background:C.gnD,borderRadius:6,fontSize:10,color:C.gn,fontFamily:F}}>
-          ✓ Kontaktiniai duomenys, failai ir numeriai užpildyti automatiškai
-        </div>}
-      </div>}
-      {workType==="planiniai"&&permitSources.length===0&&<div style={{fontSize:10,color:C.t3,fontFamily:F,marginTop:4}}>
-        Sistemoje nėra paraiškų su gautais dokumentais. Duomenis įveskite rankiniu būdu.
-      </div>}
-    </div>}
-    {/* Telia laikotarpis */}
-    {isAnyTelia&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
-      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>{isTeliaInv&&!isTelia?"Telia investiciniai laikotarpis":"Telia laikotarpis"}</div>
-      <div style={{display:"flex",gap:12}}>
-        <div style={{flex:1}}><Inp label="Pradžia" type="date" value={teliaStart} onChange={sTeliaStart} req/></div>
-        <div style={{flex:1}}><Inp label="Pabaiga" type="date" value={teliaEnd} onChange={sTeliaEnd} req/></div>
-      </div>
-      {teliaStart&&teliaEnd&&teliaEnd<teliaStart&&<div style={{color:C.rd,fontSize:11,marginTop:-8,fontFamily:F}}>Pabaiga negali būti ankstesnė.</div>}
-    </div>}
-    {/* KE laikotarpis */}
-    {isKE&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
-      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Kauno energija laikotarpis</div>
-      <div style={{display:"flex",gap:12}}>
-        <div style={{flex:1}}><Inp label="Pradžia" type="date" value={keStart} onChange={sKEStart} req/></div>
-        <div style={{flex:1}}><Inp label="Pabaiga" type="date" value={keEnd} onChange={sKEEnd} req/></div>
-      </div>
-      {keStart&&keEnd&&keEnd<keStart&&<div style={{color:C.rd,fontSize:11,marginTop:-8,fontFamily:F}}>Pabaiga negali būti ankstesnė.</div>}
-    </div>}
-    {/* LitGrid laikotarpis */}
-    {isLG&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
-      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>LitGrid laikotarpis</div>
-      <div style={{display:"flex",gap:12}}>
-        <div style={{flex:1}}><Inp label="Pradžia" type="date" value={lgStart} onChange={sLGStart} req/></div>
-        <div style={{flex:1}}><Inp label="Pabaiga" type="date" value={lgEnd} onChange={sLGEnd} req/></div>
-      </div>
-      {lgStart&&lgEnd&&lgEnd<lgStart&&<div style={{color:C.rd,fontSize:11,marginTop:-8,fontFamily:F}}>Pabaiga negali būti ankstesnė.</div>}
-    </div>}
-    {/* Darbų laikotarpis — tik Savivaldybei (ESO, Telia, KE turi atskirus laukus) */}
-    {hasSav&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
-      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbų laikotarpis</div>
-      <div style={{display:"flex",gap:12}}>
-        <div style={{flex:1}}><Inp label="Pradžia" type="date" value={start} onChange={sStart} req/></div>
-        <div style={{flex:1}}><Inp label="Pabaiga" type="date" value={end} onChange={sEnd} req/></div>
-      </div>
-      {start&&end&&end<start&&<div style={{color:C.rd,fontSize:11,marginTop:-8,fontFamily:F}}>Pabaiga negali būti ankstesnė.</div>}
-    </div>}
-    <div style={{background:C.s2,borderRadius:12,border:"1px solid "+(orgs.length>0&&files.filter(function(f){return f.name&&f.name.match(/\.pdf$/i)}).length===0?C.rd:C.b1),padding:16,marginBottom:14}}>
+
+        <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Projekto dokumentai</div>
-        {orgs.length>0&&<div style={{fontSize:11,fontWeight:700,color:C.rd,fontFamily:F}}>Prideti pilna projekta PDF</div>}
+        
       </div>
       <FileDropZone files={files} onAdd={addFile} onRemove={removeFile}/>
     </div>
-    {(isESO||hasSav)&&<div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
-      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Objekto vieta / adresas</div>
-      <Inp label="Adresas" value={esoLoc} onChange={sEsoLoc} ph="Pvz.: Gedimino g. 5, Kaunas"/>
-      {!esoLoc&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginTop:-6,marginBottom:4}}>⚠️ Adresas tuščias — paprastai užpildomas automatiškai iš PDF. Jei ne — įveskite rankiniu būdu.</div>}
-      {esoLoc&&<div style={{fontSize:10,color:C.gn,fontFamily:F,marginTop:-6,marginBottom:4}}>✓ Adresas rastas</div>}
-    </div>}
+
     <Inp label="Papildomas aprasas (neprivaloma)" value={desc} onChange={sDesc} ml rows={3} ph="Papildoma informacija apie darbus..."/>
     <div style={{display:"flex",gap:6,marginTop:14,justifyContent:"flex-end"}}>
       {p.onCancel&&<Btn v="secondary" onClick={p.onCancel} disabled={submitting}>Atsaukti</Btn>}
@@ -3016,6 +2899,26 @@ function PermitDetail(p){
         onClose={function(){sLGPickerFile(null);}}/>}
 
       {activeTab==="tvirtinimas"&&<React.Fragment>
+      {/* Institucijų pasirinkimas — tik dokumentacija arba adminas */}
+      {(isA||isD)&&<div style={{borderBottom:"1px solid "+C.b1,paddingBottom:14,marginBottom:2}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Institucijos</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {(MUN_ORGS[o.municipality]||PERMIT_ORGS).map(function(org){
+            var sel=(o.organizations||[]).indexOf(org)!==-1;
+            return <button key={org} type="button" onClick={function(){
+              var cur=o.organizations||[];
+              var next=sel?cur.filter(function(x){return x!==org;}):cur.concat([org]);
+              p.onUpdate(Object.assign({},o,{organizations:next}));
+            }} style={{padding:"5px 12px",borderRadius:20,fontSize:11,fontWeight:sel?700:400,
+              border:"0.5px solid "+(sel?C.ac:C.b1),
+              background:sel?C.acD:"transparent",
+              color:sel?C.ac:C.t2,cursor:"pointer",transition:"all .12s"}}>
+              {org}
+            </button>;
+          })}
+        </div>
+        {(o.organizations||[]).length===0&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginTop:6}}>⚠️ Pasirinkite bent vieną instituciją.</div>}
+      </div>}
       {/* Telia review/patvirtinimo blokas */}
       {/* Susiskleidusi Telia juostelė kai atmesta */}
       {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&o.pendingEmail.cancelled&&
