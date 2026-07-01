@@ -1681,7 +1681,7 @@ function buildExternalEmailWrapper(body){
 // Kauno energija laiško HTML šablonas — Tomo originalus turinys + švarus išorinis wrapper'is.
 // Skirtumai nuo originalo: pakeistas wrapper'is, projekto nr. iš PDF įterpiamas jei rastas.
 function buildKauoenergijaEmailHtml(permit){
-  var projNo=permit.projectNo?permit.projectNo:"[proj. nr. iš pdf]";
+  var projNo=permit.projectNo||permit.investNo||"[proj. nr. iš pdf]";
   // Laikotarpis: iš paraiškos (keStartDate/keEndDate) arba šiandien + 1 mėnuo
   var keFrom,keTo;
   if(permit.keStartDate&&permit.keEndDate){
@@ -1693,7 +1693,7 @@ function buildKauoenergijaEmailHtml(permit){
   }
   return buildExternalEmailWrapper(
     "<p style=\"margin:0 0 14px\">Laba diena,</p>"
-    +"<p style=\"margin:0 0 14px\">Planuojame atlikti elektros kabelio klojimo darbus, uždaru/atviru būdu, pagal proj. Nr.: "+projNo+", objekto adresas: "+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+", Kauno m. sav.</p>"
+    +"<p style=\"margin:0 0 14px\">Planuojame atlikti elektros kabelio klojimo darbus, uždaru/atviru būdu, pagal proj. Nr.: "+projNo+", objekto adresas: "+(permit.teliaRouteFrom||"")+" – "+(permit.teliaRouteTo||"")+(/(sav\.|Kaunas|kaun)/i.test(permit.teliaRouteTo||"")?"":", Kauno m. sav.")+"</p>"
     +"<p style=\"margin:0 0 14px\">Reikia kasimo leidimo bei kontaktų inžinieriaus su kuriuo būtų galima prieš darbų pradžią nustatyti ŠT gylius.</p>"
     +"<p style=\"margin:0 0 14px\">Prisegam failus: projekto brėžiniai; suderinimas su UAB &quot;Kauno Energija&quot;.</p>"
     +"<p style=\"margin:0 0 14px\">Darbus atliks įmonė UAB &quot;EnergoLT&quot;, &quot;Energijos skirstymo operatorius&quot; rangovas.</p>"
@@ -2055,6 +2055,11 @@ async function preparePendingKauoenergijaEmail(permit, pageTexts){
     if(!permit.investNo){
       var foundInv=parseInvestNo(fullTextKE);
       if(foundInv)permit=Object.assign({},permit,{investNo:foundInv});
+    }
+    if(!permit.investNo&&pdfFile){
+      // Failo pavadinimas dažnai prasideda investiciniu nr.: "E1N22B9135 Adresas.pdf"
+      var fnInvM=(pdfFile.name||'').match(/^([A-Z]\d[A-Z]\d{5,10})/i);
+      if(fnInvM)permit=Object.assign({},permit,{investNo:fnInvM[1]});
     }
     if(!permit.projectNo){
       var foundProjKE=parseProjectNo(fullTextKE);
