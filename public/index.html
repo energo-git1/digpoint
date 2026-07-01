@@ -1036,7 +1036,27 @@ function HistoryTimeline(p){
 var PERMIT_ORGS=["AB ESO","Kauno miesto savivaldybe","Telia, Kaunas","Telia, investiciniai","Kauno energija","LitGrid"];
 var MUN_ORGS={
   kaunas:["AB ESO","Kauno miesto savivaldybe","Telia, Kaunas","Kauno energija"],
+  kauno_r:["AB ESO","LitGrid"],
+  kedainiai:["AB ESO","LitGrid"],
+  jonava:["AB ESO","LitGrid"],
+  kaisiadory:["AB ESO","LitGrid"],
+  prienai:["AB ESO","LitGrid"],
+  elektrenai:["AB ESO","LitGrid"],
+  vilnius_m:["AB ESO","Telia, investiciniai","LitGrid"],
+  klaipeda_m:["AB ESO","Telia, investiciniai","LitGrid"],
+  panevezys_m:["AB ESO","LitGrid"],
+  siauliai_m:["AB ESO","LitGrid"],
+  alytus_m:["AB ESO","LitGrid"],
+  raseiniai:["AB ESO","LitGrid"],
+  jurbarkas:["AB ESO","LitGrid"],
   kita:["AB ESO","Telia, investiciniai","LitGrid"]
+};
+var MUN_LABELS={
+  kaunas:"Kauno m. sav.",kauno_r:"Kauno r. sav.",kedainiai:"Kėdainių r. sav.",
+  jonava:"Jonavos r. sav.",kaisiadory:"Kaišiadorių r. sav.",prienai:"Prienų r. sav.",
+  elektrenai:"Elektrėnų sav.",vilnius_m:"Vilniaus m. sav.",klaipeda_m:"Klaipėdos m. sav.",
+  panevezys_m:"Panevėžio m. sav.",siauliai_m:"Šiaulių m. sav.",alytus_m:"Alytaus m. sav.",
+  raseiniai:"Raseinių r. sav.",jurbarkas:"Jurbarko r. sav.",kita:"Kita"
 };
 var ORG_DISPLAY={"Telia, investiciniai":"Telia"};
 var TELIA_EMAIL="ligita.rutkauskiene@telia.lt";
@@ -1334,11 +1354,11 @@ function PermitForm(p){
       <div style={{position:"relative",marginBottom:municipality?12:0}}>
         <button type="button" onClick={function(){sMunOpen(function(v){return !v;})}}
           style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 11px",fontSize:13,borderRadius:8,border:"1px solid "+(municipality?C.ac:C.b1),background:municipality?C.acD:C.bg,color:municipality?C.ac:C.t2,cursor:"pointer",fontFamily:F,textAlign:"left"}}>
-          <span>{municipality==="kaunas"?"Kauno m. sav.":municipality==="kita"?"Kita":"Pasirinkti savivaldybę..."}</span>
+          <span>{municipality?(MUN_LABELS[municipality]||municipality):"Pasirinkti savivaldybę..."}</span>
           <span style={{fontSize:10,transform:munOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform .15s",display:"inline-block"}}>▾</span>
         </button>
         {munOpen&&<div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:20,marginTop:3,border:"1px solid "+C.b1,borderRadius:8,background:C.s1,overflow:"hidden",boxShadow:"0 4px 12px rgba(0,0,0,.12)"}}>
-          {[{v:"kaunas",label:"Kauno m. sav."},{v:"kita",label:"Kita"}].map(function(opt){
+          {Object.keys(MUN_LABELS).map(function(v){var opt={v:v,label:MUN_LABELS[v]};
             return <div key={opt.v} onClick={function(){sMunicipality(opt.v);sOrgs([]);sMunOpen(false);}}
               style={{padding:"9px 12px",fontSize:13,color:C.tx,cursor:"pointer",background:municipality===opt.v?C.acD:"transparent",borderBottom:"1px solid "+C.b1}}
               onMouseEnter={function(e){e.currentTarget.style.background=C.s2}}
