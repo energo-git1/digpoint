@@ -716,31 +716,48 @@ function parseProjectDescription(text){
 //   to   = gatvė, namo nr., miestas (be savivaldybės)
 function parseTeliaRoute(text){
   var patterns=[
-    /STATINIO\s+ADRESAS\s*:\s*([^\n]{5,200})/,
-    /OBJEKTO\s+VIETA\s*:\s*([^\n]{5,200})/,
-    /[Oo]bjekto\s+adresas\s*:\s*([^\n]{5,200})/,
-    /[Oo]bjekto\s+vieta\s*:\s*([^\n]{5,200})/,
-    /[Ss]tatinio\s+adresas\s*:\s*([^\n]{5,200})/,
-    /(?:[Ss]tatybos\s+(?:vieta|adresas)|[Dd]arbų\s+vieta)\s*:\s*([^\n]{5,200})/,
+    /STATINIO\s+ADRESAS\s*:?\s*([^\n]{5,400})/,
+    /OBJEKTO\s+VIETA\s*:?\s*([^\n]{5,400})/,
+    /[Oo]bjekto\s+adresas\s*:?\s*([^\n]{5,400})/,
+    /[Oo]bjekto\s+vieta\s*:?\s*([^\n]{5,400})/,
+    /[Ss]tatinio\s+adresas\s*:?\s*([^\n]{5,400})/,
+    /(?:[Ss]tatybos\s+(?:vieta|adresas)|[Dd]arbų\s+vieta)\s*:?\s*([^\n]{5,400})/,
   ];
-  // Greta esančių laukų pavadinimai — užtikrina, kad tarpiniai/po jų esantys tekstai būtų atkirsti
   var boundaryRe=/\s+(?:DALIS|STADIJA|TOMAS|METAI|ETAPAS|Investicinio|Investicinis|INVESTICINIS|TECHNINI[UŲ]\s+S[AĄ]LYG[UŲ]|UŽSAKOVAS|U[Žz]SAKOVAS|Klientas|PAREIGOS|STATYBOS\s+R[ŪU][ŠS]IS|STATINIO\s+KATEGORIJA|TECHNINIS\s+PROJEKTAS|DARBO\s+PROJEKTAS|PROJEKTO\s+(?:NUMERIS|RU[SŠ]IS))\s*[:.\-—]/i;
+  // Gatvės adreso šablonas — ištraukia tik adreso dalį iš mišraus teksto
+  var addrRe=/([A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž\-]+(?:\s+[A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž\-]+)*\s+(?:g|al|pr|skg|tv|pl|kel|kl|tak|sk|gtv)\.\s*\d+[A-Za-z0-9\-\/]*(?:,\s*[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž\-]+(?:\s+[a-ząčęėįšųūž\-]+)*)?)/;
+  // Pašalina ALL_CAPS laukų pavadinimus kurie įsiterpia tarp etikečių lentelėje
+  function stripFieldLabels(s){
+    return s.replace(/\b[A-ZĄČĘĖĮŠŲŪŽ][A-ZĄČĘĖĮŠŲŪŽ\s]{3,}(?=[A-ZĄČĘĖĮŠŲŪŽ][a-ząčęėįšųūž]|\d|,)/g,"").replace(/\s{2,}/g," ").trim();
+  }
+  function cleanSav(s){
+    return s.replace(/,?\s*[A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž\.]+\s+(?:r|m)\.?\s*sav\.?(?=$|[\s,])/gi,"").replace(/\s+,/g,",").replace(/,\s*$/,"").trim();
+  }
   for(var i=0;i<patterns.length;i++){
     var m=text.match(patterns[i]);
-    if(m&&m[1]){
-      var val=m[1].trim().replace(/\s+/g,' ').split(/[;|]/)[0].trim();
-      val=val.split(boundaryRe)[0].trim();
-      if(val.length>5){
-        // Pašaliname savivaldybę bet kurioje vietoje (ne tik gale): ", Xxx r./m. sav."
-        var noSav=val.replace(/,?\s*[A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž\.]+\s+(?:r|m)\.?\s*sav\.?(?=$|[\s,])/gi,"").replace(/\s+,/g,",").replace(/,\s*$/,"").trim();
-        // Atskiriame į dalis pagal kablelius
-        var parts=noSav.split(",").map(function(s){return s.trim()}).filter(function(s){return s.length>0});
-        // pradžia = gatvė + namo nr. (pirma dalis)
-        // pabaiga = gatvė + namo nr. + miestas (visos dalys be savivaldybės)
-        var from=parts[0]||noSav;
-        var to=noSav;
-        return {from:from,to:to};
-      }
+    if(!m||!m[1])continue;
+    var raw=m[1].trim().replace(/\s+/g," ").split(/[;|]/)[0].trim();
+    raw=raw.split(boundaryRe)[0].trim();
+    // 1 bandymas: ieškome gatvės adreso šablono tiesiogiai
+    var am=raw.match(addrRe);
+    if(am&&am[1]&&am[1].length>5){
+      var addr=cleanSav(am[1].trim());
+      var parts=addr.split(",").map(function(s){return s.trim();}).filter(Boolean);
+      return {from:parts[0]||addr,to:addr};
+    }
+    // 2 bandymas: pašaliname ALL_CAPS fragmentus ir bandome dar kartą
+    var stripped=stripFieldLabels(raw);
+    var am2=stripped.match(addrRe);
+    if(am2&&am2[1]&&am2[1].length>5){
+      var addr2=cleanSav(am2[1].trim());
+      var parts2=addr2.split(",").map(function(s){return s.trim();}).filter(Boolean);
+      return {from:parts2[0]||addr2,to:addr2};
+    }
+    // 3 bandymas: naudojame išvalytą tekstą tiesiogiai (be gatvės šablono)
+    var clean=cleanSav(stripped);
+    if(clean.length>5){
+      var parts3=clean.split(",").map(function(s){return s.trim();}).filter(Boolean);
+      return {from:parts3[0]||clean,to:clean};
     }
   }
   return null;
