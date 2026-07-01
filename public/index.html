@@ -2879,6 +2879,24 @@ function PermitDetail(p){
         </div>
       </div>
 
+      {/* Failų sąrašas ir įkėlimas — docs specialist prideda PDF prieš siunčiant institucijoms */}
+      {(isA||isD)&&<div>
+        <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:6,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Failai</div>
+        {(o.files||[]).length>0&&<div style={{marginBottom:8}}>
+          {(o.files||[]).map(function(f,i){return <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",background:C.s2,borderRadius:6,border:"1px solid "+C.b1,marginBottom:3}}>
+            <span style={{fontSize:14}}>{f.name&&f.name.match(/\.pdf$/i)?"📄":f.name&&f.name.match(/\.(jpg|jpeg|png)$/i)?"🖼️":"📐"}</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:11,color:C.tx,fontFamily:F,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
+              {f.size&&<div style={{fontSize:9,color:C.t3,fontFamily:FM}}>{fmtSize(f.size)}</div>}
+            </div>
+            {f.url&&<a href={f.url} target="_blank" rel="noreferrer" style={{fontSize:11,color:C.ac,fontFamily:F,textDecoration:"none",padding:"2px 6px"}}>↗</a>}
+            <button onClick={function(){var idx=i;p.onUpdate(Object.assign({},o,{files:(o.files||[]).filter(function(_,j){return j!==idx;})}));}}
+              style={{background:"none",border:"none",color:C.rd,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>×</button>
+          </div>;})}
+        </div>}
+        <FileDropZone files={[]} onAdd={function(f){p.onUpdate(Object.assign({},o,{files:(o.files||[]).concat([f])}));}} onRemove={function(){}}/>
+      </div>}
+
       </React.Fragment>}
 
       {/* PDF puslapių parinkimo modalas — bendras visiems, atidaromas per xxxPickerFile */}
