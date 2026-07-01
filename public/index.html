@@ -2765,6 +2765,9 @@ function PermitDetail(p){
   }
   var isA=p.user.role==="admin";
   var isD=p.user.role==="dokumentacija";
+  var _dtab=useState(null);var dtab=_dtab[0],sDtab=_dtab[1];
+  var hasSavOrg=(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1;
+  var activeTab=dtab||(o.status==="Uždarytas"?(hasSavOrg?"uzd":"gauta"):(o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas")?"gauta":"tvirtinimas");
   var cr=p.users.find(function(u){return u.id===o.createdBy});
   var asgnUser=at?p.users.find(function(u){return u.id===at}):null;
   var docsWorkers=p.users.filter(function(u){return u.role==="dokumentacija"});
@@ -2872,6 +2875,20 @@ function PermitDetail(p){
 
   return <Modal open={true} onClose={p.onClose} title={"Paraiskas #"+o.id.slice(-5).toUpperCase()} w={600}>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+      {/* Tab navigacija */}
+      {(function(){
+        var tabs=[{k:"tvirtinimas",l:"Tvirtinimas"},{k:"gauta",l:"Gauti leidimai"}];
+        if(hasSavOrg)tabs.push({k:"uzd",l:"Uždarymas"});
+        tabs.unshift({k:"info",l:"Informacija"});
+        return <div style={{display:"flex",gap:0,borderBottom:"1px solid "+C.b1,marginBottom:2}}>
+          {tabs.map(function(t){var active=activeTab===t.k;return <button key={t.k} onClick={function(){sDtab(t.k);}}
+            style={{flex:1,padding:"7px 4px",fontSize:11,fontWeight:active?700:400,fontFamily:F,background:"transparent",border:"none",
+              borderBottom:active?"2px solid "+C.ac:"2px solid transparent",
+              color:active?C.ac:C.t2,cursor:"pointer",transition:"all .15s"}}>
+            {t.l}</button>;})}
+        </div>;
+      })()}
       <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
         <StatusBadge status={o.status}/>
         {(isA||isD)
@@ -2880,6 +2897,7 @@ function PermitDetail(p){
               style={{padding:"3px 8px",fontSize:11,fontFamily:FM,background:C.bg,color:C.ac,border:"1px solid "+(iCodeIn?C.ac:C.b1),borderRadius:6,letterSpacing:.5,width:120}}/>
           :o.internalCode&&<span style={{fontSize:11,fontWeight:700,fontFamily:FM,color:C.ac,background:C.acD,padding:"3px 9px",borderRadius:6,letterSpacing:.5}}>{o.internalCode}</span>}
       </div>
+      {activeTab==="info"&&<React.Fragment>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <div>
           <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:3,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbu vadovas</div>
@@ -2957,6 +2975,8 @@ function PermitDetail(p){
         </div>
       </div>
 
+      </React.Fragment>}
+
       {/* PDF puslapių parinkimo modalas — bendras visiems, atidaromas per xxxPickerFile */}
       {teliaPickerFile&&<PdfPagePickerModal pdfFile={teliaPickerFile} pdfData={teliaPickerFile.data||null}
         selected={teliaSelMap[teliaPickerFile.name]||[]}
@@ -2975,6 +2995,7 @@ function PermitDetail(p){
         onConfirm={function(sel){sLGSelMap(function(prev){return Object.assign({},prev,{[lgPickerFile.name]:sel});});sLGPickerFile(null);}}
         onClose={function(){sLGPickerFile(null);}}/>}
 
+      {activeTab==="tvirtinimas"&&<React.Fragment>
       {/* Telia review/patvirtinimo blokas */}
       {/* Susiskleidusi Telia juostelė kai atmesta */}
       {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&o.pendingEmail.cancelled&&
@@ -3722,6 +3743,9 @@ function PermitDetail(p){
         </div>
       </div>}
 
+      </React.Fragment>}
+
+      {activeTab==="gauta"&&<React.Fragment>
       {/* Leidimo PDF įkėlimas — rodomas kai Pateikta/Gautas dalinai/Gautas leidimas */}
       {(isA||isD)&&(st==="Gautas leidimas"||o.status==="Pateikta"||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Uždarytas"||o.status==="Nebegalioja"||o.status==="Laukia patvirtinimo leidimo")&&(function(){
         var ORG_PDF_MAP={"Kauno miesto savivaldybe":{key:"sav",color:"#1D4ED8"},"Telia, Kaunas":{key:"telia",color:"#1D4ED8"},"Telia, investiciniai":{key:"telia_inv",color:"#1D4ED8"},"Kauno energija":{key:"ke",color:"#C2410C"},"Kauno vandenys":{key:"vandenys",color:"#0369A1"},"AB ESO":{key:"eso",color:"#FF6B2B"},"LitGrid":{key:"litgrid",color:"#047857"}};
@@ -3947,6 +3971,9 @@ function PermitDetail(p){
         </div>
       </div>}
 
+      </React.Fragment>}
+
+      {activeTab==="uzd"&&<React.Fragment>
       {/* Pranešimas savivaldybei apie darbų pabaigą */}
       {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(o.status==="Gautas leidimas"||o.status==="Uždarytas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Pranešimas savivaldybei apie darbų pabaigą</div>
@@ -4211,6 +4238,8 @@ function PermitDetail(p){
             </Btn>
           </div>}
       </div>}
+
+      </React.Fragment>}
 
       {/* Skaitymo rezimas — tik ne adminui */}
       {!isA&&(p.user.role==="orderer"||(isD&&o.assignedTo!==p.user.id)||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja"||o.status==="Atmestas")&&
