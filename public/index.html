@@ -2918,6 +2918,42 @@ function PermitDetail(p){
         onClose={function(){sLGPickerFile(null);}}/>}
 
       {activeTab==="tvirtinimas"&&<React.Fragment>
+      {/* Failų įkėlimas Tvirtinimas tab'e — docs specialist gali pridėti PDF prieš siunčiant */}
+      {(isA||isD)&&<div style={{borderBottom:"1px solid "+C.b1,paddingBottom:12,marginBottom:2}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.t3,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Failai</div>
+          <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",padding:"4px 10px",borderRadius:6,border:"1px solid "+C.b1,background:C.s2,fontSize:11,color:C.t2,fontFamily:F}}>
+            <span>📎 Pridėti</span>
+            <input type="file" multiple accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png" style={{display:"none"}} onChange={function(e){
+              Array.from(e.target.files).forEach(function(file){
+                var reader=new FileReader();
+                reader.onload=function(ev){
+                  var dataUrl=ev.target.result;
+                  var fd=new FormData();fd.append("file",file);
+                  fetch("/api/upload",{method:"POST",body:fd})
+                    .then(function(r){return r.json();})
+                    .then(function(d){
+                      var f=d.url?{name:file.name,size:file.size,type:file.type,url:d.url,filename:d.filename,data:dataUrl}:{name:file.name,size:file.size,type:file.type,data:dataUrl};
+                      p.onUpdate(Object.assign({},o,{files:(o.files||[]).concat([f])}));
+                    })
+                    .catch(function(){
+                      p.onUpdate(Object.assign({},o,{files:(o.files||[]).concat([{name:file.name,size:file.size,type:file.type,data:dataUrl}])}));
+                    });
+                };
+                reader.readAsDataURL(file);
+              });
+              e.target.value="";
+            }}/>
+          </label>
+        </div>
+        {(o.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i);}).length>0
+          ?<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+            {(o.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i);}).map(function(f,i){return <div key={i} style={{display:"flex",alignItems:"center",gap:4,padding:"2px 8px",background:C.s2,borderRadius:4,border:"1px solid "+C.b1,fontSize:10,color:C.t2,fontFamily:F}}>
+              <span>📄</span><span style={{maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</span>
+            </div>;})}
+          </div>
+          :<div style={{fontSize:10,color:C.yl,fontFamily:F}}>⚠️ Nėra PDF failų — įkelkite prieš siunčiant institucijoms</div>}
+      </div>}
       {/* Institucijų pasirinkimas — tik dokumentacija arba adminas */}
       {(isA||isD)&&<div style={{borderBottom:"1px solid "+C.b1,paddingBottom:14,marginBottom:2}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Institucijos</div>
