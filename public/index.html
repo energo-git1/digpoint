@@ -3788,17 +3788,12 @@ function PermitDetail(p){
           var pf=permitPdfs[key];if(!pf)return;
           var filename=pf.name||(key+'.pdf');
           try{
+            var fh=await window.showSaveFilePicker({suggestedName:filename,types:[{description:'PDF failas',accept:{'application/pdf':['.pdf']}}]});
             var blob;
             if(pf.url){blob=await fetch(pf.url).then(function(r){return r.blob();});}
             else if(pf.data){var arr=pf.data.split(',');var bin=atob(arr[1]);var u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);blob=new Blob([u8],{type:'application/pdf'});}
             else return;
-            if(window.showSaveFilePicker){
-              var fh=await window.showSaveFilePicker({suggestedName:filename,types:[{description:'PDF failas',accept:{'application/pdf':['.pdf']}}]});
-              var w=await fh.createWritable();await w.write(blob);await w.close();
-            }else{
-              var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download=filename;a.click();
-              setTimeout(function(){URL.revokeObjectURL(url);},1000);
-            }
+            var w=await fh.createWritable();await w.write(blob);await w.close();
           }catch(e){if(e.name!=='AbortError')alert('Išsaugojimo klaida: '+e.message);}
         }
         return <div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
