@@ -2564,6 +2564,8 @@ function PermitDetail(p){
   // Rankinio trasos redagavimo įvestys
   var _trFromIn=useState(o.teliaRouteFrom||"");var trFromIn=_trFromIn[0],sTrFromIn=_trFromIn[1];
   var _trToIn=useState(o.teliaRouteTo||"");var trToIn=_trToIn[0],sTrToIn=_trToIn[1];
+  var _savStart=useState(o.savStartDate||o.startDate||"");var savStart=_savStart[0],sSavStart=_savStart[1];
+  var _savEnd=useState(o.savEndDate||o.endDate||"");var savEnd=_savEnd[0],sSavEnd=_savEnd[1];
   // Kauno energija — pasirinkti puslapiai per failą
   var _initKESrcs=((o.pendingKauoenergijaEmail||{}).attachmentSources||[]);
   var _keAllPdfs=(o.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i);});
@@ -3756,7 +3758,11 @@ function PermitDetail(p){
       {(isA||isD)&&activeInst==="Kauno miesto savivaldybe"&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&o.status!=="Pateikta"&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Uždarytas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės pateikimas</div>
         <SavPriedaiBlock permitId={o.id} location={o.location} workType={o.workType}/>
-        <div style={{marginTop:10}}><SavivaldybeSubmitBtn permit={o} user={p.user} onUpdate={p.onUpdate} onPateikta={function(){sSt("Pateikta");p.onUpdate(Object.assign({},o,{status:"Pateikta",history:(o.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Pateikta savivaldybei"}])}));p.onClose();}}/></div>
+        <div style={{display:"flex",gap:10,marginBottom:10}}>
+          <div style={{flex:1}}><Inp label="Kasimo pradžia" type="date" value={savStart} onChange={function(v){sSavStart(v);p.onUpdate(Object.assign({},o,{savStartDate:v}));}}/></div>
+          <div style={{flex:1}}><Inp label="Kasimo pabaiga" type="date" value={savEnd} onChange={function(v){sSavEnd(v);p.onUpdate(Object.assign({},o,{savEndDate:v}));}}/></div>
+        </div>
+        <div style={{marginTop:10}}><SavivaldybeSubmitBtn permit={Object.assign({},o,{startDate:savStart||o.startDate,endDate:savEnd||o.endDate})} user={p.user} onUpdate={p.onUpdate} onPateikta={function(){sSt("Pateikta");p.onUpdate(Object.assign({},o,{status:"Pateikta",history:(o.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Pateikta savivaldybei"}])}));p.onClose();}}/></div>
       </div>}
 
       {/* Savivaldybės prašymo generavimas (el. paštu teikiančios savivaldybės) */}
