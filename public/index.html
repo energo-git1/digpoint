@@ -2612,6 +2612,7 @@ function PermitDetail(p){
     var tmp=document.createElement("div");tmp.innerHTML=bodyHtml;
     return (tmp.innerText||"").trim();
   });var lgBodyIn=_lgBodyIn[0],sLGBodyIn=_lgBodyIn[1];
+  var _activeInst=useState(function(){var _oi=(o.organizations||[]);return _oi.length>0?_oi[0]:null;});var activeInst=_activeInst[0],sActiveInst=_activeInst[1];
   var _locIn=useState(o.location||"");var locIn=_locIn[0],sLocIn=_locIn[1];
   var _iCodeIn=useState(o.internalCode||"");var iCodeIn=_iCodeIn[0],sICodeIn=_iCodeIn[1];
   var _knownInvEmails=useState([]);var knownInvEmails=_knownInvEmails[0],sKnownInvEmails=_knownInvEmails[1];
@@ -2767,7 +2768,7 @@ function PermitDetail(p){
 
       {/* Tab navigacija */}
       {(function(){
-        var tabs=[{k:"tvirtinimas",l:"Tvirtinimas"},{k:"gauta",l:"Gauti leidimai"}];
+        var tabs=[{k:"tvirtinimas",l:"Vykdymas"},{k:"gauta",l:"Gauti leidimai"}];
         if(hasSavOrg)tabs.push({k:"uzd",l:"Uždarymas"});
         tabs.unshift({k:"info",l:"Informacija"});
         return <div style={{display:"flex",gap:0,borderBottom:"1px solid "+C.b1,marginBottom:2}}>
@@ -2983,9 +2984,27 @@ function PermitDetail(p){
         </div>
         {(o.organizations||[]).length===0&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginTop:6}}>⚠️ Pasirinkite bent vieną instituciją.</div>}
       </div>}
+
+      {/* Institucijų mini-tab'ai */}
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",padding:"10px 0 4px"}}>
+        {(o.organizations||[]).map(function(org){
+          var short={"Telia, Kaunas":"Telia","Telia, investiciniai":"Telia inv.","Kauno energija":"KE","LitGrid":"LitGrid","Kauno miesto savivaldybe":"Savivaldybė","AB ESO":"ESO"}[org]||org;
+          var isSent=(org==="Telia, Kaunas"&&!o.pendingEmail)||(org==="Kauno energija"&&!o.pendingKauoenergijaEmail)||(org==="Telia, investiciniai"&&!o.pendingTeliaInvEmail)||(org==="LitGrid"&&!o.pendingLitgridEmail);
+          var isCancelled=(org==="Telia, Kaunas"&&o.pendingEmail&&o.pendingEmail.cancelled)||(org==="Kauno energija"&&o.pendingKauoenergijaEmail&&o.pendingKauoenergijaEmail.cancelled)||(org==="Telia, investiciniai"&&o.pendingTeliaInvEmail&&o.pendingTeliaInvEmail.cancelled)||(org==="LitGrid"&&o.pendingLitgridEmail&&o.pendingLitgridEmail.cancelled);
+          var active=activeInst===org;
+          var bg=active?C.acD:isSent?"#D1FAE5":isCancelled?"#FEE2E2":"transparent";
+          var clr=active?C.ac:isSent?"#059669":isCancelled?"#DC2626":C.t2;
+          var bdr=active?C.ac:isSent?"#6EE7B7":isCancelled?"#FCA5A5":C.b1;
+          return <button key={org} onClick={function(){sActiveInst(org);}}
+            style={{padding:"4px 12px",borderRadius:20,fontSize:11,fontWeight:active?700:400,
+              border:"0.5px solid "+bdr,background:bg,color:clr,cursor:"pointer",transition:"all .12s"}}>
+            {isSent?"✓ ":isCancelled?"✗ ":""}{short}
+          </button>;
+        })}
+      </div>}
       {/* Telia review/patvirtinimo blokas */}
       {/* Susiskleidusi Telia juostelė kai atmesta */}
-      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&o.pendingEmail.cancelled&&
+      {(isA||isD)&&activeInst==="Telia, Kaunas"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&o.pendingEmail.cancelled&&
         <div style={{borderTop:"1px solid "+C.b1,paddingTop:10}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.rdD,border:"1px solid "+C.rd+"44",borderRadius:8,padding:"8px 12px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -3002,7 +3021,7 @@ function PermitDetail(p){
         </div>}
 
       {/* Telia review blokas */}
-      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&!o.pendingEmail.cancelled&&(function(){
+      {(isA||isD)&&activeInst==="Telia, Kaunas"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&!o.pendingEmail.cancelled&&(function(){
         var pe=o.pendingEmail||{};
         var hasWarn=Array.isArray(pe.warnings)&&pe.warnings.length>0;
         async function regenerate(){
@@ -3122,7 +3141,7 @@ function PermitDetail(p){
       })()}
 
       {/* Susiskleidusi KE juostelė kai atmesta */}
-      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail&&o.pendingKauoenergijaEmail.cancelled&&
+      {(isA||isD)&&activeInst==="Kauno energija"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail&&o.pendingKauoenergijaEmail.cancelled&&
         <div style={{borderTop:"1px solid "+C.b1,paddingTop:10}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.rdD,border:"1px solid "+C.rd+"44",borderRadius:8,padding:"8px 12px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -3139,7 +3158,7 @@ function PermitDetail(p){
         </div>}
 
       {/* Kauno energija review/patvirtinimo blokas */}
-      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail&&!o.pendingKauoenergijaEmail.cancelled&&(function(){
+      {(isA||isD)&&activeInst==="Kauno energija"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail&&!o.pendingKauoenergijaEmail.cancelled&&(function(){
         var ke=o.pendingKauoenergijaEmail||{};
         var hasWarn=Array.isArray(ke.warnings)&&ke.warnings.length>0;
         var _keHasSel=_keAllPdfs.some(function(pf){return (keSelMap[pf.name]||[]).length>0;});
@@ -3259,7 +3278,7 @@ function PermitDetail(p){
       })()}
 
       {/* Susiskleidusi Telia investiciniai juostelė kai atmesta */}
-      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, investiciniai")!==-1&&o.pendingTeliaInvEmail&&o.pendingTeliaInvEmail.cancelled&&
+      {(isA||isD)&&activeInst==="Telia, investiciniai"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, investiciniai")!==-1&&o.pendingTeliaInvEmail&&o.pendingTeliaInvEmail.cancelled&&
         <div style={{borderTop:"1px solid "+C.b1,paddingTop:10}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.rdD,border:"1px solid "+C.rd+"44",borderRadius:8,padding:"8px 12px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -3276,7 +3295,7 @@ function PermitDetail(p){
         </div>}
 
       {/* Telia investiciniai review blokas */}
-      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, investiciniai")!==-1&&o.pendingTeliaInvEmail&&!o.pendingTeliaInvEmail.cancelled&&(function(){
+      {(isA||isD)&&activeInst==="Telia, investiciniai"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, investiciniai")!==-1&&o.pendingTeliaInvEmail&&!o.pendingTeliaInvEmail.cancelled&&(function(){
         var inv=o.pendingTeliaInvEmail||{};
         var hasWarn=Array.isArray(inv.warnings)&&inv.warnings.length>0;
         var _teliaInvHasSel=_teliaInvAllPdfs.some(function(pf){return (teliaInvSelMap[pf.name]||[]).length>0;});
@@ -3432,7 +3451,7 @@ function PermitDetail(p){
       })()}
 
       {/* Susiskleidusi LitGrid juostelė kai atmesta */}
-      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("LitGrid")!==-1&&o.pendingLitgridEmail&&o.pendingLitgridEmail.cancelled&&
+      {(isA||isD)&&activeInst==="LitGrid"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("LitGrid")!==-1&&o.pendingLitgridEmail&&o.pendingLitgridEmail.cancelled&&
         <div style={{borderTop:"1px solid "+C.b1,paddingTop:10}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.rdD,border:"1px solid "+C.rd+"44",borderRadius:8,padding:"8px 12px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -3449,7 +3468,7 @@ function PermitDetail(p){
         </div>}
 
       {/* LitGrid review/patvirtinimo blokas */}
-      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("LitGrid")!==-1&&o.pendingLitgridEmail&&!o.pendingLitgridEmail.cancelled&&(function(){
+      {(isA||isD)&&activeInst==="LitGrid"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("LitGrid")!==-1&&o.pendingLitgridEmail&&!o.pendingLitgridEmail.cancelled&&(function(){
         var lg=o.pendingLitgridEmail||{};
         var hasWarn=Array.isArray(lg.warnings)&&lg.warnings.length>0;
         var libSrc=(lg.attachmentSources||[]).find(function(s){return s.type==="library";});
@@ -3731,7 +3750,7 @@ function PermitDetail(p){
       </div>}
 
       {/* Savivaldybės pateikimo blokas — priedai + scriptas */}
-      {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&o.status!=="Pateikta"&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Uždarytas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+      {(isA||isD)&&activeInst==="Kauno miesto savivaldybe"&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&o.status!=="Pateikta"&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Uždarytas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės pateikimas</div>
         <SavPriedaiBlock permitId={o.id} location={o.location} workType={o.workType}/>
         <div style={{marginTop:10}}><SavivaldybeSubmitBtn permit={o} user={p.user} onUpdate={p.onUpdate} onPateikta={function(){sSt("Pateikta");p.onUpdate(Object.assign({},o,{status:"Pateikta",history:(o.history||[]).concat([{status:"Pateikta",date:fmtDate(new Date()),note:"Pateikta savivaldybei"}])}));p.onClose();}}/></div>
