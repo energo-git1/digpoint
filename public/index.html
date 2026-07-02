@@ -2918,11 +2918,11 @@ function PermitDetail(p){
               {f.size&&<div style={{fontSize:9,color:C.t3,fontFamily:FM}}>{fmtSize(f.size)}</div>}
             </div>
             {f.url&&<a href={f.url} target="_blank" rel="noreferrer" style={{fontSize:11,color:C.ac,fontFamily:F,textDecoration:"none",padding:"2px 6px"}}>↗</a>}
-            <button onClick={function(){var idx=i;p.onUpdate(Object.assign({},o,{files:(o.files||[]).filter(function(_,j){return j!==idx;})}));}}
-              style={{background:"none",border:"none",color:C.rd,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>×</button>
+            {o.status!=="Uždarytas"&&<button onClick={function(){var idx=i;p.onUpdate(Object.assign({},o,{files:(o.files||[]).filter(function(_,j){return j!==idx;})}));}}
+              style={{background:"none",border:"none",color:C.rd,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>×</button>}
           </div>;})}
         </div>}
-        <FileDropZone files={[]} onAdd={function(f){p.onUpdate(Object.assign({},o,{files:(o.files||[]).concat([f])}));}} onRemove={function(){}}/>
+        {o.status!=="Uždarytas"&&<FileDropZone files={[]} onAdd={function(f){p.onUpdate(Object.assign({},o,{files:(o.files||[]).concat([f])}));}} onRemove={function(){}}/> }
       </div>}
 
       {/* Admin veiksmai — slepiame uždarytoms paraiškoms */}
