@@ -5636,7 +5636,9 @@ function Sidebar(p){
   var items=[];
   if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"mine",icon:"📋",label:"Mano paraiškos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"closed",icon:"✅",label:"Uždaryti"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
   else if(role==="dokumentacija") items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"closed",icon:"✅",label:"Uždaryti",badge:p.closingCount},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"library",icon:"📁",label:"Šablonai"},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"closed",icon:"✅",label:"Uždaryti",badge:p.closingCount},{id:"all",icon:"📋",label:"Visos paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"library",icon:"📁",label:"Šablonai"},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"system",icon:"⚙️",label:"Sistema"},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"submitted",icon:"📤",label:"Pateiktos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"closed",icon:"✅",label:"Uždaryti",badge:p.closingCount},{id:"all",icon:"📋",label:"Visos paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  var _adminOpen=useState(false);var adminOpen=_adminOpen[0],sAdminOpen=_adminOpen[1];
+  var adminUtilItems=[{id:"library",icon:"📁",label:"Šablonai"},{id:"system",icon:"⚙️",label:"Sistema"}];
   return <div style={{width:200,background:C.s1,borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",height:"100vh",flexShrink:0}}>
     <div style={{padding:"18px 16px 10px",borderBottom:"1px solid "+C.b1}}>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -5655,6 +5657,17 @@ function Sidebar(p){
           {item.badge>0&&<span style={{background:C.rd,color:"#fff",fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:8}}>{item.badge}</span>}
         </button>
       })}
+      {role==="admin"&&<div style={{marginTop:4}}>
+        <button onClick={function(){sAdminOpen(!adminOpen)}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 10px",borderRadius:8,border:"none",background:"transparent",color:C.t3,fontFamily:F,fontSize:11,fontWeight:600,cursor:"pointer",marginBottom:2,textAlign:"left"}}>
+          <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{fontSize:12}}>⚙️</span>Administravimas</div>
+          <span style={{fontSize:9,opacity:.6}}>{adminOpen?"▲":"▼"}</span>
+        </button>
+        {adminOpen&&adminUtilItems.map(function(item){var active=p.view===item.id;
+          return <button key={item.id} onClick={function(){p.onNav(item.id)}} style={{width:"100%",display:"flex",alignItems:"center",gap:7,padding:"7px 10px 7px 22px",borderRadius:8,border:"none",background:active?C.acD:"transparent",color:active?C.ac:C.t3,fontFamily:F,fontSize:11,fontWeight:active?700:500,cursor:"pointer",marginBottom:2,textAlign:"left"}}>
+            <span style={{fontSize:13}}>{item.icon}</span>{item.label}
+          </button>;
+        })}
+      </div>}
     </nav>
     <div style={{padding:"10px 12px",borderTop:"1px solid "+C.b1}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
