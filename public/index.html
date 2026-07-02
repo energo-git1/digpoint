@@ -1365,7 +1365,7 @@ function PermitForm(p){
       {municipality==="kaunas"&&<div style={{marginTop:12}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:8,fontFamily:F}}>Leidimo tipas</div>
         <div style={{display:"flex",gap:8,marginBottom:savType==="savivaldybe"?12:0}}>
-          {[{v:"institucijos",l:"🏛️ Iš institucijų",d:"ESO, Telia, KE ir Savivaldybė"},{v:"savivaldybe",l:"📋 Iš savivaldybės",d:"Savivaldybė tiesiogiai išduoda leidimą"}].map(function(opt){
+          {[{v:"institucijos",l:"🏛️ Iš institucijų",d:"ESO, Telia, KE, LitGrid"},{v:"savivaldybe",l:"📋 Iš savivaldybės",d:"Savivaldybė tiesiogiai išduoda leidimą"}].map(function(opt){
             var sel=savType===opt.v;
             return <button key={opt.v} type="button" onClick={function(){sSavType(opt.v);}}
               style={{flex:1,padding:"8px 10px",borderRadius:8,border:"1px solid "+(sel?C.ac:C.b1),background:sel?C.acD:"transparent",color:sel?C.ac:C.t2,cursor:"pointer",fontFamily:F,fontSize:12,fontWeight:sel?700:400,textAlign:"left",transition:"all .12s"}}>
@@ -2664,7 +2664,6 @@ function PermitDetail(p){
     var tmp=document.createElement("div");tmp.innerHTML=bodyHtml;
     return (tmp.innerText||"").trim();
   });var lgBodyIn=_lgBodyIn[0],sLGBodyIn=_lgBodyIn[1];
-  var _activeInst=useState(function(){var _oi=(o.organizations||[]);return _oi.length>0?_oi[0]:null;});var activeInst=_activeInst[0],sActiveInst=_activeInst[1];
   var _locIn=useState(o.location||"");var locIn=_locIn[0],sLocIn=_locIn[1];
   var _iCodeIn=useState(o.internalCode||"");var iCodeIn=_iCodeIn[0],sICodeIn=_iCodeIn[1];
   var _knownInvEmails=useState([]);var knownInvEmails=_knownInvEmails[0],sKnownInvEmails=_knownInvEmails[1];
@@ -3058,7 +3057,7 @@ function PermitDetail(p){
           :<div style={{fontSize:10,color:C.yl,fontFamily:F}}>⚠️ Nėra PDF failų — įkelkite prieš siunčiant institucijoms</div>}
       </div>}
 
-      {/* Institucijų pasirinkimas + navigacija */}
+      {/* Institucijų pasirinkimas */}
       {(isA||isD)&&<div style={{paddingBottom:8,marginBottom:2}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Institucijos</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -3068,15 +3067,16 @@ function PermitDetail(p){
             var short={"Telia, Kaunas":"Telia","Telia, investiciniai":"Telia inv.","Kauno energija":"KE","LitGrid":"LitGrid","Kauno miesto savivaldybe":"Savivaldybe","AB ESO":"ESO"}[org]||org;
             var isSent=sel&&((org==="Telia, Kaunas"&&!o.pendingEmail)||(org==="Kauno energija"&&!o.pendingKauoenergijaEmail)||(org==="Telia, investiciniai"&&!o.pendingTeliaInvEmail)||(org==="LitGrid"&&!o.pendingLitgridEmail));
             var isCancelled=sel&&((org==="Telia, Kaunas"&&o.pendingEmail&&o.pendingEmail.cancelled)||(org==="Kauno energija"&&o.pendingKauoenergijaEmail&&o.pendingKauoenergijaEmail.cancelled)||(org==="Telia, investiciniai"&&o.pendingTeliaInvEmail&&o.pendingTeliaInvEmail.cancelled)||(org==="LitGrid"&&o.pendingLitgridEmail&&o.pendingLitgridEmail.cancelled));
-            var isActive=activeInst===org;
-            var bg=busy?"rgba(0,0,0,.06)":sel?(isActive?C.acD:isSent?"#D1FAE5":isCancelled?"#FEE2E2":C.s2):"transparent";
-            var clr=busy?C.t3:sel?(isActive?C.ac:isSent?"#059669":isCancelled?"#DC2626":C.t2):C.t3;
-            var bdr=busy?C.b1:sel?(isActive?C.ac:isSent?"#6EE7B7":isCancelled?"#FCA5A5":C.b1):C.b1;
-            if(!sel){
-              return <button key={org} type="button" disabled={!!orgBusy} onClick={async function(){
-                if(orgBusy)return;
+            var bg=busy?"rgba(0,0,0,.06)":sel?(isSent?"#D1FAE5":isCancelled?"#FEE2E2":C.acD):"transparent";
+            var clr=busy?C.t3:sel?(isSent?"#059669":isCancelled?"#DC2626":C.ac):C.t2;
+            var bdr=busy?C.b1:sel?(isSent?"#6EE7B7":isCancelled?"#FCA5A5":C.ac):C.b1;
+            return <button key={org} type="button" disabled={!!orgBusy} onClick={async function(){
+              if(orgBusy)return;
+              var cur=o.organizations||[];
+              var next=sel?cur.filter(function(x){return x!==org;}):cur.concat([org]);
+              var patch={organizations:next};
+              if(!sel){
                 sOrgBusy(org);
-                var cur=o.organizations||[];var next=cur.concat([org]);var patch={organizations:next};
                 try{
                   var _tSD=o.teliaStartDate,_tED=o.teliaEndDate;
                   if(!_tSD){var _tn=new Date(),_tn6=new Date(_tn);_tn6.setMonth(_tn6.getMonth()+6);_tSD=fmtDate(_tn);_tED=fmtDate(_tn6);patch.teliaStartDate=_tSD;patch.teliaEndDate=_tED;}
@@ -3086,41 +3086,26 @@ function PermitDetail(p){
                   else if(org==="Kauno energija"&&!o.pendingKauoenergijaEmail){var r=await preparePendingKauoenergijaEmail(base,null);patch.pendingKauoenergijaEmail=r;}
                   else if(org==="LitGrid"&&!o.pendingLitgridEmail){var r=await preparePendingLitgridEmail(base,null);patch.pendingLitgridEmail=r;}
                 }catch(e){}
-                sOrgBusy(null);sActiveInst(org);p.onUpdate(Object.assign({},o,patch));
-              }} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 11px",borderRadius:20,fontSize:11,fontWeight:400,
-                border:"0.5px solid "+bdr,background:bg,color:clr,
-                cursor:orgBusy?"wait":"pointer",transition:"all .12s"}}>
-                <span style={{fontSize:10,lineHeight:1}}>+</span>{short}
-              </button>;
-            }
-            return <div key={org} style={{display:"flex",alignItems:"center"}}>
-              <button type="button" disabled={!!orgBusy} onClick={function(){if(!orgBusy)sActiveInst(org);}}
-                style={{padding:"4px 10px",borderRadius:"20px 0 0 20px",fontSize:11,fontWeight:isActive?700:500,
-                  border:"0.5px solid "+bdr,borderRight:"none",
-                  background:bg,color:clr,cursor:"pointer",transition:"all .12s"}}>
-                {busy?"⏳":(isSent?"✓ ":isCancelled?"✗ ":"")+short}
-              </button>
-              <button type="button" onClick={async function(){
-                if(orgBusy)return;
-                var cur=o.organizations||[];var next=cur.filter(function(x){return x!==org;});
-                var patch={organizations:next};
+                sOrgBusy(null);
+              }else{
                 if(org==="Telia, Kaunas")patch.pendingEmail=null;
                 else if(org==="Telia, investiciniai")patch.pendingTeliaInvEmail=null;
                 else if(org==="Kauno energija")patch.pendingKauoenergijaEmail=null;
                 else if(org==="LitGrid")patch.pendingLitgridEmail=null;
-                if(isActive){var rem=next;sActiveInst(rem.length>0?rem[0]:null);}
-                p.onUpdate(Object.assign({},o,patch));
-              }} style={{padding:"4px 7px",borderRadius:"0 20px 20px 0",fontSize:11,fontWeight:400,
-                border:"0.5px solid "+bdr,borderLeft:"none",
-                background:bg,color:clr,cursor:"pointer",transition:"all .12s",lineHeight:1}}>x</button>
-            </div>;
+              }
+              p.onUpdate(Object.assign({},o,patch));
+            }} style={{padding:"5px 12px",borderRadius:20,fontSize:11,fontWeight:sel?700:400,
+              border:"0.5px solid "+bdr,background:bg,color:clr,
+              cursor:orgBusy?"wait":"pointer",transition:"all .12s"}}>
+              {busy?"⏳":(isSent?"✓ ":isCancelled?"✗ ":"")+short}
+            </button>;
           })}
         </div>
-        {(o.organizations||[]).length===0&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginTop:6}}>Pasirinkite bent viena institucija.</div>}
+        {(o.organizations||[]).length===0&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginTop:6}}>⚠️ Pasirinkite bent vieną instituciją.</div>}
       </div>}
       {/* Telia review/patvirtinimo blokas */}
       {/* Susiskleidusi Telia juostelė kai atmesta */}
-      {(isA||isD)&&activeInst==="Telia, Kaunas"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&o.pendingEmail.cancelled&&
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&o.pendingEmail.cancelled&&
         <div style={{borderTop:"1px solid "+C.b1,paddingTop:10}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.rdD,border:"1px solid "+C.rd+"44",borderRadius:8,padding:"8px 12px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -3137,7 +3122,7 @@ function PermitDetail(p){
         </div>}
 
       {/* Telia review blokas */}
-      {(isA||isD)&&activeInst==="Telia, Kaunas"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&!o.pendingEmail.cancelled&&(function(){
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, Kaunas")!==-1&&o.pendingEmail&&!o.pendingEmail.cancelled&&(function(){
         var pe=o.pendingEmail||{};
         var hasWarn=Array.isArray(pe.warnings)&&pe.warnings.length>0;
         async function regenerate(){
@@ -3257,7 +3242,7 @@ function PermitDetail(p){
       })()}
 
       {/* Susiskleidusi KE juostelė kai atmesta */}
-      {(isA||isD)&&activeInst==="Kauno energija"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail&&o.pendingKauoenergijaEmail.cancelled&&
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail&&o.pendingKauoenergijaEmail.cancelled&&
         <div style={{borderTop:"1px solid "+C.b1,paddingTop:10}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.rdD,border:"1px solid "+C.rd+"44",borderRadius:8,padding:"8px 12px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -3274,7 +3259,7 @@ function PermitDetail(p){
         </div>}
 
       {/* Kauno energija review/patvirtinimo blokas */}
-      {(isA||isD)&&activeInst==="Kauno energija"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail&&!o.pendingKauoenergijaEmail.cancelled&&(function(){
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Kauno energija")!==-1&&o.pendingKauoenergijaEmail&&!o.pendingKauoenergijaEmail.cancelled&&(function(){
         var ke=o.pendingKauoenergijaEmail||{};
         var hasWarn=Array.isArray(ke.warnings)&&ke.warnings.length>0;
         var _keHasSel=_keAllPdfs.some(function(pf){return (keSelMap[pf.name]||[]).length>0;});
@@ -3394,7 +3379,7 @@ function PermitDetail(p){
       })()}
 
       {/* Susiskleidusi Telia investiciniai juostelė kai atmesta */}
-      {(isA||isD)&&activeInst==="Telia, investiciniai"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, investiciniai")!==-1&&o.pendingTeliaInvEmail&&o.pendingTeliaInvEmail.cancelled&&
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, investiciniai")!==-1&&o.pendingTeliaInvEmail&&o.pendingTeliaInvEmail.cancelled&&
         <div style={{borderTop:"1px solid "+C.b1,paddingTop:10}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.rdD,border:"1px solid "+C.rd+"44",borderRadius:8,padding:"8px 12px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -3411,7 +3396,7 @@ function PermitDetail(p){
         </div>}
 
       {/* Telia investiciniai review blokas */}
-      {(isA||isD)&&activeInst==="Telia, investiciniai"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, investiciniai")!==-1&&o.pendingTeliaInvEmail&&!o.pendingTeliaInvEmail.cancelled&&(function(){
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("Telia, investiciniai")!==-1&&o.pendingTeliaInvEmail&&!o.pendingTeliaInvEmail.cancelled&&(function(){
         var inv=o.pendingTeliaInvEmail||{};
         var hasWarn=Array.isArray(inv.warnings)&&inv.warnings.length>0;
         var _teliaInvHasSel=_teliaInvAllPdfs.some(function(pf){return (teliaInvSelMap[pf.name]||[]).length>0;});
@@ -3567,7 +3552,7 @@ function PermitDetail(p){
       })()}
 
       {/* Susiskleidusi LitGrid juostelė kai atmesta */}
-      {(isA||isD)&&activeInst==="LitGrid"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("LitGrid")!==-1&&o.pendingLitgridEmail&&o.pendingLitgridEmail.cancelled&&
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("LitGrid")!==-1&&o.pendingLitgridEmail&&o.pendingLitgridEmail.cancelled&&
         <div style={{borderTop:"1px solid "+C.b1,paddingTop:10}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.rdD,border:"1px solid "+C.rd+"44",borderRadius:8,padding:"8px 12px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -3584,7 +3569,7 @@ function PermitDetail(p){
         </div>}
 
       {/* LitGrid review/patvirtinimo blokas */}
-      {(isA||isD)&&activeInst==="LitGrid"&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("LitGrid")!==-1&&o.pendingLitgridEmail&&!o.pendingLitgridEmail.cancelled&&(function(){
+      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).indexOf("LitGrid")!==-1&&o.pendingLitgridEmail&&!o.pendingLitgridEmail.cancelled&&(function(){
         var lg=o.pendingLitgridEmail||{};
         var hasWarn=Array.isArray(lg.warnings)&&lg.warnings.length>0;
         var libSrc=(lg.attachmentSources||[]).find(function(s){return s.type==="library";});
@@ -3783,7 +3768,7 @@ function PermitDetail(p){
 
 
       {/* Savivaldybės pateikimo blokas — priedai + scriptas */}
-      {(isA||isD)&&activeInst==="Kauno miesto savivaldybe"&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&o.status!=="Pateikta"&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Uždarytas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+      {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&o.status!=="Pateikta"&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Uždarytas"&&o.status!=="Atmestas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:10,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Savivaldybės pateikimas</div>
         <SavPriedaiBlock permitId={o.id} location={o.location} workType={o.workType}/>
         <div style={{display:"flex",gap:10,marginBottom:10}}>
@@ -3821,7 +3806,7 @@ function PermitDetail(p){
       </div>}
 
       {/* AB ESO pateikimo blokas */}
-      {(isA||isD)&&activeInst==="AB ESO"&&(o.organizations||[]).indexOf("AB ESO")!==-1&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+      {(isA||isD)&&(o.organizations||[]).indexOf("AB ESO")!==-1&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}} onSend={p.onSend}/>
       </div>}
 
