@@ -735,6 +735,11 @@ function parseTeliaRoute(text){
   function cleanSav(s){
     return s.replace(/,?\s*[A-ZĄČĘĖĮŠŲŪŽa-ząčęėįšųūž\.]+\s+(?:r|m)\.?\s*sav\.?(?=$|[\s,])/gi,"").replace(/\s+,/g,",").replace(/,\s*$/,"").trim();
   }
+  // Pjauname tekstą po miesto pavadinimo — viskas po "Kaunas", "Vilnius" ir pan. pašalinama
+  function cutAtCity(s){
+    var m=s.match(/^(.*?(?:Kaunas|Vilnius|Klaipėda|Šiauliai|Panevėžys|Alytus|Marijampolė))\b/i);
+    return m?m[1].replace(/,\s*$/,"").trim():s;
+  }
   for(var i=0;i<patterns.length;i++){
     var m=text.match(patterns[i]);
     if(!m||!m[1])continue;
@@ -745,7 +750,7 @@ function parseTeliaRoute(text){
     // 1 bandymas: ieškome gatvės adreso šablono tiesiogiai
     var am=raw.match(addrRe);
     if(am&&am[1]&&am[1].length>5){
-      var addr=cleanSav(am[1].trim());
+      var addr=cutAtCity(cleanSav(am[1].trim()));
       var parts=addr.split(",").map(function(s){return s.trim();}).filter(Boolean);
       return {from:parts[0]||addr,to:addr};
     }
@@ -753,12 +758,12 @@ function parseTeliaRoute(text){
     var stripped=stripFieldLabels(raw);
     var am2=stripped.match(addrRe);
     if(am2&&am2[1]&&am2[1].length>5){
-      var addr2=cleanSav(am2[1].trim());
+      var addr2=cutAtCity(cleanSav(am2[1].trim()));
       var parts2=addr2.split(",").map(function(s){return s.trim();}).filter(Boolean);
       return {from:parts2[0]||addr2,to:addr2};
     }
     // 3 bandymas: naudojame išvalytą tekstą tiesiogiai (be gatvės šablono)
-    var clean=cleanSav(stripped);
+    var clean=cutAtCity(cleanSav(stripped));
     if(clean.length>5){
       var parts3=clean.split(",").map(function(s){return s.trim();}).filter(Boolean);
       return {from:parts3[0]||clean,to:clean};
@@ -6719,17 +6724,4 @@ function App(){
 
   var effectiveUser=previewRole&&user&&user.role==="admin"?Object.assign({},user,{role:previewRole}):user;
   return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
-    {previewRole&&<div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,background:"#b45309",color:"#fff",textAlign:"center",fontSize:11,fontFamily:"monospace",padding:"3px 0",pointerEvents:"none"}}>👁 Peržiūra kaip: {previewRole==="orderer"?"Užsakovas":"Dokumentacijos spec."}</div>}
-    <Sidebar user={effectiveUser} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount} previewRole={previewRole} onPreviewRole={sPreviewRole}/>
-    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
-    {detail&&<PermitDetail permit={detail} user={effectiveUser} users={users} surveyors={docsWorkers}
-      onUpdate={function(u){updatePermit(u);setDetail(u)}}
-      onSend={function(u){updatePermit(u);setDetail(null)}}
-      onDelete={function(id){deletePermit(id);setDetail(null)}}
-      onClose={function(){setDetail(null)}}/>}
-  </div>
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
-</body>
-</html>
+    {previewRole&&<div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,background:"#b45309",color:"#fff",textAlign:"center",fontSize:11,fontFamily:"monospace",padding:"3px 0",pointerEvents:"none"}}>👁 Peržiūra kaip: {previewRole==="orderer"?"Užsakova
