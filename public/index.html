@@ -5683,9 +5683,9 @@ function Sidebar(p){
   var role=p.user.role;
   var sverVal=window.APP_VERSION?"v"+window.APP_VERSION:"";
   var items=[];
-  if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"mine",icon:"📋",label:"Mano paraiškos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"closed",icon:"✅",label:"Uždaryti"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="dokumentacija") items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"closed",icon:"✅",label:"Uždaryti",badge:p.closingCount},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"library",icon:"📁",label:"Šablonai"},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"closed",icon:"✅",label:"Uždaryti",badge:p.closingCount},{id:"all",icon:"📋",label:"Visos paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"mine",icon:"📋",label:"Mano paraiškos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="dokumentacija") items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"library",icon:"📁",label:"Šablonai"},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"all",icon:"📋",label:"Visos paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"profile",icon:"👤",label:"Mano profilis"}];
   var _adminOpen=useState(false);var adminOpen=_adminOpen[0],sAdminOpen=_adminOpen[1];
   var adminUtilItems=[{id:"library",icon:"📁",label:"Šablonai"},{id:"system",icon:"⚙️",label:"Sistema"}];
   return <div style={{width:200,background:C.s1,borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",height:"100vh",flexShrink:0}}>
@@ -6490,21 +6490,19 @@ function App(){
   else if(view==="submitted"){setView("permits");}
   else if(view==="permits"){
     function notSeniunija(p){return !(p.organizations||[]).includes('Seniūnija');}
-    var _subSt=permSub==="submitted"?submittedStatuses:permSub==="received"?permitStatuses:permitStatuses.concat(submittedStatuses);
+    var closedStatuses=["Uždarytas"];
+    var _allSt=permitStatuses.concat(submittedStatuses).concat(closedStatuses);
+    var _subSt=permSub==="submitted"?submittedStatuses:permSub==="received"?permitStatuses:permSub==="closed"?closedStatuses:_allSt;
     visible=basePermits.filter(function(p){return _subSt.indexOf(p.status)!==-1&&notSeniunija(p)});
   }
-  else if(view==="closed"){
-    // Uždaryti: pateikta uždarymo info, uždarytas statusas, arba gautas leidimas
-    function isGautas(p){return p.status==="Gautas leidimas"||p.status==="Gautas";}
-    visible=basePermits.filter(function(p){return p.closingSubmitted||p.status==="Uždarytas"||isGautas(p);});
-  }
+  else if(view==="closed"){setView("permits");}
   else if(view==="all") visible=basePermits.slice();
   if(filter)visible=visible.filter(function(p){return p.status===filter});
   visible=visible.slice().sort(function(a,b){return (b.createdAt||"")>(a.createdAt||"")?1:-1});
 
   // Projekto tipo filtravimas (NV / EK / INV)
   function getProjectType(pm){var code=((pm.internalCode||pm.investNo||"")).toUpperCase();if(/NV/.test(code))return"NV";if(/EK/.test(code))return"EK";return"INV";}
-  var PROJ_FILTER_VIEWS=["all","closed","permits"];
+  var PROJ_FILTER_VIEWS=["all","permits"];
   var projCounts={all:visible.length,NV:0,EK:0,INV:0};
   if(PROJ_FILTER_VIEWS.indexOf(view)!==-1){
     visible.forEach(function(pm){projCounts[getProjectType(pm)]++;});
@@ -6556,7 +6554,7 @@ function App(){
         </div>
       </div>
       {view==="permits"&&<div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
-        {[["all","Visos"],["submitted","Pateiktos"],["received","Gauti leidimai"]].map(function(t){
+        {[["all","Visos"],["submitted","Pateiktos"],["received","Gauti leidimai"],["closed","Uždaryti"]].map(function(t){
           var active=permSub===t[0];
           return <button key={t[0]} onClick={function(){sPermSub(t[0]);}} style={{padding:"4px 14px",borderRadius:20,border:"1.5px solid "+(active?C.ac:C.b1),background:active?C.acD:"transparent",color:active?C.ac:C.t2,fontSize:11,fontFamily:FM,fontWeight:active?700:400,cursor:"pointer"}}>{t[1]}</button>;
         })}
