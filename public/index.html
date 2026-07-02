@@ -3058,68 +3058,65 @@ function PermitDetail(p){
           :<div style={{fontSize:10,color:C.yl,fontFamily:F}}>⚠️ Nėra PDF failų — įkelkite prieš siunčiant institucijoms</div>}
       </div>}
 
-      {/* Institucijų pasirinkimas — tik dokumentacija arba adminas */}
-      {(isA||isD)&&<div style={{borderBottom:"1px solid "+C.b1,paddingBottom:14,marginBottom:2}}>
+      {/* Institucijų pasirinkimas + navigacija */}
+      {(isA||isD)&&<div style={{paddingBottom:8,marginBottom:2}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Institucijos</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
           {(MUN_ORGS[o.municipality]||PERMIT_ORGS).map(function(org){
             var sel=(o.organizations||[]).indexOf(org)!==-1;
             var busy=orgBusy===org;
-            return <button key={org} type="button" disabled={!!orgBusy} onClick={async function(){
-              if(orgBusy)return;
-              var cur=o.organizations||[];
-              var next=sel?cur.filter(function(x){return x!==org;}):cur.concat([org]);
-              var patch={organizations:next};
-              if(!sel){
+            var short={"Telia, Kaunas":"Telia","Telia, investiciniai":"Telia inv.","Kauno energija":"KE","LitGrid":"LitGrid","Kauno miesto savivaldybe":"Savivaldybe","AB ESO":"ESO"}[org]||org;
+            var isSent=sel&&((org==="Telia, Kaunas"&&!o.pendingEmail)||(org==="Kauno energija"&&!o.pendingKauoenergijaEmail)||(org==="Telia, investiciniai"&&!o.pendingTeliaInvEmail)||(org==="LitGrid"&&!o.pendingLitgridEmail));
+            var isCancelled=sel&&((org==="Telia, Kaunas"&&o.pendingEmail&&o.pendingEmail.cancelled)||(org==="Kauno energija"&&o.pendingKauoenergijaEmail&&o.pendingKauoenergijaEmail.cancelled)||(org==="Telia, investiciniai"&&o.pendingTeliaInvEmail&&o.pendingTeliaInvEmail.cancelled)||(org==="LitGrid"&&o.pendingLitgridEmail&&o.pendingLitgridEmail.cancelled));
+            var isActive=activeInst===org;
+            var bg=busy?"rgba(0,0,0,.06)":sel?(isActive?C.acD:isSent?"#D1FAE5":isCancelled?"#FEE2E2":C.s2):"transparent";
+            var clr=busy?C.t3:sel?(isActive?C.ac:isSent?"#059669":isCancelled?"#DC2626":C.t2):C.t3;
+            var bdr=busy?C.b1:sel?(isActive?C.ac:isSent?"#6EE7B7":isCancelled?"#FCA5A5":C.b1):C.b1;
+            if(!sel){
+              return <button key={org} type="button" disabled={!!orgBusy} onClick={async function(){
+                if(orgBusy)return;
                 sOrgBusy(org);
+                var cur=o.organizations||[];var next=cur.concat([org]);var patch={organizations:next};
                 try{
                   var _tSD=o.teliaStartDate,_tED=o.teliaEndDate;
                   if(!_tSD){var _tn=new Date(),_tn6=new Date(_tn);_tn6.setMonth(_tn6.getMonth()+6);_tSD=fmtDate(_tn);_tED=fmtDate(_tn6);patch.teliaStartDate=_tSD;patch.teliaEndDate=_tED;}
                   var base=Object.assign({},o,{organizations:next,teliaStartDate:_tSD,teliaEndDate:_tED});
-                  if(org==="Telia, Kaunas"&&!o.pendingEmail){
-                    var r=await preparePendingTeliaEmail(base);patch.pendingEmail=r.pendingEmail;
-                  }else if(org==="Telia, investiciniai"&&!o.pendingTeliaInvEmail){
-                    var r=await preparePendingTeliaInvEmail(base);patch.pendingTeliaInvEmail=r.pendingTeliaInvEmail;
-                  }else if(org==="Kauno energija"&&!o.pendingKauoenergijaEmail){
-                    var r=await preparePendingKauoenergijaEmail(base,null);patch.pendingKauoenergijaEmail=r;
-                  }else if(org==="LitGrid"&&!o.pendingLitgridEmail){
-                    var r=await preparePendingLitgridEmail(base,null);patch.pendingLitgridEmail=r;
-                  }
+                  if(org==="Telia, Kaunas"&&!o.pendingEmail){var r=await preparePendingTeliaEmail(base);patch.pendingEmail=r.pendingEmail;}
+                  else if(org==="Telia, investiciniai"&&!o.pendingTeliaInvEmail){var r=await preparePendingTeliaInvEmail(base);patch.pendingTeliaInvEmail=r.pendingTeliaInvEmail;}
+                  else if(org==="Kauno energija"&&!o.pendingKauoenergijaEmail){var r=await preparePendingKauoenergijaEmail(base,null);patch.pendingKauoenergijaEmail=r;}
+                  else if(org==="LitGrid"&&!o.pendingLitgridEmail){var r=await preparePendingLitgridEmail(base,null);patch.pendingLitgridEmail=r;}
                 }catch(e){}
-                sOrgBusy(null);
-              }else{
+                sOrgBusy(null);sActiveInst(org);p.onUpdate(Object.assign({},o,patch));
+              }} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 11px",borderRadius:20,fontSize:11,fontWeight:400,
+                border:"0.5px solid "+bdr,background:bg,color:clr,
+                cursor:orgBusy?"wait":"pointer",transition:"all .12s"}}>
+                <span style={{fontSize:10,lineHeight:1}}>+</span>{short}
+              </button>;
+            }
+            return <div key={org} style={{display:"flex",alignItems:"center"}}>
+              <button type="button" disabled={!!orgBusy} onClick={function(){if(!orgBusy)sActiveInst(org);}}
+                style={{padding:"4px 10px",borderRadius:"20px 0 0 20px",fontSize:11,fontWeight:isActive?700:500,
+                  border:"0.5px solid "+bdr,borderRight:"none",
+                  background:bg,color:clr,cursor:"pointer",transition:"all .12s"}}>
+                {busy?"⏳":(isSent?"✓ ":isCancelled?"✗ ":"")+short}
+              </button>
+              <button type="button" onClick={async function(){
+                if(orgBusy)return;
+                var cur=o.organizations||[];var next=cur.filter(function(x){return x!==org;});
+                var patch={organizations:next};
                 if(org==="Telia, Kaunas")patch.pendingEmail=null;
                 else if(org==="Telia, investiciniai")patch.pendingTeliaInvEmail=null;
                 else if(org==="Kauno energija")patch.pendingKauoenergijaEmail=null;
                 else if(org==="LitGrid")patch.pendingLitgridEmail=null;
-              }
-              p.onUpdate(Object.assign({},o,patch));
-            }} style={{padding:"5px 12px",borderRadius:20,fontSize:11,fontWeight:sel?700:400,
-              border:"0.5px solid "+(sel?C.ac:C.b1),
-              background:busy?"#f0f0f0":sel?C.acD:"transparent",
-              color:busy?C.t3:sel?C.ac:C.t2,cursor:orgBusy?"wait":"pointer",transition:"all .12s"}}>
-              {busy?"⏳":org}
-            </button>;
+                if(isActive){var rem=next;sActiveInst(rem.length>0?rem[0]:null);}
+                p.onUpdate(Object.assign({},o,patch));
+              }} style={{padding:"4px 7px",borderRadius:"0 20px 20px 0",fontSize:11,fontWeight:400,
+                border:"0.5px solid "+bdr,borderLeft:"none",
+                background:bg,color:clr,cursor:"pointer",transition:"all .12s",lineHeight:1}}>x</button>
+            </div>;
           })}
         </div>
-        {(o.organizations||[]).length===0&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginTop:6}}>⚠️ Pasirinkite bent vieną instituciją.</div>}
-      </div>}
-      {/* Institucijų mini-tab'ai */}
-      {(isA||isD)&&(o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo")&&(o.organizations||[]).length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",padding:"10px 0 4px"}}>
-        {(o.organizations||[]).map(function(org){
-          var short={"Telia, Kaunas":"Telia","Telia, investiciniai":"Telia inv.","Kauno energija":"KE","LitGrid":"LitGrid","Kauno miesto savivaldybe":"Savivaldybė","AB ESO":"ESO"}[org]||org;
-          var isSent=(org==="Telia, Kaunas"&&!o.pendingEmail)||(org==="Kauno energija"&&!o.pendingKauoenergijaEmail)||(org==="Telia, investiciniai"&&!o.pendingTeliaInvEmail)||(org==="LitGrid"&&!o.pendingLitgridEmail);
-          var isCancelled=(org==="Telia, Kaunas"&&o.pendingEmail&&o.pendingEmail.cancelled)||(org==="Kauno energija"&&o.pendingKauoenergijaEmail&&o.pendingKauoenergijaEmail.cancelled)||(org==="Telia, investiciniai"&&o.pendingTeliaInvEmail&&o.pendingTeliaInvEmail.cancelled)||(org==="LitGrid"&&o.pendingLitgridEmail&&o.pendingLitgridEmail.cancelled);
-          var active=activeInst===org;
-          var bg=active?C.acD:isSent?"#D1FAE5":isCancelled?"#FEE2E2":"transparent";
-          var clr=active?C.ac:isSent?"#059669":isCancelled?"#DC2626":C.t2;
-          var bdr=active?C.ac:isSent?"#6EE7B7":isCancelled?"#FCA5A5":C.b1;
-          return <button key={org} onClick={function(){sActiveInst(org);}}
-            style={{padding:"4px 12px",borderRadius:20,fontSize:11,fontWeight:active?700:400,
-              border:"0.5px solid "+bdr,background:bg,color:clr,cursor:"pointer",transition:"all .12s"}}>
-            {isSent?"✓ ":isCancelled?"✗ ":""}{short}
-          </button>;
-        })}
+        {(o.organizations||[]).length===0&&<div style={{fontSize:10,color:C.yl,fontFamily:F,marginTop:6}}>Pasirinkite bent viena institucija.</div>}
       </div>}
       {/* Telia review/patvirtinimo blokas */}
       {/* Susiskleidusi Telia juostelė kai atmesta */}

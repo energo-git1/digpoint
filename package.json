@@ -1,6 +1,6 @@
 {
   "name": "kasimo-leidimai",
-  "version": "1.6.74",
+  "version": "1.6.75",
   "description": "\u017dem\u0117s kasimo leidim\u0173 u\u017esakym\u0173 valdymo sistema",
   "main": "server.js",
   "scripts": {
