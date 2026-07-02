@@ -6720,4 +6720,16 @@ function App(){
   var effectiveUser=previewRole&&user&&user.role==="admin"?Object.assign({},user,{role:previewRole}):user;
   return <div style={{display:"flex",height:"100vh",background:C.bg,overflow:"hidden"}}>
     {previewRole&&<div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,background:"#b45309",color:"#fff",textAlign:"center",fontSize:11,fontFamily:"monospace",padding:"3px 0",pointerEvents:"none"}}>👁 Peržiūra kaip: {previewRole==="orderer"?"Užsakovas":"Dokumentacijos spec."}</div>}
-    <Sidebar user={effectiveUser} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount} previewRo
+    <Sidebar user={effectiveUser} view={view} onNav={function(v){if(v!=="new")setPrefill(null);setProjFilter("all");setView(v);}} onLogout={handleLogout} onTheme={toggleTheme} theme={theme} newCount={newCount} pendingCount={pendingCount} closingCount={closingCount} previewRole={previewRole} onPreviewRole={sPreviewRole}/>
+    <main style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>{main}</main>
+    {detail&&<PermitDetail permit={detail} user={effectiveUser} users={users} surveyors={docsWorkers}
+      onUpdate={function(u){updatePermit(u);setDetail(u)}}
+      onSend={function(u){updatePermit(u);setDetail(null)}}
+      onDelete={function(id){deletePermit(id);setDetail(null)}}
+      onClose={function(){setDetail(null)}}/>}
+  </div>
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);</script>
+</body>
+</html>
