@@ -3040,7 +3040,9 @@ function PermitDetail(p){
               if(!sel){
                 sOrgBusy(org);
                 try{
-                  var base=Object.assign({},o,{organizations:next});
+                  var _tSD=o.teliaStartDate,_tED=o.teliaEndDate;
+                  if(!_tSD){var _tn=new Date(),_tn6=new Date(_tn);_tn6.setMonth(_tn6.getMonth()+6);_tSD=fmtDate(_tn);_tED=fmtDate(_tn6);patch.teliaStartDate=_tSD;patch.teliaEndDate=_tED;}
+                  var base=Object.assign({},o,{organizations:next,teliaStartDate:_tSD,teliaEndDate:_tED});
                   if(org==="Telia, Kaunas"&&!o.pendingEmail){
                     var r=await preparePendingTeliaEmail(base);patch.pendingEmail=r.pendingEmail;
                   }else if(org==="Telia, investiciniai"&&!o.pendingTeliaInvEmail){
