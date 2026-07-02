@@ -2707,10 +2707,7 @@ function PermitDetail(p){
   }
   var isA=p.user.role==="admin";
   var isD=p.user.role==="dokumentacija";
-  var _dtab=useState(null);var dtab=_dtab[0],sDtab=_dtab[1];
-  var hasSavOrg=(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1;
   var _isLaukiama=o.status==="Laukiama tvirtinimo"||o.status==="LaukiaPatvirtinimo";
-  var activeTab=dtab||(o.status==="Uždarytas"?(hasSavOrg?"uzd":"gauta"):(o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas")?"gauta":_isLaukiama?"tvirtinimas":"info");
   var cr=p.users.find(function(u){return u.id===o.createdBy});
   var asgnUser=at?p.users.find(function(u){return u.id===at}):null;
   var docsWorkers=p.users.filter(function(u){return u.role==="dokumentacija"});
@@ -2819,20 +2816,6 @@ function PermitDetail(p){
   return <Modal open={true} onClose={p.onClose} title={"Paraiskas #"+o.id.slice(-5).toUpperCase()} w={600}>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
 
-      {/* Tab navigacija */}
-      {(function(){
-        var tabs=[{k:"gauta",l:"Gauti leidimai"}];
-        if(_isLaukiama)tabs.unshift({k:"tvirtinimas",l:"Vykdymas"});
-        if(hasSavOrg)tabs.push({k:"uzd",l:"Uždarymas"});
-        tabs.unshift({k:"info",l:"Informacija"});
-        return <div style={{display:"flex",gap:0,borderBottom:"1px solid "+C.b1,marginBottom:2}}>
-          {tabs.map(function(t){var active=activeTab===t.k;return <button key={t.k} onClick={function(){sDtab(t.k);}}
-            style={{flex:1,padding:"7px 4px",fontSize:11,fontWeight:active?700:400,fontFamily:F,background:"transparent",border:"none",
-              borderBottom:active?"2px solid "+C.ac:"2px solid transparent",
-              color:active?C.ac:C.t2,cursor:"pointer",transition:"all .15s"}}>
-            {t.l}</button>;})}
-        </div>;
-      })()}
       <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
         <StatusBadge status={o.status}/>
         {(isA||isD)
@@ -2841,7 +2824,6 @@ function PermitDetail(p){
               style={{padding:"3px 8px",fontSize:11,fontFamily:FM,background:C.bg,color:C.ac,border:"1px solid "+(iCodeIn?C.ac:C.b1),borderRadius:6,letterSpacing:.5,width:120}}/>
           :o.internalCode&&<span style={{fontSize:11,fontWeight:700,fontFamily:FM,color:C.ac,background:C.acD,padding:"3px 9px",borderRadius:6,letterSpacing:.5}}>{o.internalCode}</span>}
       </div>
-      {activeTab==="info"&&<React.Fragment>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <div>
           <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:3,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Darbu vadovas</div>
@@ -3019,7 +3001,6 @@ function PermitDetail(p){
             </Btn>}
         </div>
       </div>}
-      </React.Fragment>}
 
       {/* PDF puslapių parinkimo modalas — bendras visiems, atidaromas per xxxPickerFile */}
       {teliaPickerFile&&<PdfPagePickerModal pdfFile={teliaPickerFile} pdfData={teliaPickerFile.data||null}
@@ -3039,7 +3020,7 @@ function PermitDetail(p){
         onConfirm={function(sel){sLGSelMap(function(prev){return Object.assign({},prev,{[lgPickerFile.name]:sel});});sLGPickerFile(null);}}
         onClose={function(){sLGPickerFile(null);}}/>}
 
-      {activeTab==="tvirtinimas"&&<React.Fragment>
+      {_isLaukiama&&<React.Fragment>
       {/* Failų įkėlimas Tvirtinimas tab'e — docs specialist gali pridėti PDF prieš siunčiant */}
       {(isA||isD)&&<div style={{borderBottom:"1px solid "+C.b1,paddingBottom:12,marginBottom:2}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
@@ -3849,7 +3830,6 @@ function PermitDetail(p){
 
       </React.Fragment>}
 
-      {activeTab==="gauta"&&<React.Fragment>
       {/* Leidimo PDF įkėlimas — rodomas kai Pateikta/Gautas dalinai/Gautas leidimas */}
       {(isA||isD||p.user.role==="orderer")&&(st==="Gautas leidimas"||o.status==="Pateikta"||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Uždarytas"||o.status==="Nebegalioja"||o.status==="Laukia patvirtinimo leidimo")&&(function(){
         var isOrd=p.user.role==="orderer";
@@ -4045,9 +4025,7 @@ function PermitDetail(p){
         </div>
       </div>}
 
-      </React.Fragment>}
 
-      {activeTab==="uzd"&&<React.Fragment>
       {/* Pranešimas savivaldybei apie darbų pabaigą */}
       {(isA||isD)&&(o.organizations||[]).indexOf("Kauno miesto savivaldybe")!==-1&&(o.status==="Gautas leidimas"||o.status==="Uždarytas"||o.status==="Nebegalioja")&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Pranešimas savivaldybei apie darbų pabaigą</div>
@@ -4313,7 +4291,6 @@ function PermitDetail(p){
           </div>}
       </div>}
 
-      </React.Fragment>}
 
       {/* Skaitymo rezimas — tik ne adminui */}
       {!isA&&(p.user.role==="orderer"||(isD&&o.assignedTo!==p.user.id)||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Nebegalioja"||o.status==="Atmestas")&&
