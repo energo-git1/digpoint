@@ -970,6 +970,13 @@ function Sel(p){
 function Modal(p){
   var _mdb=useRef(false);
   if(!p.open)return null;
+  if(p.inline)return <div style={{border:"1px solid "+C.b1,borderRadius:12,background:C.s1,marginBottom:10,overflow:"hidden"}}>
+    <div style={{padding:"10px 16px",borderBottom:"1px solid "+C.b1,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <h3 style={{margin:0,fontSize:14,fontWeight:700,color:C.tx,fontFamily:F}}>{p.title}</h3>
+      {p.onClose&&<button onClick={p.onClose} style={{background:"none",border:"none",color:C.t3,fontSize:16,cursor:"pointer"}}>✕</button>}
+    </div>
+    <div style={{padding:16,overflowY:"auto",maxHeight:"70vh"}}>{p.children}</div>
+  </div>;
   return <div
     onMouseDown={function(e){_mdb.current=(e.target===e.currentTarget);}}
     onMouseUp={function(e){if(_mdb.current&&e.target===e.currentTarget)p.onClose();_mdb.current=false;}}
@@ -2812,7 +2819,7 @@ function PermitDetail(p){
     p.onUpdate(u); // Tik išsaugo, neuždaro
   }
 
-  return <Modal open={true} onClose={p.onClose} title={"Paraiskas #"+o.id.slice(-5).toUpperCase()} w={600}>
+  return <Modal open={true} onClose={p.onClose} title={"#"+o.id.slice(-5).toUpperCase()+(o.location?" · "+o.location.slice(0,40):"")} w={600} inline={!!p.inline}>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
 
       <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -3061,7 +3068,7 @@ function PermitDetail(p){
       {(isA||isD)&&<div style={{paddingBottom:8,marginBottom:2}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Institucijos</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {(MUN_ORGS[o.municipality]||PERMIT_ORGS).map(function(org){
+          {(MUN_ORGS[o.municipality]||PERMIT_ORGS).filter(function(org){return org!=="Kauno miesto savivaldybe";}).map(function(org){
             var sel=(o.organizations||[]).indexOf(org)!==-1;
             var busy=orgBusy===org;
             var short={"Telia, Kaunas":"Telia","Telia, investiciniai":"Telia inv.","Kauno energija":"KE","LitGrid":"LitGrid","Kauno miesto savivaldybe":"Savivaldybe","AB ESO":"ESO"}[org]||org;
@@ -6106,6 +6113,8 @@ function App(){
   var _permits=useState([]);var permits=_permits[0],setPermits=_permits[1];
   var _users=useState([]);var users=_users[0],setUsers=_users[1];
   var _detail=useState(null);var detail=_detail[0],setDetail=_detail[1];
+  var _inboxExp=useState(false);var inboxExp=_inboxExp[0],sInboxExp=_inboxExp[1];
+  var _inboxPms=useState({});var inboxPms=_inboxPms[0],sInboxPms=_inboxPms[1];
   var _theme=useState(_t0);var theme=_theme[0],setTheme=_theme[1];
   var _filter=useState("");var filter=_filter[0],setFilter=_filter[1];
   var _projFilter=useState("all");var projFilter=_projFilter[0],setProjFilter=_projFilter[1];
@@ -6583,6 +6592,20 @@ function App(){
         </div>;
       })()}
 
+      {view==="inbox"&&visible.length>0&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+        <button onClick={function(){sInboxExp(function(x){return !x;});sInboxPms({});}} style={{padding:"5px 14px",borderRadius:8,fontSize:11,fontWeight:600,fontFamily:F,border:"1px solid "+C.ac,background:inboxExp?C.acD:"transparent",color:C.ac,cursor:"pointer"}}>
+          {inboxExp?"🔙 Grįžti į sąrašą":"📋 Rodyti vienu metu"}
+        </button>
+      </div>}
+      {view==="inbox"&&inboxExp
+        ?<div>{visible.map(function(pm){var _pm=inboxPms[pm.id]||pm;
+          return <PermitDetail key={pm.id} permit={_pm} user={effectiveUser} users={users} surveyors={docsWorkers} inline={true}
+            onUpdate={function(u){updatePermit(u);sInboxPms(function(prev){return Object.assign({},prev,{[u.id]:u});});}}
+            onSend={function(u){updatePermit(u);sInboxPms(function(prev){var n=Object.assign({},prev);delete n[u.id];return n;});}}
+            onDelete={function(id){deletePermit(id);sInboxPms(function(prev){var n=Object.assign({},prev);delete n[id];return n;});}}
+            onClose={null}/>;})}
+        </div>
+        :<div>
       {visible.length===0?<Empty icon="&#128077;" title="Paraiškų nėra."/>:(function(){
         // Grupuojame pagal manualGroupId, tada pagal investNo
         var grouped=[];
@@ -6636,6 +6659,8 @@ function App(){
             dragId={dragId}/>;
         });
       })()}
+    </div>
+        </div>}
     </div>;
   }
 
