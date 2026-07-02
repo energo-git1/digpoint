@@ -6543,22 +6543,22 @@ function App(){
   }
 
   var visible=[];
-  if(view==="mine") visible=permits.filter(function(p){return p.createdBy===user.id});
-  else if(view==="inbox") visible=permits.filter(function(p){return inboxStatuses.indexOf(p.status)!==-1});
-  else if(view==="submitted") visible=permits.filter(function(p){return submittedStatuses.indexOf(p.status)!==-1});
+  // Užsakovas visada dirba tik su savo paraiškų poaibiu
+  var basePermits=(user.role==="orderer"&&user.id)?permits.filter(function(p){return p.createdBy===user.id}):permits;
+  if(view==="mine") visible=basePermits.slice();
+  else if(view==="inbox") visible=basePermits.filter(function(p){return inboxStatuses.indexOf(p.status)!==-1});
+  else if(view==="submitted") visible=basePermits.filter(function(p){return submittedStatuses.indexOf(p.status)!==-1});
   else if(view==="permits"){
     // Leidimai: admin/dok mato visas, užsakovas — tik savo. Seniūnija org. nerodoma.
     function notSeniunija(p){return !(p.organizations||[]).includes('Seniūnija');}
-    if(user.role==="orderer") visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id&&notSeniunija(p)});
-    else visible=permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&notSeniunija(p)});
+    visible=basePermits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&notSeniunija(p)});
   }
   else if(view==="closed"){
     // Uždaryti: pateikta uždarymo info, uždarytas statusas, arba gautas leidimas
     function isGautas(p){return p.status==="Gautas leidimas"||p.status==="Gautas";}
-    if(user.role==="orderer") visible=permits.filter(function(p){return (p.closingSubmitted||p.status==="Uždarytas"||isGautas(p))&&p.createdBy===user.id});
-    else visible=permits.filter(function(p){return p.closingSubmitted||p.status==="Uždarytas"||isGautas(p);});
+    visible=basePermits.filter(function(p){return p.closingSubmitted||p.status==="Uždarytas"||isGautas(p);});
   }
-  else if(view==="all") visible=permits.slice();
+  else if(view==="all") visible=basePermits.slice();
   if(filter)visible=visible.filter(function(p){return p.status===filter});
   visible=visible.slice().sort(function(a,b){return (b.createdAt||"")>(a.createdAt||"")?1:-1});
 
@@ -6580,9 +6580,7 @@ function App(){
       onMore={function(clientData){setPrefill(clientData);setView("new");}}/>;
   }else if(view==="schedule"){
     // Leidimų grafike tik paraiškos su leidimu
-    var schedPermits=user.role==="orderer"
-      ?permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&p.createdBy===user.id&&!(p.organizations||[]).includes('Seniūnija')})
-      :permits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&!(p.organizations||[]).includes('Seniūnija')});
+    var schedPermits=basePermits.filter(function(p){return permitStatuses.indexOf(p.status)!==-1&&!(p.organizations||[]).includes('Seniūnija')});
     var schedProjCounts={all:schedPermits.length,NV:0,EK:0,INV:0};
     schedPermits.forEach(function(pm){schedProjCounts[getProjectType(pm)]++;});
     if(projFilter!=="all")schedPermits=schedPermits.filter(function(pm){return getProjectType(pm)===projFilter;});
