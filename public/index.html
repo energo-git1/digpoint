@@ -6465,8 +6465,7 @@ function App(){
   }
 
   var visible=[];
-  // Užsakovas visada dirba tik su savo paraiškų poaibiu
-  var basePermits=(user.role==="orderer"&&user.id)?permits.filter(function(p){return p.createdBy===user.id}):permits;
+  var basePermits=permits;
   if(view==="mine") visible=basePermits.slice();
   else if(view==="inbox") visible=basePermits.filter(function(p){return inboxStatuses.indexOf(p.status)!==-1});
   else if(view==="submitted") visible=basePermits.filter(function(p){return submittedStatuses.indexOf(p.status)!==-1});
