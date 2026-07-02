@@ -370,9 +370,7 @@ function findKauoenergijaApprovalPage(pageTexts){
   return null;
 }
 
-// ═══════════════════════════════════════════════════════════════
 // KAUNO VANDENYS derinimo puslapio aptikimas (5 lygių kaskada)
-// ═══════════════════════════════════════════════════════════════
 function hasKaunoVandenysiMarkers(text){
   var markers=[
     /Kauno\s+vandenys/i,
@@ -434,10 +432,8 @@ function findKaunoVandenysiApprovalPage(pageTexts){
   return null;
 }
 
-// ═══════════════════════════════════════════════════════════════
 // SAVIVALDYBĖS derinimo puslapio aptikimas (5 lygių kaskada)
 // Visada Paulius Vainoras, Kauno miesto savivaldybės administracija
-// ═══════════════════════════════════════════════════════════════
 function hasSavivaldybeMarkers(text){
   var markers=[
     /Paulius\s+Vainoras/i,
@@ -932,43 +928,7 @@ async function sendEmail(toEmail,subject,html,attachments){
 }
 
 // ── Demo duomenų generatorius ─────────────────────────────────
-function generateDemoPermits(currentUserId){
-  var d=function(y,m,day){return y+"-"+String(m).padStart(2,"0")+"-"+String(day).padStart(2,"0")};
-  var now=new Date();
-  var y=now.getFullYear();
-  // Adresai — kai kurie pasikartoja keliuose užsakymuose
-  var A1="Smolensko g. 10, Kaunas";        // 3 ESO užsakymai
-  var A2="Architektų g. 182, Kaunas";       // 2 ESO užsakymai
-  var A3="Savanorių pr. 347, Kaunas";       // 1 ESO + 1 Savivaldybė
-  var A4="Raudondvario pl. 99, Kaunas";     // 2 ESO užsakymai
-  var A5="Laisvės al. 82, Kaunas";          // 1 Savivaldybė
-  var A6="Jonavos g. 60, Kaunas";           // 1 Savivaldybė
-  var A7="Taikos pr. 145, Kaunas";          // 1 Savivaldybė
-  var permits=[
-    // ── A1: Smolensko g. — 3 ESO užsakymai skirtingais laikotarpiais ──
-    {id:uid(),organization:"AB ESO",manager:"Tomas Ruzveltas",managerPhone:"+37061234567",email:"t.ruzveltas@energolt.eu",location:A1,startDate:d(y,3,10),endDate:d(y,3,28),description:"",files:[],status:"Gautas leidimas",assignedTo:"doc1",permitValidFrom:d(y,3,12),permitValidUntil:d(y,6,12),createdBy:currentUserId,createdAt:d(y,3,5),history:[{status:"Laukiama tvirtinimo",date:d(y,3,5)},{status:"Gautas leidimas",date:d(y,3,12),note:"Leidimas gautas, galioja iki "+d(y,6,12)}]},
-    {id:uid(),organization:"AB ESO",manager:"Petras Petraitis",managerPhone:"+37062345678",email:"p.petraitis@energolt.eu",location:A1,startDate:d(y,4,14),endDate:d(y,5,2),description:"",files:[],status:"Gautas leidimas",assignedTo:"doc1",permitValidFrom:d(y,4,16),permitValidUntil:fmtDate(new Date(now.getTime()+9*24*60*60*1000)),createdBy:currentUserId,createdAt:d(y,4,8),history:[{status:"Laukiama tvirtinimo",date:d(y,4,8)},{status:"Gautas leidimas",date:d(y,4,16)}]},
-    {id:uid(),organization:"AB ESO",manager:"Jonas Kazlauskas",managerPhone:"+37063456789",email:"j.kazlauskas@energolt.eu",location:A1,startDate:d(y,5,19),endDate:d(y,6,13),description:"",files:[],status:"Laukiama tvirtinimo",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,5,12),history:[{status:"Laukiama tvirtinimo",date:d(y,5,12)},{status:"Laukiama tvirtinimo",date:d(y,5,13)},{status:"Laukiama tvirtinimo",date:d(y,5,16)}]},
-    // ── A2: Architektų g. — 2 ESO užsakymai ──
-    {id:uid(),organization:"AB ESO",manager:"Aistė Stankevičienė",managerPhone:"+37064567890",email:"a.stankeviciene@energolt.eu",location:A2,startDate:d(y,4,1),endDate:d(y,4,18),description:"",files:[],status:"Gautas leidimas",assignedTo:"doc1",permitValidFrom:d(y,4,3),permitValidUntil:d(y,7,3),createdBy:currentUserId,createdAt:d(y,3,25),history:[{status:"Gautas leidimas",date:d(y,4,3)}]},
-    {id:uid(),organization:"AB ESO",manager:"Mindaugas Grigas",managerPhone:"+37065678901",email:"m.grigas@energolt.eu",location:A2,startDate:d(y,5,5),endDate:d(y,5,23),description:"",files:[],status:"Pateikta",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,4,28),history:[{status:"Laukiama tvirtinimo",date:d(y,4,28)},{status:"Laukiama tvirtinimo",date:d(y,5,5)},{status:"Pateikta",date:d(y,5,22)}]},
-    // ── A3: Savanorių pr. — ESO + Savivaldybė ──
-    {id:uid(),organization:"AB ESO",manager:"Rasa Mockevičienė",managerPhone:"+37066789012",email:"r.mockeviciene@energolt.eu",location:A3,startDate:d(y,5,26),endDate:d(y,6,20),description:"",files:[],status:"Laukiama tvirtinimo",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,5,18),history:[{status:"Laukiama tvirtinimo",date:d(y,5,18)},{status:"Laukiama tvirtinimo",date:d(y,5,20)}]},
-    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Valdas Urbonas",managerPhone:"+37067890123",email:"v.urbonas@energolt.eu",location:A3,startDate:d(y,6,2),endDate:d(y,6,27),description:"Šaligatvio rekonstrukcija",files:[],status:"Laukiama tvirtinimo",assignedTo:null,createdBy:currentUserId,createdAt:d(y,5,22),history:[{status:"Laukiama tvirtinimo",date:d(y,5,22)}]},
-    // ── A4: Raudondvario pl. — 2 ESO (vienas atmestas) ──
-    {id:uid(),organization:"AB ESO",manager:"Laura Butėnaitė",managerPhone:"+37068901234",email:"l.butenaite@energolt.eu",location:A4,startDate:d(y,2,10),endDate:d(y,2,28),description:"",files:[],status:"Atmestas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,2,5),history:[{status:"Laukiama tvirtinimo",date:d(y,2,5)},{status:"Atmestas",date:d(y,2,12),note:"Trūksta projekto dokumentų"}]},
-    {id:uid(),organization:"AB ESO",manager:"Saulius Liaugminas",managerPhone:"+37069012345",email:"s.liaugminas@energolt.eu",location:A4,startDate:d(y,3,18),endDate:d(y,4,8),description:"",files:[],status:"Gautas leidimas",assignedTo:"doc1",permitValidFrom:d(y,3,20),permitValidUntil:d(y,3,15),createdBy:currentUserId,createdAt:d(y,3,12),history:[{status:"Gautas leidimas",date:d(y,3,20)}]},
-    // ── A5–A7: Savivaldybės objektai ──
-    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Eglė Paulauskienė",managerPhone:"+37060123456",email:"e.paulauskiene@energolt.eu",location:A5,startDate:d(y,4,7),endDate:d(y,4,25),description:"Vandentiekio tiesimas",files:[],status:"Gautas leidimas",assignedTo:"doc1",permitValidFrom:d(y,4,9),permitValidUntil:d(y,7,9),createdBy:currentUserId,createdAt:d(y,4,2),history:[{status:"Gautas leidimas",date:d(y,4,9)}]},
-    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Tomas Ruzveltas",managerPhone:"+37061234567",email:"t.ruzveltas@energolt.eu",location:A6,startDate:d(y,6,9),endDate:d(y,7,4),description:"Lietaus kanalizacija",files:[],status:"Laukiama tvirtinimo",assignedTo:null,createdBy:currentUserId,createdAt:d(y,5,28),history:[{status:"Laukiama tvirtinimo",date:d(y,5,28)}]},
-    {id:uid(),organization:"Kauno miesto savivaldybe",manager:"Petras Petraitis",managerPhone:"+37062345678",email:"p.petraitis@energolt.eu",location:A7,startDate:d(y,3,3),endDate:d(y,3,21),description:"Dujotiekio keitimas",files:[],status:"Atmestas",assignedTo:"doc1",createdBy:currentUserId,createdAt:d(y,2,25),history:[{status:"Laukiama tvirtinimo",date:d(y,2,25)},{status:"Atmestas",date:d(y,3,4),note:"Netinkamas projektas"}]},
-  ];
-  return permits;
-}
-
-// ═════════════════════════════════════════════════════════════
 // UI KOMPONENTAI
-// ═════════════════════════════════════════════════════════════
 function Badge(p){
   return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:14,background:p.bg||C.acD,color:p.color||C.ac,fontSize:10,fontWeight:700,fontFamily:F,border:"1px solid "+(p.color||C.ac)+"22",whiteSpace:"nowrap"}}>{p.children}</span>
 }
@@ -1054,9 +1014,7 @@ function HistoryTimeline(p){
   </div>
 }
 
-// ═════════════════════════════════════════════════════════════
 // PERMIT FORM
-// ═════════════════════════════════════════════════════════════
 
 
 var PERMIT_ORGS=["AB ESO","Kauno miesto savivaldybe","Telia, Kaunas","Telia, investiciniai","Kauno energija","LitGrid"];
@@ -1415,10 +1373,8 @@ function PermitForm(p){
     </div>
   </div>
 }
-// ═════════════════════════════════════════════════════════════
 // ESO AUTOMATIZAVIMO MYGTUKAS
 // Saugo užduotį į localStorage ir rodo instrukciją Cowork naudotojui
-// ═════════════════════════════════════════════════════════════
 var ESO_EMAIL = "uzklausos@energolt.eu";
 var ESO_COMPANY = "EnergoLT";
 var ESO_URL = "https://www.eso.lt/aktualios-formos/kasimo-darbai/30";
@@ -1581,10 +1537,8 @@ function EsoSubmitBtn(p){
   </div>
 }
 
-// ═════════════════════════════════════════════════════════════
 // SAVIVALDYBĖ AUTOMATINIO PATEIKIMO MYGTUKAS
 // Kopijuoja paskutinį kasimai.kaunas.lt prašymą ir pakeičia kintamus laukus
-// ═════════════════════════════════════════════════════════════
 function SavivaldybeSubmitBtn(p){
   var o=p.permit;
   var currentUser=p.user||{};
@@ -1665,9 +1619,7 @@ function SavivaldybeSubmitBtn(p){
   </div>
 }
 
-// ═════════════════════════════════════════════════════════════
 // TELIA REVIEW WORKFLOW HELPERS (modulio lygis — naudojami ir App, ir PermitDetail)
-// ═════════════════════════════════════════════════════════════
 
 // Švarus išorinių laiškų wrapper'is — naudojamas Telia, Kauno energija ir kt. išoriniams gavėjams.
 // Be Digpoint sistemos branding'o, tik EnergoLT įmonės kontaktai pėdoje.
@@ -2392,14 +2344,12 @@ async function approveAndSendTeliaInv(permit){
   return attachments.length;
 }
 
-// ═════════════════════════════════════════════════════════════
 // PDF PUSLAPIŲ PARINKIMO MODALAS
 // Rodo puslapių miniatiūras, leidžia pažymėti kelis puslapius.
 // p.pdfData     — base64 PDF duomenys
 // p.selected    — jau pažymėtų puslapių masyvas [1,2,3,...]
 // p.onConfirm   — callback su pasirinktų puslapių masyvu
 // p.onClose     — uždarymo callback
-// ═════════════════════════════════════════════════════════════
 function PdfPagePickerModal(p){
   var _pages=useState([]);var pages=_pages[0],sPages=_pages[1];
   var _sel=useState(p.selected||[]);var sel=_sel[0],sSel=_sel[1];
@@ -2490,9 +2440,7 @@ function PdfPagePickerModal(p){
   </div>;
 }
 
-// ═════════════════════════════════════════════════════════════
 // PERMIT DETAIL
-// ═════════════════════════════════════════════════════════════
 function PermitDetail(p){
   var o=p.permit;
   var _st=useState(o.status);var st=_st[0],sSt=_st[1];
@@ -4295,9 +4243,7 @@ function PermitDetail(p){
   </Modal>
 }
 
-// ═════════════════════════════════════════════════════════════
 // PERMIT ROW
-// ═════════════════════════════════════════════════════════════
 
 function workDaysUntil(dateStr){
   if(!dateStr)return null;
@@ -4457,9 +4403,7 @@ function PermitRow(p){
     </div>}
   </div>
 }
-// ═════════════════════════════════════════════════════════════
 // PERMIT GROUP — Grupuota eilutė pagal investicinį numerį
-// ═════════════════════════════════════════════════════════════
 var ORG_SHORT={"AB ESO":"ESO","Telia, Kaunas":"Telia","Telia, investiciniai":"Telia Inv.","Kauno energija":"KE","Kauno vandenys":"KV","Kauno miesto savivaldybe":"SAV","LitGrid":"LG"};
 function PermitGroup(p){
   var _open=useState(false);var open=_open[0],sOpen=_open[1];
@@ -4526,9 +4470,7 @@ function PermitGroup(p){
   </div>;
 }
 
-// ═════════════════════════════════════════════════════════════
 // SCHEDULE VIEW — Leidimų grafikas (Gantt tipo)
-// ═════════════════════════════════════════════════════════════
 function ScheduleView(p){
   var now=new Date();
   var _vm=useState(now.getMonth());var viewMonth=_vm[0],sViewMonth=_vm[1];
@@ -4799,9 +4741,7 @@ function ScheduleView(p){
     </div>}
   </div>
 }
-// ═════════════════════════════════════════════════════════════
 // USER MANAGEMENT
-// ═════════════════════════════════════════════════════════════
 function UserMgmt(p){
   var _ar=useState(null);var assignId=_ar[0],sAR=_ar[1];
   var _arole=useState("");var aRole=_arole[0],sARole=_arole[1];
@@ -4931,9 +4871,7 @@ function UserMgmt(p){
   </div>
 }
 
-// ═════════════════════════════════════════════════════════════
 // PROFILE PAGE — kontaktai + slaptažodžio keitimas
-// ═════════════════════════════════════════════════════════════
 function ProfilePage(p){
   var _name=useState(p.user.name||"");var name=_name[0],sName=_name[1];
   var _phone=useState(p.user.phone||"");var phone=_phone[0],sPhone=_phone[1];
@@ -4992,9 +4930,7 @@ function ProfilePage(p){
   </div>
 }
 
-// ═════════════════════════════════════════════════════════════
 // PASSWORD CHANGE — tik priverstinam keitimui (mustChangePassword)
-// ═════════════════════════════════════════════════════════════
 function PasswordChangePage(p){
   var _o=useState("");var old=_o[0],sO=_o[1];
   var _n=useState("");var nw=_n[0],sN=_n[1];
@@ -5025,64 +4961,7 @@ function PasswordChangePage(p){
   </div>
 }
 
-// ═════════════════════════════════════════════════════════════
-// DEMO VIEW
-// ═════════════════════════════════════════════════════════════
-function DemoView(p){
-  var demoPermits=generateDemoPermits(p.user.id);
-  var byOrg={};
-  demoPermits.forEach(function(permit){
-    if(!byOrg[permit.organization])byOrg[permit.organization]=[];
-    byOrg[permit.organization].push(permit);
-  });
-  var byStatus={};
-  demoPermits.forEach(function(permit){
-    byStatus[permit.status]=(byStatus[permit.status]||0)+1;
-  });
-  return <div style={{maxWidth:600}}>
-    <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F,marginBottom:4}}>Demo duomenys</h2>
-    <p style={{fontSize:11,color:C.t2,fontFamily:F,marginBottom:20}}>Sugeneruojama {demoPermits.length} testinių paraiškų leidimų grafiko demonstracijai.</p>
-    <div style={{background:C.s2,borderRadius:12,border:"1px solid "+C.b1,padding:16,marginBottom:14}}>
-      <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:12,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Bus sugeneruota</div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
-        {Object.keys(byStatus).map(function(s){
-          var sm=STATUS_MAP[s]||STATUS_MAP["Laukiama tvirtinimo"]||{bg:C.acD,c:C.ac,dot:C.ac};
-          return <div key={s} style={{padding:"6px 10px",borderRadius:7,background:sm.bg,border:"1px solid "+sm.dot+"33"}}>
-            <span style={{fontSize:13,fontWeight:800,color:sm.c}}>{byStatus[s]}</span>
-            <span style={{fontSize:9,color:sm.c,marginLeft:4,fontFamily:F}}>{SL[s]||s}</span>
-          </div>;
-        })}
-      </div>
-      {Object.keys(byOrg).map(function(org){return <div key={org} style={{marginBottom:8}}>
-        <div style={{fontSize:10,fontWeight:700,color:C.t3,fontFamily:F,marginBottom:4}}>{org} ({byOrg[org].length})</div>
-        {byOrg[org].map(function(permit){
-          var sm=STATUS_MAP[permit.status]||STATUS_MAP["Laukiama tvirtinimo"]||{bg:C.acD,c:C.ac,dot:C.ac};
-          return <div key={permit.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",background:C.bg,borderRadius:6,marginBottom:2}}>
-            <span style={{width:6,height:6,borderRadius:"50%",background:sm.dot,flexShrink:0}}/>
-            <span style={{fontSize:11,color:C.tx,fontFamily:F,flex:1}}>{permit.manager}</span>
-            <span style={{fontSize:9,color:C.t3,fontFamily:FM}}>{permit.startDate} — {permit.endDate}</span>
-            {permit.permitValidUntil&&<span style={{fontSize:9,fontWeight:700,color:C.gn,fontFamily:FM}}>iki {permit.permitValidUntil}</span>}
-          </div>;
-        })}
-      </div>})}
-    </div>
-    {p.permits.length>0&&<div style={{background:C.ylD,border:"1px solid "+C.yl+"33",borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:11,color:C.yl,fontFamily:F}}>
-      ⚠️ Sistemoje jau yra <strong>{p.permits.length}</strong> paraiskas. Demo duomenys bus prideti prie esamų.
-    </div>}
-    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-      <Btn onClick={function(){p.onLoad(demoPermits)}} style={{background:C.ac,color:"#fff",border:"none"}}>
-        Sugeneruoti {demoPermits.length} paraiškas ir eiti i grafika
-      </Btn>
-      {p.permits.length>0&&<Btn v="danger" onClick={p.onClear}>
-        Isvalyti visas paraiškas
-      </Btn>}
-    </div>
-  </div>
-}
-
-// ═════════════════════════════════════════════════════════════
 // AUTH SCREEN  (analogiškas Geopoint: AD + Vietinis skirtukai)
-// ═════════════════════════════════════════════════════════════
 function AuthScreen(p){
   var _tab=useState("ad");var tab=_tab[0],sTab=_tab[1];
   var _lu=useState("");var lu=_lu[0],sLU=_lu[1];
@@ -5152,9 +5031,7 @@ function AuthScreen(p){
   </div>
 }
 
-// ═════════════════════════════════════════════════════════════
 // DOCUMENT LIBRARY — Šablonų biblioteka
-// ═════════════════════════════════════════════════════════════
 function DocLibrary(){
   var _groups=useState(null);var groups=_groups[0],sGroups=_groups[1];
   var _busy=useState(false);var busy=_busy[0],sBusy=_busy[1];
@@ -5414,9 +5291,7 @@ function DocLibrary(){
   </div>;
 }
 
-// ═════════════════════════════════════════════════════════════
 // SIGNATURE LIBRARY — Parašų biblioteka
-// ═════════════════════════════════════════════════════════════
 function SigLibrary(){
   var _sigs=useState(null);var sigs=_sigs[0],sSigs=_sigs[1];
   var _activeId=useState(null);var activeId=_activeId[0],sActiveId=_activeId[1];
@@ -5525,9 +5400,7 @@ function SigLibrary(){
   </div>;
 }
 
-// ═════════════════════════════════════════════════════════════
 // SYSTEM TOOLS
-// ═════════════════════════════════════════════════════════════
 function SystemTools(){
   var _mailBusy=useState(false);var mailBusy=_mailBusy[0],sMailBusy=_mailBusy[1];
   var _mailRes=useState(null);var mailRes=_mailRes[0],sMailRes=_mailRes[1];
@@ -5760,9 +5633,7 @@ function SystemTools(){
   </div>
 }
 
-// ═════════════════════════════════════════════════════════════
 // SIDEBAR
-// ═════════════════════════════════════════════════════════════
 function Sidebar(p){
   var role=p.user.role;
   var sverVal=window.APP_VERSION?"v"+window.APP_VERSION:"";
@@ -5806,11 +5677,8 @@ function Sidebar(p){
   </div>
 }
 
-// ═════════════════════════════════════════════════════════════
 // MAIN APP
-// ═════════════════════════════════════════════════════════════
 // SAV PRIEDAI BLOCK — priedų paketo sudarymas savivaldybei
-// ═════════════════════════════════════════════════════════════
 function SavPriedaiBlock(p){
   var _srcId=useState(null);var srcId=_srcId[0],sSrcId=_srcId[1];
   var _docList=useState(null);var docList=_docList[0],sDocList=_docList[1];
@@ -6154,7 +6022,6 @@ function SavPriedaiBlock(p){
   </div>;
 }
 
-// ═════════════════════════════════════════════════════════════
 function checkExpired(arr){
   var today=fmtDate(new Date());
   var changed=false;
