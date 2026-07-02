@@ -3811,14 +3811,18 @@ function PermitDetail(p){
 
       {activeTab==="gauta"&&<React.Fragment>
       {/* Leidimo PDF įkėlimas — rodomas kai Pateikta/Gautas dalinai/Gautas leidimas */}
-      {(isA||isD)&&(st==="Gautas leidimas"||o.status==="Pateikta"||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Uždarytas"||o.status==="Nebegalioja"||o.status==="Laukia patvirtinimo leidimo")&&(function(){
+      {(isA||isD||p.user.role==="orderer")&&(st==="Gautas leidimas"||o.status==="Pateikta"||o.status==="Gautas leidimas"||o.status==="Gautas dalinai"||o.status==="Gautas"||o.status==="Uždarytas"||o.status==="Nebegalioja"||o.status==="Laukia patvirtinimo leidimo")&&(function(){
+        var isOrd=p.user.role==="orderer";
         var ORG_PDF_MAP={"Kauno miesto savivaldybe":{key:"sav",color:"#1D4ED8"},"Telia, Kaunas":{key:"telia",color:"#1D4ED8"},"Telia, investiciniai":{key:"telia_inv",color:"#1D4ED8"},"Kauno energija":{key:"ke",color:"#C2410C"},"Kauno vandenys":{key:"vandenys",color:"#0369A1"},"AB ESO":{key:"eso",color:"#FF6B2B"},"LitGrid":{key:"litgrid",color:"#047857"}};
         var orgsList=o.organizations&&o.organizations.length>0?o.organizations:(o.organization?[o.organization]:[]);
         var _cancelledEmailMap={"Telia, Kaunas":o.pendingEmail,"Telia, investiciniai":o.pendingTeliaInvEmail,"Kauno energija":o.pendingKauoenergijaEmail,"LitGrid":o.pendingLitgridEmail};
         var orgsWithPermit=orgsList.filter(function(org){
           if(!ORG_PDF_MAP[org])return false;
+          var k=ORG_PDF_MAP[org].key;
+          // Užsakovas mato tik institucijas, kurioms jau yra gautas PDF
+          if(isOrd)return !!(permitPdfs[k]&&permitPdfs[k].name);
           var emailObj=_cancelledEmailMap[org];
-          if(emailObj&&emailObj.cancelled){var k=ORG_PDF_MAP[org].key;return !!(permitPdfs[k]&&permitPdfs[k].name);}
+          if(emailObj&&emailObj.cancelled){return !!(permitPdfs[k]&&permitPdfs[k].name);}
           return true;
         });
         if(orgsWithPermit.length===0)return null;
@@ -3906,9 +3910,9 @@ function PermitDetail(p){
                     <span style={{fontSize:11,color:C.gn,fontFamily:FM,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>✓ {pf.name}</span>
                     <Btn v="secondary" sm onClick={function(){openPermitPdf(key);}}>Atidaryti</Btn>
                     <Btn v="secondary" sm onClick={function(){downloadPermitPdf(key);}}>⬇</Btn>
-                    <Btn v="danger" sm onClick={function(){var u=Object.assign({},permitPdfs);delete u[key];sPermitPdfs(u);p.onUpdate(Object.assign({},o,{permitPdfs:u}));}}>✕</Btn>
+                    {!isOrd&&<Btn v="danger" sm onClick={function(){var u=Object.assign({},permitPdfs);delete u[key];sPermitPdfs(u);p.onUpdate(Object.assign({},o,{permitPdfs:u}));}}>✕</Btn>}
                   </div>
-                  :<label style={{flex:1,cursor:"pointer"}}
+                  :(!isOrd&&<label style={{flex:1,cursor:"pointer"}}
                       onDragOver={function(e){e.preventDefault();e.currentTarget.querySelector('div').style.borderColor=C.ac;e.currentTarget.querySelector('div').style.background=C.acD;}}
                       onDragLeave={function(e){e.currentTarget.querySelector('div').style.borderColor=C.b1;e.currentTarget.querySelector('div').style.background="";}}
                       onDrop={function(e){e.preventDefault();e.currentTarget.querySelector('div').style.borderColor=C.b1;e.currentTarget.querySelector('div').style.background="";var f=e.dataTransfer.files[0];if(f)handlePdfUpload(key,f);}}>
@@ -3916,7 +3920,7 @@ function PermitDetail(p){
                       ⬆ Įkelti arba užvilkite {label} leidimo PDF
                     </div>
                     <input type="file" accept=".pdf" style={{display:"none"}} onChange={function(e){if(e.target.files[0])handlePdfUpload(key,e.target.files[0]);e.target.value="";}}/>
-                  </label>}
+                  </label>)}
               </div>;
             })}
           </div>
