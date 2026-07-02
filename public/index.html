@@ -2888,7 +2888,6 @@ function PermitDetail(p){
       {/* Admin veiksmai — slepiame uždarytoms paraiškoms */}
       {isA&&o.status!=="Uždarytas"&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:12}}>
         <div style={{fontSize:10,fontWeight:700,color:C.t3,marginBottom:8,fontFamily:F,textTransform:"uppercase",letterSpacing:1}}>Administravimas</div>
-        {(o.organization==="AB ESO"||(o.organizations||[]).indexOf("AB ESO")!==-1)&&o.status!=="Pateikta"&&o.status!=="Gautas leidimas"&&o.status!=="Gautas"&&o.status!=="Atmestas"&&o.status!=="Uždarytas"&&o.status!=="Nebegalioja"&&<EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}} onSend={p.onSend}/>}
         <div style={{marginBottom:12}}>
           <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:6,fontFamily:F}}>Priskirti dokumentacijos darbuotojui:</div>
           {docsWorkers.length===0
@@ -3785,6 +3784,11 @@ function PermitDetail(p){
             sGenSavBusy(false);
           }}>{genSavBusy?"Generuojama...":"📄 Generuoti prašymą"}</Btn>
         </div>
+      </div>}
+
+      {/* AB ESO pateikimo blokas */}
+      {(isA||isD)&&activeInst==="AB ESO"&&(o.organizations||[]).indexOf("AB ESO")!==-1&&<div style={{borderTop:"1px solid "+C.b1,paddingTop:14,marginTop:4}}>
+        <EsoSubmitBtn permit={o} onStatusChange={function(newSt){sSt(newSt)}} onSend={p.onSend}/>
       </div>}
 
       </React.Fragment>}
