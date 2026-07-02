@@ -1166,6 +1166,11 @@ function PermitForm(p){
   var _workType=useState("");var workType=_workType[0],sWorkType=_workType[1]; // "planiniai"|"avariniai"
   var _savDarbaiTipas=useState("38");var savDarbaiTipas=_savDarbaiTipas[0],sSavDarbaiTipas=_savDarbaiTipas[1];
   var _srcPermitId=useState("");var srcPermitId=_srcPermitId[0],sSrcPermitId=_srcPermitId[1];
+  var _savType=useState("");var savType=_savType[0],sSavType=_savType[1]; // ""|"institucijos"|"savivaldybe"
+  var _savSurfaces=useState([]);var savSurfaces=_savSurfaces[0],sSavSurfaces=_savSurfaces[1];
+  var _savM2=useState({});var savM2=_savM2[0],sSavM2=_savM2[1];
+  var _savFormStart=useState("");var savFormStart=_savFormStart[0],sSavFormStart=_savFormStart[1];
+  var _savFormEnd=useState("");var savFormEnd=_savFormEnd[0],sSavFormEnd=_savFormEnd[1];
   // Esamos paraiškos su gautais leidimais (šaltinis Savivaldybės PDF kompiliatoriui)
   var permitSources=(p.permits||[]).filter(function(x){
     var hasPdfs=x.permitPdfs&&Object.keys(x.permitPdfs).some(function(k){return x.permitPdfs[k]&&x.permitPdfs[k].name;});
@@ -1286,6 +1291,11 @@ function PermitForm(p){
       sourcePermitId:hasSav&&srcPermitId?srcPermitId:null,
       // Išsaugome savivaldybės dokumentų šaltinį kad SavPriedaiBlock žinotų kurį naudoti
       savivaldybePreparation:hasSav&&srcPermitId?{srcId:srcPermitId,savedAt:fmtDate(new Date())}:null,
+      savivaldybeType:municipality==="kaunas"&&savType?savType:null,
+      savStartDate:municipality==="kaunas"&&savType==="savivaldybe"&&savFormStart?savFormStart:null,
+      savEndDate:municipality==="kaunas"&&savType==="savivaldybe"&&savFormEnd?savFormEnd:null,
+      savSurfaces:municipality==="kaunas"&&savType==="savivaldybe"&&savSurfaces.length>0?savSurfaces:null,
+      savSurfaceM2:municipality==="kaunas"&&savType==="savivaldybe"&&Object.keys(savM2).length>0?savM2:null,
       createdBy:p.user.id,status:"Laukiama tvirtinimo",assignedTo:null,
       createdAt:fmtDate(new Date()),history:[{status:"Laukiama tvirtinimo",date:fmtDate(new Date())}]};
   }
@@ -1352,6 +1362,43 @@ function PermitForm(p){
           })}
         </div>}
       </div>
+      {municipality==="kaunas"&&<div style={{marginTop:12}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:8,fontFamily:F}}>Leidimo tipas</div>
+        <div style={{display:"flex",gap:8,marginBottom:savType==="savivaldybe"?12:0}}>
+          {[{v:"institucijos",l:"🏛️ Iš institucijų",d:"ESO, Telia, KE ir Savivaldybė"},{v:"savivaldybe",l:"📋 Iš savivaldybės",d:"Savivaldybė tiesiogiai išduoda leidimą"}].map(function(opt){
+            var sel=savType===opt.v;
+            return <button key={opt.v} type="button" onClick={function(){sSavType(opt.v);}}
+              style={{flex:1,padding:"8px 10px",borderRadius:8,border:"1px solid "+(sel?C.ac:C.b1),background:sel?C.acD:"transparent",color:sel?C.ac:C.t2,cursor:"pointer",fontFamily:F,fontSize:12,fontWeight:sel?700:400,textAlign:"left",transition:"all .12s"}}>
+              <div>{opt.l}</div>
+              <div style={{fontSize:10,color:sel?C.ac:C.t3,marginTop:2,fontWeight:400}}>{opt.d}</div>
+            </button>;
+          })}
+        </div>
+        {savType==="savivaldybe"&&<div>
+          <div style={{fontSize:11,fontWeight:700,color:C.t2,marginBottom:8,fontFamily:F}}>Ardomos dangos ir plotas</div>
+          {SURFACE_OPTIONS.map(function(opt){
+            var sel=savSurfaces.indexOf(opt.value)!==-1;
+            return <div key={opt.value} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+              <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",minWidth:140}}>
+                <input type="checkbox" checked={sel} onChange={function(){
+                  sSavSurfaces(function(prev){return sel?prev.filter(function(x){return x!==opt.value;}):prev.concat([opt.value]);});
+                  if(sel)sSavM2(function(m){var n=Object.assign({},m);delete n[opt.value];return n;});
+                }} style={{accentColor:C.ac}}/>
+                <span style={{fontSize:12,color:C.tx,fontFamily:F}}>{opt.value}</span>
+              </label>
+              {sel&&<div style={{display:"flex",alignItems:"center",gap:4}}>
+                <input type="number" min="0" value={savM2[opt.value]||""} onChange={function(e){var v=e.target.value;sSavM2(function(m){return Object.assign({},m,{[opt.value]:v});});}}
+                  placeholder="plotas" style={{width:72,padding:"4px 7px",borderRadius:6,border:"1px solid "+C.b1,background:C.bg,color:C.tx,fontSize:12,fontFamily:FM}}/>
+                <span style={{fontSize:11,color:C.t3,fontFamily:F}}>m²</span>
+              </div>}
+            </div>;
+          })}
+          <div style={{display:"flex",gap:10,marginTop:10}}>
+            <div style={{flex:1}}><Inp label="Kasimo pradžia" type="date" value={savFormStart} onChange={sSavFormStart}/></div>
+            <div style={{flex:1}}><Inp label="Kasimo pabaiga" type="date" value={savFormEnd} onChange={sSavFormEnd}/></div>
+          </div>
+        </div>}
+      </div>}
 
     </div>
 
@@ -1560,6 +1607,9 @@ function SavivaldybeSubmitBtn(p){
       endDate:savEnd,
       workType:o.workType||"planiniai",
       savDarbaiTipas:o.savDarbaiTipas||"38",
+      savivaldybeType:o.savivaldybeType||"institucijos",
+      savSurfaces:o.savSurfaces||[],
+      savSurfaceM2:o.savSurfaceM2||{},
       description:o.description||"",
       url:SAV_URL,
       notifyEmail:currentUser.email||"eimutis.simkus@energolt.eu",
