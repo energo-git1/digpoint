@@ -2441,6 +2441,7 @@ function PdfPagePickerModal(p){
 }
 
 // PERMIT DETAIL
+var SAV_PRASYMAS_LIST=["Anykščiai","Biržai","Jonava","Joniškis","Kupiškis","Molėtai","Pakruojis","Panevėžys","Pasvalys","Radviliškis","Raseiniai","Rokiškis","Šakiai","Šiauliai","Vilkaviškis","Zarasai","Pagėgiai","Jurbarkas"];
 function PermitDetail(p){
   var o=p.permit;
   var _st=useState(o.status);var st=_st[0],sSt=_st[1];
@@ -2470,7 +2471,6 @@ function PermitDetail(p){
   var _savCompBusy=useState(false);var savCompBusy=_savCompBusy[0],sSavCompBusy=_savCompBusy[1];
   var _savCompMsg=useState("");var savCompMsg=_savCompMsg[0],sSavCompMsg=_savCompMsg[1];
   var _savCompSent=useState(o.savCompletionSent||false);var savCompSent=_savCompSent[0],sSavCompSent=_savCompSent[1];
-  var SAV_PRASYMAS_LIST=["Anykščiai","Biržai","Jonava","Joniškis","Kupiškis","Molėtai","Pakruojis","Panevėžys","Pasvalys","Radviliškis","Raseiniai","Rokiškis","Šakiai","Šiauliai","Vilkaviškis","Zarasai","Pagėgiai","Jurbarkas"];
   var _genSavSel=useState("");var genSavSel=_genSavSel[0],sGenSavSel=_genSavSel[1];
   var _genSavBusy=useState(false);var genSavBusy=_genSavBusy[0],sGenSavBusy=_genSavBusy[1];
   // Seniūnijos laiškas
@@ -2576,8 +2576,6 @@ function PermitDetail(p){
   var _sendAllBusy=useState(false);var sendAllBusy=_sendAllBusy[0],sSendAllBusy=_sendAllBusy[1];
   var sendAllBusyRef=useRef(false);
   // Kauno energija — rankinio trasos redagavimo įvestys
-  var _keFromIn=useState(o.teliaRouteFrom||"");var keFromIn=_keFromIn[0],sKEFromIn=_keFromIn[1];
-  var _keToIn=useState(o.teliaRouteTo||"");var keToIn=_keToIn[0],sKEToIn=_keToIn[1];
   // Telia investiciniai — pasirinkti puslapiai per failą
   var _initTeliaInvSrcs=((o.pendingTeliaInvEmail||{}).attachmentSources||[]);
   var _teliaInvAllPdfs=(o.files||[]).filter(function(f){return f.name&&f.name.match(/\.pdf$/i);});
@@ -2587,8 +2585,6 @@ function PermitDetail(p){
   var _previewTeliaInvBusy=useState(false);var previewTeliaInvBusy=_previewTeliaInvBusy[0],sPreviewTeliaInvBusy=_previewTeliaInvBusy[1];
   var _teliaInvAprvSt=useState("");var teliaInvAprvSt=_teliaInvAprvSt[0],sTeliaInvAprvSt=_teliaInvAprvSt[1];
   var _teliaInvAprvBusy=useState(false);var teliaInvAprvBusy=_teliaInvAprvBusy[0],sTeliaInvAprvBusy=_teliaInvAprvBusy[1];
-  var _teliaInvFromIn=useState(o.teliaRouteFrom||"");var teliaInvFromIn=_teliaInvFromIn[0],sTeliaInvFromIn=_teliaInvFromIn[1];
-  var _teliaInvToIn=useState(o.teliaRouteTo||"");var teliaInvToIn=_teliaInvToIn[0],sTeliaInvToIn=_teliaInvToIn[1];
   var _teliaInvEmailIn=useState(o.teliaInvEmail||"");var teliaInvEmailIn=_teliaInvEmailIn[0],sTeliaInvEmailIn=_teliaInvEmailIn[1];
   // LitGrid — pasirinkti puslapiai
   var _initLGSrcs=((o.pendingLitgridEmail||{}).attachmentSources||[]).filter(function(s){return s.type!=="library"});
@@ -3151,8 +3147,8 @@ function PermitDetail(p){
           if(keAprvBusy)return;
           sKEAprvBusy(true);sKEAprvSt("Atnaujinamas laiško turinys...");
           try{
-            var newFrom=(keFromIn||"").trim();
-            var newTo=(keToIn||"").trim();
+            var newFrom=(trFromIn||"").trim();
+            var newTo=(trToIn||"").trim();
             var base=Object.assign({},o,{teliaRouteFrom:newFrom,teliaRouteTo:newTo});
             var newKE=await preparePendingKauoenergijaEmail(base);
             // Atnaujinamas tik laiško turinys — pasirinkti puslapiai nekeičiami
@@ -3229,12 +3225,12 @@ function PermitDetail(p){
                 <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
                   <div style={{flex:"1 1 200px",minWidth:160}}>
                     <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Trasos pradžia</div>
-                    <input type="text" value={keFromIn} onChange={function(e){sKEFromIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88"
+                    <input type="text" value={trFromIn} onChange={function(e){sTrFromIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88"
                       style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
                   <div style={{flex:"1 1 200px",minWidth:160}}>
                     <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Trasos pabaiga</div>
-                    <input type="text" value={keToIn} onChange={function(e){sKEToIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88, Kaunas"
+                    <input type="text" value={trToIn} onChange={function(e){sTrToIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88, Kaunas"
                       style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
                 </div>
@@ -3288,8 +3284,8 @@ function PermitDetail(p){
           if(teliaInvAprvBusy)return;
           sTeliaInvAprvBusy(true);sTeliaInvAprvSt("Atnaujinamas laiško turinys...");
           try{
-            var newFrom=(teliaInvFromIn||"").trim();
-            var newTo=(teliaInvToIn||"").trim();
+            var newFrom=(trFromIn||"").trim();
+            var newTo=(trToIn||"").trim();
             var emailVal=(teliaInvEmailIn||"").trim();
             var base=Object.assign({},o,{teliaRouteFrom:newFrom,teliaRouteTo:newTo,teliaInvEmail:emailVal||o.teliaInvEmail});
             var updated=await preparePendingTeliaInvEmail(base);
@@ -3402,12 +3398,12 @@ function PermitDetail(p){
                 <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
                   <div style={{flex:"1 1 200px",minWidth:160}}>
                     <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Trasos pradžia</div>
-                    <input type="text" value={teliaInvFromIn} onChange={function(e){sTeliaInvFromIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88"
+                    <input type="text" value={trFromIn} onChange={function(e){sTrFromIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88"
                       style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
                   <div style={{flex:"1 1 200px",minWidth:160}}>
                     <div style={{fontSize:10,color:C.t2,fontFamily:F,marginBottom:3}}>Trasos pabaiga</div>
-                    <input type="text" value={teliaInvToIn} onChange={function(e){sTeliaInvToIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88, miestas"
+                    <input type="text" value={trToIn} onChange={function(e){sTrToIn(e.target.value)}} placeholder="pvz.: Laisvės al. 88, miestas"
                       style={{width:"100%",padding:"6px 8px",fontSize:12,fontFamily:F,background:C.bg,color:C.tx,border:"1px solid "+C.b1,borderRadius:6}}/>
                   </div>
                 </div>
