@@ -1726,14 +1726,24 @@ async function _checkImapMailImpl() {
 
 // ── Seniūnijų el. paštai ─────────────────────────────────────
 const SENIUNIJA_MAP = [
-  { name: 'Panemunės-Šančių seniūnija',  email: 'panemune-sanciai@kaunas.lt',
-    keywords: ['panemun','šanč','sanciu','ivinskio','karklup','šančių','panemunė'] },
+  { name: 'Aleksoto seniūnija',           email: 'aleksotas@kaunas.lt',
+    keywords: ['aleksot','čiurlionio','birutės','julijanav','linksmadvaris','marvelė','radzinausko','jiesia','narsiečiai','yliškės','kazliškės'] },
   { name: 'Centro-Žaliakalnio seniūnija', email: 'centras-zaliakalnis@kaunas.lt',
     keywords: ['žaliakalnis','zaliakalnis','gedimino','donelaičio','laisvės al','mickevičiaus','vytauto pr','savanorių pr'] },
   { name: 'Dainavos seniūnija',           email: 'dainava@kaunas.lt',
     keywords: ['dainav','draugystės','taikos pr','studentų','vydūno','partizanų'] },
   { name: 'Eigulių seniūnija',            email: 'eiguliai@kaunas.lt',
     keywords: ['eiguliai','eigulių','perkūno','romaičių','baltijos','giraitė','smėliai'] },
+  { name: 'Panemunės-Šančių seniūnija',   email: 'panemune-sanciai@kaunas.lt',
+    keywords: ['panemun','šanč','sanciu','ivinskio','karklup','šančių','panemunė'] },
+  { name: 'Petrašiūnų-Gričiupio seniūnija', email: 'petrasiunai-griciupis@kaunas.lt',
+    keywords: ['petrašiūn','petrasiun','gričiupis','griciupis','lampėdžiai','lampedz','jonavos g'] },
+  { name: 'Šilainių seniūnija',           email: 'silainiai@kaunas.lt',
+    keywords: ['šilain','silain','šilaič','ganytojų','dainiai','romainiai'] },
+  { name: 'Vilijampolės seniūnija',       email: 'vilijampole@kaunas.lt',
+    keywords: ['vilijampolė','vilijampole','vilijampol','baršauk','kleboniš','žalioji','šilagalio'] },
+  { name: 'Žemosios Fredos seniūnija',    email: 'aleksotas@kaunas.lt',
+    keywords: ['žemoji freda','zemoji freda','aukštoji freda','aukstoji freda','fredos','freda'] },
 ];
 
 function detectSeniunija(address) {
