@@ -5683,9 +5683,9 @@ function Sidebar(p){
   var role=p.user.role;
   var sverVal=window.APP_VERSION?"v"+window.APP_VERSION:"";
   var items=[];
-  if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"mine",icon:"📋",label:"Mano paraiškos"},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="dokumentacija") items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"library",icon:"📁",label:"Šablonai"},{id:"profile",icon:"👤",label:"Mano profilis"}];
-  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"permits",icon:"🏆",label:"Leidimai"},{id:"all",icon:"📋",label:"Visos paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  if(role==="orderer")     items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"mine",icon:"📋",label:"Mano paraiškos"},{id:"permits",icon:"🏆",label:"Paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="dokumentacija") items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"permits",icon:"🏆",label:"Paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"library",icon:"📁",label:"Šablonai"},{id:"profile",icon:"👤",label:"Mano profilis"}];
+  else if(role==="admin")  items=[{id:"new",icon:"➕",label:"Nauja paraiška"},{id:"inbox",icon:"📥",label:"Naujos",badge:p.newCount},{id:"permits",icon:"🏆",label:"Paraiškos"},{id:"schedule",icon:"📅",label:"Leidimų grafik."},{id:"users",icon:"👥",label:"Vartotojai",badge:p.pendingCount},{id:"profile",icon:"👤",label:"Mano profilis"}];
   var _adminOpen=useState(false);var adminOpen=_adminOpen[0],sAdminOpen=_adminOpen[1];
   var adminUtilItems=[{id:"library",icon:"📁",label:"Šablonai"},{id:"system",icon:"⚙️",label:"Sistema"}];
   return <div style={{width:200,background:C.s1,borderRight:"1px solid "+C.b1,display:"flex",flexDirection:"column",height:"100vh",flexShrink:0}}>
@@ -6538,7 +6538,7 @@ function App(){
   }else if(view==="system"){
     main=<SystemTools/>;
   }else{
-    var titles={inbox:"Naujos paraiškos",mine:"Mano paraiškos",submitted:"Pateiktos paraiškos",permits:"Leidimai",closed:"Uždaryti objektai",all:"Visos paraiškos"};
+    var titles={inbox:"Naujos paraiškos",mine:"Mano paraiškos",submitted:"Pateiktos paraiškos",permits:"Paraiškos",closed:"Uždaryti objektai",all:"Visos paraiškos"};
     main=<div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
         <h2 style={{fontSize:18,fontWeight:800,color:C.tx,fontFamily:F}}>{titles[view]||""}</h2>
